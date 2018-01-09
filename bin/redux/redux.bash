@@ -420,44 +420,45 @@ done
 
 # (2) CHECK NECESSARY FILES EXIST
 
-# Check the folder containing the zip files exists {{{
+# Check ZIPDIR - the folder containing the zip files exists {{{
 
 if [ ! -d "$ZIPDIR" ]; then
-echo "Input zip folder does not appear to exist. Aborting."
-exit 1
+    echo "Input zip folder does not appear to exist. Aborting."
+    exit 1
 fi
 
 # }}}
-# Check the zip working exists && Empty it, otherwise make it {{{
+# Check WORKING - the zip working exists && Empty it, otherwise make it {{{
 
 if [ ! -d "working" ]; then
-mkdir working
+    mkdir working
 else
-rm -rf working/*
+    rm -rf working/*
 fi
 
 # }}}
-# Check the folder for the output exists && Empty it, otherwise make it {{{
+# Check UNZIP - the folder for the output exists && Empty it, otherwise make it {{{
 
 if [ ! -d "unzip" ]; then
-mkdir unzip
+    mkdir unzip
 else
-if [ "$ZIPUPDATEONLY" == 0 ]; then
-	rm -f unzip/*.bed unzip/*.vcf
-fi
+    if [ "$ZIPUPDATEONLY" == 0 ]; then
+	    rm -f unzip/*.bed unzip/*.vcf
+    fi
 fi
 
 # }}}
+
 # Get the list of input files {{{
 
 FILES=(`ls zip/big*.zip`)
 
 if [ ${#FILES[@]} == 0 ]; then
-echo "No input files detected in zip folder. Aborting."
-echo "Check name format: should be bigy-<NAME>-<NUMBER>.zip"
-exit 1
+    echo "No input files detected in zip folder. Aborting."
+    echo "Check name format: should be bigy-<NAME>-<NUMBER>.zip"
+    exit 1
 else
-echo ${#FILES[@]} "input files detected"
+    echo ${#FILES[@]} "input files detected"
 fi
 
 # }}}
@@ -469,16 +470,16 @@ command -v unzip >/dev/null 2>&1 || { echo >&2 "Unzip package not found. Abortin
 # Check whether SNP list exists {{{
 
 if [ ! -f "snps_hg19.csv" ]; then
-echo "SNP names file does not exist. Try:"
-echo "wget http://ybrowse.org/gbrowse2/gff/snps_hg19.csv -O snps_hg19.csv"
-exit 1
+    echo "SNP names file does not exist. Try:"
+    echo "wget http://ybrowse.org/gbrowse2/gff/snps_hg19.csv -O snps_hg19.csv"
+    exit 1
 fi
 
 # }}}
 # Check whether merge-ignore list exists {{{
 
 if [ ! -f "merge-ignore.txt" ]; then
-touch merge-ignore.txt
+    touch merge-ignore.txt
 fi
 
 # }}}
@@ -488,12 +489,16 @@ fi
 # Unzip each folder in turn {{{
 
 echo "Unzipping..."
+
 if [ "$ZIPUPDATEONLY" == 1 ]; then
 	FILES=(`diff <(ls zip/bigy-*.zip | sed 's/zip\/bigy-//' | sed 's/.zip//') <(ls unzip/*.vcf | sed 's/unzip\///' | sed 's/.vcf//') | grep '<' | awk '{print "zip/bigy-"$2".zip"}'`)
 	echo ${#FILES[@]} "new files found"
 fi
+
 FILECOUNT=0
+
 for ZIPFILE in ${FILES[@]}; do
+
 	let FILECOUNT+=1
 	PREFIX=`echo "$ZIPFILE" | gawk -F- '{print $2"-"$3}' | sed 's/.zip//'`
 	#echo $FILECOUNT: $ZIPFILE : $PREFIX
@@ -505,10 +510,13 @@ for ZIPFILE in ${FILES[@]}; do
 	if [ -s working/"$PREFIX".vcf ] && [ -s working/"$PREFIX".bed ]; then
 		mv working/"$PREFIX".vcf unzip/;
 		mv working/"$PREFIX".bed unzip/;
-		else echo ""; echo "Warning: could not identify VCF and/or BED file for $PREFIX"; fi
-	rm -r working; mkdir working
+	else echo ""; echo "Warning: could not identify VCF and/or BED file for $PREFIX"
+    fi
+
+    rm -r working; mkdir working
 	echo -n "."
 done
+
 echo ""
 
 # Close SKIPZIP if
@@ -521,16 +529,17 @@ fi
 # Skip some more if SKIPZIP set {{{
 
 if [ "$SKIPZIP" -gt "1" ]; then
-cp header.csv report.csv
-NFILES=`head -1 header.csv | gawk -v FS=, '{print NF-17}'`
-echo "... $NFILES results to be post-processed"
+    cp header.csv report.csv
+    NFILES=`head -1 header.csv | gawk -v FS=, '{print NF-17}'`
+    echo "... $NFILES results to be post-processed"
 fi
+
 if [ "$SKIPZIP" -le "1" ]; then
-# Check number of BED = number of VCF files
-if [ `ls unzip/*.bed | wc -l` != `ls unzip/*.vcf | wc -l` ]; then
-echo "Number of BED files does not equal number of VCF files."
-echo "This is an unexpected error. Aborting."
-exit 1
+    # Check number of BED = number of VCF files
+    if [ `ls unzip/*.bed | wc -l` != `ls unzip/*.vcf | wc -l` ]; then
+    echo "Number of BED files does not equal number of VCF files."
+    echo "This is an unexpected error. Aborting."
+    exit 1
 fi
 
 T1=`date +%s.%N`
@@ -586,6 +595,7 @@ echo "$STATS2" | awk '{print $8}' ORS=, | awk '{print substr($0,1,length($0)-1)}
 echo "$STATS2" | awk '{print $9}' ORS=, | awk '{print substr($0,1,length($0)-1)}' >> foo
 paste header.csv foo | sed 's/\t/,/' > fubar
 mv fubar header.csv
+
 # This does the same thing, but slower. From version 0.6.1
 #for BEDFILE in ${FILES[@]}; do
 #	VCFFILE=`echo "$BEDFILE" | sed 's/.bed/.vcf/'`
@@ -598,6 +608,7 @@ mv fubar header.csv
 #	mv foo header.csv
 #	echo -n "."
 #done
+
 echo ""
 cp header.csv report.csv
 
@@ -606,6 +617,7 @@ DT=`echo "$T1" "$T0" | gawk '{print $1-$2}'`
 echo "...complete after $DT seconds"
 
 # Close SKIPZIP if
+
 fi
 
 # }}}
@@ -618,6 +630,7 @@ if [ "$SKIPZIP" == "0" ]; then
 
 echo "Identifying list of variants..."
 gawk '$1=="chrY" && $7=="PASS" && $4!="." && $5!="." {print $2"\t"$4"\t"$5}' unzip/*.vcf | sed 's/,/;/g' > variant-list.txt
+
 #rm -f variant-list.txt
 #for BEDFILE in ${FILES[@]}; do
 #	VCFFILE=`echo "$BEDFILE" | sed 's/.bed/.vcf/'`
@@ -630,6 +643,7 @@ gawk '$1=="chrY" && $7=="PASS" && $4!="." && $5!="." {print $2"\t"$4"\t"$5}' unz
 # Add "missing" clades from file {{{
 
 # ! marks the implication so that is not counted when the SNP counts are made in the next section
+
 gawk '$1=="^" {print $2"\t"$4"\t"$5"\t!"}' implications.txt >> variant-list.txt
 
 # }}}
@@ -662,28 +676,27 @@ echo "...complete after $DT seconds"
 # Switch reference positives {{{
 
 if [ "$TESTFORREFPOS" -gt 0 ]; then
-echo "Replacing positives in the reference sequence..."
-SWAPVARIANTLIST=`gawk '$1=="<" {print $2}' implications.txt`
-for VARIANT in ${SWAPVARIANTLIST[@]}; do
-USED=`grep "$VARIANT" variant-list.txt | wc -l`
-if [ "$USED" -gt "0" ]; then
-	echo "   Variant $VARIANT is used and positive in the reference sequence: replacing..."
-	A=""
-	for BEDFILE in ${FILES[@]}; do
-		VCFFILE=`echo "$BEDFILE" | sed 's/.bed/.vcf/'`
-		B=`gawk -v v="$VARIANT" -v a=0 '$1=="chrY" && $2==v && $7=="PASS" {a=$10~/^0\r?$/?"+":"-"} END {printf "%s",a}' "$VCFFILE"`
-		A="$A$B"
-	done
-	NPOS=`echo "$A" | awk '{for (i=1;i<=length($1);i++) if (substr($1,i,1)=="+") n++} END {print n}'`
-	# Bug fix, Jef Treece
-	#gawk '$1!=v {print} $1==v {truevar=$1"."$4"."$3; printf "%s,%s,%s,%s,%s,%s,",$1,$2,$4,$3,$5,npos; for (i=7;i<=lc;i++) printf "%s,",$i; for (i=lc+1;i<=NF;i++) {if ($i~";") {split ($i,foo,";"); x=";"foo[2]} else {x=""}; q=substr(a,i-lc,1); if (q=="-") o=x; if (q=="+") o=truevar""x; if (q=="0") o=x; printf "%s,",o}; printf "\n"}' v="$VARIANT" a="$A" npos="$NPOS" lc="$LEFTCOLS" FS=, OFS=, variant-match.txt > foo; mv foo variant-match.txt
-	gawk -F, '$1!=v {print} $1==v {truevar=$1"."$4"."$3; printf "%s,%s,%s,%s,%s,%s",$1,$2,$4,$3,$5,npos; for (i=7;i<=lc;i++) printf ",%s,",$i; for (i=lc+1;i<=NF;i++) {if ($i~";") {split ($i,foo,";"); x=";"foo[2]} else {x=""}; q=substr(a,i-lc,1); if (q=="-") o=x; if (q=="+") o=truevar""x; if (q=="0") o=x; printf ",%s",o}; printf "\n"}' v="$VARIANT" a="$A" npos="$NPOS" lc=$LEFTCOLS variant-match.txt > foo; mv foo variant-match.txt
-fi
-done
-
-T1=`date +%s.%N`
-DT=`echo "$T1" "$T0" | gawk '{print $1-$2}'`
-echo "...complete after $DT seconds"
+    echo "Replacing positives in the reference sequence..."
+    SWAPVARIANTLIST=`gawk '$1=="<" {print $2}' implications.txt`
+    for VARIANT in ${SWAPVARIANTLIST[@]}; do
+        USED=`grep "$VARIANT" variant-list.txt | wc -l`
+        if [ "$USED" -gt "0" ]; then
+	        echo "   Variant $VARIANT is used and positive in the reference sequence: replacing..."
+	        A=""
+	        for BEDFILE in ${FILES[@]}; do
+		        VCFFILE=`echo "$BEDFILE" | sed 's/.bed/.vcf/'`
+		        B=`gawk -v v="$VARIANT" -v a=0 '$1=="chrY" && $2==v && $7=="PASS" {a=$10~/^0\r?$/?"+":"-"} END {printf "%s",a}' "$VCFFILE"`
+		        A="$A$B"
+	        done
+	        NPOS=`echo "$A" | awk '{for (i=1;i<=length($1);i++) if (substr($1,i,1)=="+") n++} END {print n}'`
+	        # Bug fix, Jef Treece
+	        #gawk '$1!=v {print} $1==v {truevar=$1"."$4"."$3; printf "%s,%s,%s,%s,%s,%s,",$1,$2,$4,$3,$5,npos; for (i=7;i<=lc;i++) printf "%s,",$i; for (i=lc+1;i<=NF;i++) {if ($i~";") {split ($i,foo,";"); x=";"foo[2]} else {x=""}; q=substr(a,i-lc,1); if (q=="-") o=x; if (q=="+") o=truevar""x; if (q=="0") o=x; printf "%s,",o}; printf "\n"}' v="$VARIANT" a="$A" npos="$NPOS" lc="$LEFTCOLS" FS=, OFS=, variant-match.txt > foo; mv foo variant-match.txt
+	        gawk -F, '$1!=v {print} $1==v {truevar=$1"."$4"."$3; printf "%s,%s,%s,%s,%s,%s",$1,$2,$4,$3,$5,npos; for (i=7;i<=lc;i++) printf ",%s,",$i; for (i=lc+1;i<=NF;i++) {if ($i~";") {split ($i,foo,";"); x=";"foo[2]} else {x=""}; q=substr(a,i-lc,1); if (q=="-") o=x; if (q=="+") o=truevar""x; if (q=="0") o=x; printf ",%s",o}; printf "\n"}' v="$VARIANT" a="$A" npos="$NPOS" lc=$LEFTCOLS variant-match.txt > foo; mv foo variant-match.txt
+        fi
+    done
+    T1=`date +%s.%N`
+    DT=`echo "$T1" "$T0" | gawk '{print $1-$2}'`
+    echo "...complete after $DT seconds"
 fi
 
 # }}}
