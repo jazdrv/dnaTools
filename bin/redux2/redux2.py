@@ -46,10 +46,11 @@
 
 # }}}
 
-import argparse
+import argparse, yaml
 
+config=yaml.load(open('config.yaml'))
 parser = argparse.ArgumentParser()
 parser.add_argument('--foo', help='foo help')
 args = parser.parse_args()
 
-print "hello"
+print (config['VERSION'])

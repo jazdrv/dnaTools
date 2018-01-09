@@ -111,8 +111,9 @@ err_zero_age: 15.02
 # }}}
 # Change Log vars {{{
 
-VERSION: 1.0.1
+VERSION: x.0
 
+# x.0             - prototype python version                 
 # 1.0.1.20170802a - Added duplicate kit check
 # 1.0.0.20170716a - Ratification of successful run on P312, allowing the expansion of code to R-L11
 #                   Added haplogroup prefixes to clade names
@@ -250,7 +251,7 @@ VERSION: 1.0.1
 
 # Note: I believe this needs to be taken out of YAML. keeping her for now.
 
-T0: `date +%s.%N`
+#T0: `date +%s.%N`
 
 # This is the number of columns on the left-hand side of the CSV reports
 
