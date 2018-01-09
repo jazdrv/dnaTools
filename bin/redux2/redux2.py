@@ -46,11 +46,24 @@
 
 # }}}
 
-import argparse, yaml
+import sys,argparse, yaml
 
 config=yaml.load(open('config.yaml'))
+
 parser = argparse.ArgumentParser()
-parser.add_argument('--foo', help='foo help')
+parser.add_argument('-b', '--backup', help='do a backup', action='store_true')
+parser.add_argument('-p', '--prep', help='prep file structure', action='store_true')
 args = parser.parse_args()
 
-print (config['VERSION'])
+#print ('\n'+sys.argv[0]+' version: '+config['VERSION']+'\n')
+print "\n"
+
+if args.backup:
+    print "** performing backup."
+    print "** backup done."
+
+if args.prep:
+    print "** preparing file structure."
+    print "** prep done."
+
+print "\nscript complete.\n"
