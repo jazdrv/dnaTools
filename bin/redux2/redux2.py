@@ -51,9 +51,27 @@
 
 import sys,argparse, yaml
 
+def go_all():
+    go_backup()
+    go_prep()
+    go_data()
+    
+def go_backup():
+    print "** performing backup."
+    print "** + backup done."
+    
+def go_prep():
+    print "** prepare file structure."
+    print "** + prep done."
+    
+def go_data():
+    print "** process SNP data."
+    print "** + SNP processing done."
+
 config=yaml.load(open('config.yaml'))
 
 parser = argparse.ArgumentParser()
+parser.add_argument('-A', '--all', help='perform all steps', action='store_true')
 parser.add_argument('-b', '--backup', help='do a backup', action='store_true')
 parser.add_argument('-p', '--prep', help='prep file structure', action='store_true')
 parser.add_argument('-d', '--data', help='SNP data processing', action='store_true')
@@ -62,16 +80,15 @@ args = parser.parse_args()
 #print ('\n'+sys.argv[0]+' version: '+config['VERSION']+'\n')
 print ""
 
-if args.backup:
-    print "** performing backup."
-    print "** -- backup done."
+if args.all:
+    go_all()
+else:
+    if args.backup:
+        go_backup()
+    if args.prep:
+        go_prep()
+    if args.data:
+        go_data()
 
-if args.prep:
-    print "** preparing file structure."
-    print "** -- prep done."
+print "** script complete.\n"
 
-if args.prep:
-    print "** process SNP data."
-    print "** -- SNP data done."
-
-print "\nscript complete.\n"
