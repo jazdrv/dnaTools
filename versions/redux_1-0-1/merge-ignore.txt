@@ -1,0 +1,65 @@
+S499/Z301 # Never called - artificially inserted
+AMM487/DF98 # Never called - artificially inserted
+S374/YSC0000051/Z17 # Never called - artificially inserted
+FGC53156 # Position guessed - child clade contains more SNPs
+FGC48621 ## Position unclear - wait for further evidence
+23891152 ## Position unclear - wait for further evidence
+8234310 ## Position unclear - wait for further evidence
+FGC15452 ## Position unclear - wait for further evidence
+22233516 # Position guessed - child clade contains more SNPs
+22266819 ## Position unclear - many cbls w.r.t. S9355 - wait for further evidence
+A12299 ## Position unclear - many cbls w.r.t. L200 - wait for further evidence
+A14224 ## Position unclear - many cbls w.r.t. FGC20667/Z42487 - wait for further evidence
+22470732 ## Position unclear - wait for further evidence
+22268634 # Complex with lowest negative call betweeen A9872 and A317
+22268648 # Complex with lowest negative call betweeen A9872 and A317
+22268659 # Complex with lowest negative call betweeen A9872 and A317
+Z4973 # Complex with lowest negative call betweeen A9872 and A317
+22268618 # Complex with lowest negative call betweeen A9872 and A317
+22903850 # Position guessed - child clade contains more SNPs
+8773641 ## Position unclear - wait for further evidence
+FGC12371 ## Position unclear - wait for further evidence
+A8743 ## Position unclear - wait for further evidence
+16647413 # Position guessed - child clade contains more SNPs
+FGC14781 # Position guessed - child clade contains more SNPs
+25931954 ## Position unclear - many cbls w.r.t. FGC13445 - wait for further evidence
+26913553 ## Position unclear - wait for further evidence
+7088354 # Position guessed - child clade contains more SNPs
+14545438 # Position guessed - child clade contains more SNPs
+18982547 # Position guessed - child clade contains more SNPs
+26320799 ## Position unclear - recurrent - wait for further evidence
+Z360 # Position accurate?
+13864673 ## Position unclear - wait for further evidence
+13864680 ## Position unclear - wait for further evidence
+18393226 ## Position unclear - note false positives - wait for further evidence
+22235592 ## Position unclear - wait for further evidence
+BY13805 ## Position unclear - wait for further evidence
+25817494 # Position unclear - likely located at present position
+9113086 # Position guessed - child clade contains more SNPs
+A13237 ## Position unclear - wait for further evidence
+FGC13613 ## Position unclear - wait for further evidence
+19812324 # Confirmed by Michael Sager - rejected in N87009 as BAM file shows HeT
+22240927 ## Position unclear - many ncs - wait for further evidence
+25819474 ## Position unclear - many ncs - wait for further evidence
+FGC63372 ## Position unclear - wait for further evidence
+22488030 # Does not conform to any obvious clade boundaries
+BY19019 # Position guessed - child clade contains more SNPs
+BY19020 # Position guessed - child clade contains more SNPs
+BY18955 # Position guessed - child clade contains more SNPs
+BY18956 # Position guessed - child clade contains more SNPs
+7811662 # Correct position as reported by Michael Sager
+7811664 # Correct position as reported by Michael Sager
+7811668 # Correct position as reported by Michael Sager
+BY17523 ## Position unclear - wait for further evidence
+BY17995 ## Position unclear - wait for further evidence
+14187405 ## Position unclear - wait for further evidence
+14217275 ## Position unclear - wait for further evidence
+BY16546 ## Position unclear - wait for further evidence
+BY16488 ## Position unclear - wait for further evidence
+FGC51521 ## Position unclear - wait for further evidence
+16476130 ## Position unclear - wait for further evidence
+7195422 ## Position unclear - wait for further evidence
+BY20399 ## Position unclear - wait for further evidence
+BY20731 ## Position unclear - wait for further evidence
+BY20734 ## Position unclear - wait for further evidence
+BY20735 ## Position unclear - wait for further evidence
