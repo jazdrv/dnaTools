@@ -2,14 +2,17 @@
 
 # legacy redux.bash steps {{{
 
-# [prep]
+# -b [backup]
 
 # (1) BACKUPS
+
+# -p [prep]
+
 # (2) CHECK NECESSARY FILES EXIST
 # (3) UNZIP FILES
 # (4) EXTRACT RAW DATA
 
-# [data]
+# -d [data]
 
 # (5) POST-PROCESSING OF RAW RESULTS FOR ODDITIES
 # (6) DATA CATEGORISATION (FORM TABLES)
@@ -22,23 +25,23 @@
 # (10) FORM REPORT
 # (11) TREE STRUCTURE
 
-# [qc] 
+# -q [qc] 
 
 # (12) CONSISTENCY CHECKING
 # (13) FLAG CLADES THAT CAN BE MERGED
 # (14) IDENTIFY FORCED POSITIVES : CLADES THAT SHOULDN'T BE MERGED?
 
-# [rpts]
+# -r [rpts]
 
 # (15) INSERT TREE INTO REPORT
 # (16) SHORT REPORT
 # (17) HTML REPORT
 
-# [ages/tmrca]
+# -a [ages/tmrca]
 
 # (18) INITIAL AGE ANALYSIS
 
-# [output]
+# -o [output]
 
 # (19) TREE MERGING
 # (20) AGE REPORT WRITING
@@ -53,17 +56,22 @@ config=yaml.load(open('config.yaml'))
 parser = argparse.ArgumentParser()
 parser.add_argument('-b', '--backup', help='do a backup', action='store_true')
 parser.add_argument('-p', '--prep', help='prep file structure', action='store_true')
+parser.add_argument('-d', '--data', help='SNP data processing', action='store_true')
 args = parser.parse_args()
 
 #print ('\n'+sys.argv[0]+' version: '+config['VERSION']+'\n')
-print "\n"
+print ""
 
 if args.backup:
     print "** performing backup."
-    print "** backup done."
+    print "** -- backup done."
 
 if args.prep:
     print "** preparing file structure."
-    print "** prep done."
+    print "** -- prep done."
+
+if args.prep:
+    print "** process SNP data."
+    print "** -- SNP data done."
 
 print "\nscript complete.\n"
