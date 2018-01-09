@@ -1,0 +1,120 @@
+# Setup Instructions
+
+1. Install non-native packages:{{{
+
+	Windows WSL BASH users:
+	  Non-native package dependences:
+	     unzip
+	  These must be installed before the script is run, otherwise an error message will be generated. Try:
+	     sudo apt-get install unzip
+	Additional package dependencies you may need (installed by default under Windows WSL):
+  	   gawk, sed, python
+
+}}}
+2. Input data setup{{{
+
+(a) Raw BigY data
+   Create sub-directory called zip, and insert BigY zip files into the folder with the format bigy-<NAME>-<KIT NUMBER>.zip
+
+(b) Data filtering
+	 The BigY tests (and all others) contain bad data and labels you may wish to change for whatever reason.
+	 You will need to edit the following files:
+		implications.txt badlist.txt recurrencies.txt cladenames.txt
+	 You will need to do this iteratively, running the report and tweaking the output,
+	 in order to form a coherent tree with the labels you want.
+	(i) Implications (implications.txt). This allows you to correct for no calls and other problems in the data, including:
+		[A] Forcing that any test positive for a sub-clade must be positive for its parent, e.g.:
+            7246726 > 23612197 : L48 > Z381
+		    implies that any L48+ test must be Z381+. The labels are not actually used: it relies on the positions
+		    before the colon. These should be in GrCh37 co-ordinates (native to BigY).
+      [B] Implications can (and probably should) also include two different SNPs, e.g.:
+            7246726 & 8796078 > 23612197 : L48 & U106 > Z381
+          enforces Z381+ if L48+ and U106+. This reduced false implied positives, but takes slightly longer.
+		[C] The implications list can also include a number of SNPs not found in any BigY test which need to be inserted.
+		    These should have the form:
+		      ^ 14181107 Z301 G T
+		    The correct implications then need to be put in place to populate these clades.
+		[D] The implications list is also used to denote positives in the reference genome, using the form:
+		      < 22157311	P312	C	A
+		    which notes that P312 is positive in the reference genome sequence.
+	(ii) Bad data (badlist.txt). Many SNPs are simply not correctly called, called inconsistently,
+		or otherwise not helpful in such a report. They can be filtered out into the list of inconsistent SNPs, e.g.:
+   	  22436300 : E206
+	(iii) Recurrent SNPs (recurrencies.txt). Some SNPs occur more than once in the tree. Sometimes this is useful,
+		sometimes they shouldn't be there. Identify the ones you want to keep using:
+        20723243 : F552
+	(iv) Clade names (cladenames.txt). Automagically generated SNP names can be subsituted, e.g.:
+		S263 Z381
+	replaces the default S263 with the more familiar Z381.
+
+}}}
+3. Running the programme.{{{
+
+(a) Check the set-up data below.
+		Initially, flags should be set to:
+			MAKEREPORT=1
+			MAKEAGES=0
+			MAKESHORTREPORT=1
+			MAKEHTMLREPORT=1
+          CHECKDATA=1
+			SKIPZIP=0
+	  Check the other inputs are what you want them to be too.
+
+(b) Run the programme.
+		./redux.bash
+	  For circa 800 kits, this process takes around 25 minutes on a medium-range 2016 laptop.
+
+(c) Examine the output. In the first instance, this will probably be a horrible mess.
+		The report will be placed in: report.csv
+		The short report will be placed in: shortreport.csv
+		The HTML report will be placed in: report.html
+		The tree will be output in: final-ages.txt and table.html
+		A list of SNPs that are out of place will be placed in: warning-list.txt
+      A list of SNPs that can be merged up into higher clades will be placed in: merge-list.txt
+      A list of forced positives (called negative, presumed positive): forced-list.txt
+
+(d) Filter the input data and repeat. This is the time-consuming part.
+		(i) Identify problematic SNPs in:
+			    warning-list.txt
+		    And fix them by inserting new rules into the implications file (section 2(b)).
+          One strategy is to open shortreport.csv, look for the highest level clade that is
+          broken (column Q > 1) and work out the rule needed to fix the SNPs above to fix it.
+			Anything that can't be fixed by this method should go into badlist.txt
+			In cases where recurrent SNPs are known or strongly suspected, use recurrencies.txt
+			If reference seqeunce positives are an issue (i.e. you are working with a tree
+			structure which includes haplogroups G2 or R1b-U152) then now is the time to
+			correct those too.
+		(ii) Set flags to:
+			SKIPZIP=3
+		and re-run the code (./redux.bash). Rinse and repeat until warning-list.txt is empty.
+		Depending on your dataset, this may take some time.
+		(iv) Check for any warnings in report.html:
+				grep WARNING report.html
+		and re-run the code if any changes are made.
+		(v) Check merge-list.txt for SNPs that can be merged up into their parents.
+			Unless you have a BAM file to check any poor calls, this can be subjective.
+			Generally, SNPs should be merged up if they form a clade on their own, or
+			if they join a larger group of SNPs (e.g. going from being part of a clade of 3 SNPs
+			part of a clade of 7 SNPs is a good merger, the reverse isn't).
+			Re-run the code if any changes are made.
+		report.csv and report.html should now be properly structured.
+(e) Once you have placated the warning list, set:
+          CHECKDATA=0
+			MAKEAGES=1
+		and re-run the code to perform the age analysis.
+	  For circa 800 kits, this process takes another 30 minutes on a medium-range 2016 laptop.
+(f) Once you're done, don't forget to reset:
+			MAKEREPORT=1
+			MAKEAGES=0
+			MAKESHORTREPORT=1
+			MAKEHTMLREPORT=1
+          CHECKDATA=1
+			SKIPZIP=0
+
+}}}
+4. Enjoy the results.{{{
+
+(Note you may want to adjust the SVG output options, and the events.svg and treefoot.html files to suit your haplogroup.)
+
+}}}
+	
