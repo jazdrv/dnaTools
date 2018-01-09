@@ -71,7 +71,7 @@ def go_data():
 config=yaml.load(open('config.yaml'))
 
 parser = argparse.ArgumentParser()
-parser.add_argument('-A', '--all', help='perform all steps', action='store_true')
+parser.add_argument('-A', '--all', help='perform all possible steps', action='store_true')
 parser.add_argument('-b', '--backup', help='do a backup', action='store_true')
 parser.add_argument('-p', '--prep', help='prep file structure', action='store_true')
 parser.add_argument('-d', '--data', help='SNP data processing', action='store_true')
