@@ -59,12 +59,10 @@ def go_all():
 def go_backup():
 
     print "** performing backup."
+    print "** (msg) CREATING BACKUP COPIES OF EXISTING FILES..."
     
-    # Always make a backup
-    
-    print "CREATING BACKUP COPIES OF EXISTING FILES..."
-    
-    BACKUPFILES="variant-*.txt snps_hg19.csv snp-names.csv snp-used.csv report.csv short-report.csv clades.csv tree.txt raw-ages.txt"
+    #BACKUPFILES = "variant-*.txt snps_hg19.csv snp-names.csv snp-used.csv report.csv short-report.csv clades.csv tree.txt raw-ages.txt"
+    print config['backup_files']
     
     #refresh autobackup folder
     
@@ -119,7 +117,7 @@ def go_data():
     print "** + SNP processing done."
 
 REDUX_CONF = os.environ['REDUX_CONF']
-config=yaml.load(open(REDUX_CONF))
+config = yaml.load(open(REDUX_CONF))
 
 parser = argparse.ArgumentParser()
 parser.add_argument('-A', '--all', help='perform all possible steps', action='store_true')

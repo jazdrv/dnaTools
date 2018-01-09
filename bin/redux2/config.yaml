@@ -1,6 +1,8 @@
 ---
 # General Vars {{{
 
+backup_files: variant-*.txt snps_hg19.csv snp-names.csv snp-used.csv report.csv short-report.csv clades.csv tree.txt raw-ages.txt
+
 # This label will define what your top-level SNP is called out of the (usually large number of) possible shared SNPs.
 
 haplogroup: R
