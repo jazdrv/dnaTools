@@ -1,6 +1,6 @@
 # !/bin/bash
 
-# {{{
+# hide-this-1{{{
 
 # Author: Iain McDonald
 # Contributors: Harald Alvestrand, Jef Treece
@@ -11,6 +11,7 @@
 # WARNING: This code is not yet ready for clades outside of U106. Please contact the author for details.
 
 # }}}
+# hide-this-2 {{{
 
 # SET-UP INSTRUCTIONS
 
@@ -373,6 +374,8 @@ T0=`date +%s.%N`
 # This is the number of columns on the left-hand side of the CSV reports
 LEFTCOLS=17
 # Use is currently under development
+
+# }}}
 
 # }}}
 
