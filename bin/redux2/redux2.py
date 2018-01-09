@@ -49,7 +49,7 @@
 
 # }}}
 
-import sys,argparse, yaml
+import sys,argparse,yaml,os,glob
 
 def go_all():
     go_backup()
@@ -57,9 +57,59 @@ def go_all():
     go_data()
     
 def go_backup():
+
     print "** performing backup."
-    print "** + backup done."
     
+    # Always make a backup
+    
+    print "CREATING BACKUP COPIES OF EXISTING FILES..."
+    
+    BACKUPFILES="variant-*.txt snps_hg19.csv snp-names.csv snp-used.csv report.csv short-report.csv clades.csv tree.txt raw-ages.txt"
+    
+    #refresh autobackup folder
+    
+    if (os.path.isdir("autobackup")):
+        files = glob.glob('autobackup/*')
+        for f in files:
+            os.remove(f)
+    else:
+        #os.makedirs("autobackup", exist_ok=True)
+        os.makedirs("autobackup")
+    
+    # pending {{{
+    
+    #for file in $BACKUPFILES; do
+    #    test -f $file && cp -p $file autobackup/
+    #done
+    
+    #if [ "$MAKEREPORT" -gt "0" ]; then
+    
+    #echo "MAKING REPORT..."
+    # #rm -f report.csv
+    
+    #if [ "$SKIPZIP" == "0" ]; then
+    
+    # Make further backup copies when running the script from scratch
+    # This is useful when you want to make changes to the bad/inconsistent list, but still want to compare to the original previous run.
+    
+    # For example:
+    # gawk 'NR==FNR {c[$5]++;next};c[$5]==0' tree.txt autobackup2/tree.txt
+    # will tell you the changes to the tree structure that have resulted from the addition of new kits between "from-scratch" runs.
+    
+    #if [ ! -d "autobackup2" ]; then
+    #    mkdir autobackup2
+    #else
+    #    rm -rf autobackup2/*
+    #fi
+    
+    #for file in $BACKUPFILES; do
+    #    test -f $file && cp -p $file autobackup2/
+    #done
+    
+    # }}}
+    
+    print "** + backup done."
+
 def go_prep():
     print "** prepare file structure."
     print "** + prep done."
@@ -68,7 +118,8 @@ def go_data():
     print "** process SNP data."
     print "** + SNP processing done."
 
-config=yaml.load(open('config.yaml'))
+REDUX_CONF = os.environ['REDUX_CONF']
+config=yaml.load(open(REDUX_CONF))
 
 parser = argparse.ArgumentParser()
 parser.add_argument('-A', '--all', help='perform all possible steps', action='store_true')
