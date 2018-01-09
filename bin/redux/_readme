@@ -1,0 +1,30 @@
+#Readme for this folder
+
+= scripts
+
+* positives-and-no-calls.py
+* redux.bash
+
+= data
+
+* - cladenames.txt - automagically generated SNP names can be subsituted
+* - implications.txt - this allows you to correct for no calls and other problems in the data
+*   (a) forcing that any test positive for a sub-clade must be positive for its parent
+    (b) (i) can (and probably should) also include two different SNPs.
+        (ii) enforces Z381+ if L48+ and U106+.
+    (c) can also include a number of SNPs not found in any BigY test which need to be inserted
+    (d) used to denote positives in the reference genome
+* - badlist.txt - snp's that should be filtered out
+* - recurrencies.txt - snp's that recur. sometimes useful, sometimes not.
+* merge-ignore.txt
+* age.bed
+* poisson.tbl
+* cpoisson.tbl
+
+= ???
+
+* events.svg
+
+= web content
+
+* treefoot.html
