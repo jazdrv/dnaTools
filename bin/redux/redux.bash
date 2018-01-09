@@ -385,9 +385,9 @@ echo "CREATING BACKUP COPIES OF EXISTING FILES..."
 BACKUPFILES="variant-*.txt snps_hg19.csv snp-names.csv snp-used.csv report.csv short-report.csv clades.csv tree.txt raw-ages.txt"
 
 if [ ! -d "autobackup" ]; then
-mkdir autobackup
+    mkdir autobackup
 else
-rm -rf autobackup/*
+    rm -rf autobackup/*
 fi
 for file in $BACKUPFILES; do
     test -f $file && cp -p $file autobackup/
@@ -402,13 +402,15 @@ if [ "$SKIPZIP" == "0" ]; then
 
 # Make further backup copies when running the script from scratch
 # This is useful when you want to make changes to the bad/inconsistent list, but still want to compare to the original previous run.
+
 # For example:
 # gawk 'NR==FNR {c[$5]++;next};c[$5]==0' tree.txt autobackup2/tree.txt
 # will tell you the changes to the tree structure that have resulted from the addition of new kits between "from-scratch" runs.
+
 if [ ! -d "autobackup2" ]; then
-mkdir autobackup2
+    mkdir autobackup2
 else
-rm -rf autobackup2/*
+    rm -rf autobackup2/*
 fi
 for file in $BACKUPFILES; do
     test -f $file && cp -p $file autobackup2/
