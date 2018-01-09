@@ -379,7 +379,7 @@ LEFTCOLS=17
 
 # }}}
 
-# (1) BACKUPS
+# (1) B - BACKUPS
 
 # Always make a backup {{{
 
@@ -421,7 +421,7 @@ done
 
 # }}}
 
-# (2) CHECK NECESSARY FILES EXIST
+# (2) P - CHECK NECESSARY FILES EXIST
 
 # Check ZIPDIR - the folder containing the zip files exists {{{
 
@@ -487,7 +487,7 @@ fi
 
 # }}}
 
-# (3) UNZIP FILES
+# (3) P - UNZIP FILES
 
 # Unzip each folder in turn {{{
 
@@ -527,7 +527,7 @@ fi
 
 # }}}
 
-# (4) EXTRACT RAW DATA
+# (4) P - EXTRACT RAW DATA
 
 # Skip some more if SKIPZIP set {{{
 
@@ -674,7 +674,7 @@ echo "...complete after $DT seconds"
 
 # }}}
 
-# (5) POST-PROCESSING OF RAW RESULTS FOR ODDITIES
+# (5) D - POST-PROCESSING OF RAW RESULTS FOR ODDITIES
 
 # Switch reference positives {{{
 
@@ -771,7 +771,7 @@ mv foo variant-output.txt
 
 # }}}
 
-# (6) DATA CATEGORISATION (FORM TABLES)
+# (6) D - DATA CATEGORISATION (FORM TABLES)
 
 # Remove common SNPs {{{
 
@@ -795,7 +795,7 @@ echo "...complete after $DT seconds"
 
 # }}}
 
-# (7) DATA ORDERING
+# (7) D - DATA ORDERING
 
 # Initial vertical sorting of SNPs {{{
 
@@ -872,7 +872,7 @@ echo "...complete after $DT seconds"
 
 # }}}
 
-# (8) NAMES TO SNPS
+# (8) D - NAMES TO SNPS
 
 # Replace SNP names {{{
 
@@ -896,7 +896,7 @@ echo "...complete after $DT seconds"
 
 # }}}
 
-# (9) STATISTICS GENERATION
+# (9) D - STATISTICS GENERATION
 
 # Count the number of SNPs and indels, count the singletons, and count the singletons for any later age analysis {{{
 
