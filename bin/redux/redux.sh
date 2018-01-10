@@ -451,7 +451,6 @@ else
 fi
 
 # }}}
-
 # Get the list of input files {{{
 
 FILES=(`ls zip/big*.zip`)
