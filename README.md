@@ -28,7 +28,7 @@ This README would normally document whatever steps are necessary to get your app
 * Repo owner or admin
 * Other community or team contact
 
-BACKGROUND<br>
+### BACKGROUND
 This project was borne out of two needs: (1) a desire to have a matching service for BigY tests that was better than could be provided by Family Tree DNA itself; and (2) a desire to understand the cultural and migratory history of R-U106, by pinning the ages and geographic distributions of clades to known archaeological or historic cultures, by providing ages and geographical distributions for each clade. Part (1) was originally run by David Carlisle, who developed a degenerative condition, and was taken over by Andrew Booth, who died suddenly. Part (2) was already being run by me. As one of the few people who could, I took on the role on Andrew's death. However, since David's software was bespoke for Macs, I needed to make a hack-and-slash attempt to reproduce the output for myself. 
 
 This resulted in the old Build 37 "version 1" pipeline is on my website:
@@ -40,7 +40,7 @@ https://groups.yahoo.com/neo/groups/R1b1c_U106-S21/files/ Big-Y files/
 
 I've been helped in this by both Harald and Jef. Jef has also helped me extend the effort to cover P312, so knows the software and its shortfalls.
 
-SUMMARY OF PLANS
+### SUMMARY OF PLANS
 The driving aim now is to repurpose this service for Build 38, but also to improve it, extend its reach, make it more flexible and general, and to decrease the amount of manual maintenance going into generating the haplogroup tree.
 
 While it would be possible to convert the original code to deal with the Build 38 files with a week or two's work, I feel this hack-and-slash effort has run its course. Part of the reasoning behind this is that too much of my time is being spent patching up the haplotrees with manual adjustments that can be automated. Another motivation is that I'm under increasing moral pressure to include other types of test into this analysis, and I think I've working out the mathematical reasoning that allows me to do so. A third motivation is that I need to learn Python for a project I'm doing at work, and SQL will be useful in another project I'm involved in, which motivates the choice of language and database software: Python + SQL, in order that I can learn both.
@@ -53,7 +53,7 @@ For privacy and accountability reasons, the intention is for this to remain clos
 https://www.dropbox.com/sh/dq9fejhcmoolkb4/AAB9nASddMtiB6B3R0AYEbAta?dl=0
 Currently, only Family Tree DNA has converted to Build 38, but the other companies are expected to follow suit.
 
-PROGRESS AND DIRECTIONS
+### PROGRESS AND DIRECTIONS
 So far, we haven't made much progress, other than me climbing the simultaneous learning curves of Python and SQL, and my hacking together some of our old code to form the Python script attached to this e-mail. Jef and I have had a bit of a think about database structures, but haven't finalised anything yet.
 
 I have an e-mail from Zak today, saying he has done the following:
@@ -61,7 +61,7 @@ I have an e-mail from Zak today, saying he has done the following:
 - sent you a way we (+ others) can "collaborate" ... irc #dnatools
 If anyone wants to do anything differently or has other suggestions, let me know. Otherwise, Zak can send out further invites. I'm in your (combined) more-experienced hands when it comes to anything to do with multi-person code writing.
 
-DETAILED PLAN
+### DETAILED PLAN
 
 PART A: Assemble the SNP data
 Goal: To capture data on people and get it into an internal database for analysis
@@ -76,7 +76,7 @@ Goal: To capture data on people and get it into an internal database for analysi
 9. Comparison to the age analysis BED file is needed to populate (g) in Calls.
 10. Non-NGS tests can similarly be added to Calls, including those from YSeq, the literature, and SNP packs. For YSeq, or where corresponding BED information is unavailable, no-calls must be inserted for non-positive variants.
 
-PART B: Assemble the tree
+### PART B: Assemble the tree
 Goal: To use the captured data to automatically generate a haplotree
 1. Create a data structure (Tree) noting clade ID; parent ID; clade name; {list of variants}; {quality scores for phylogenic accuracy}; {one or more flags for variants for later analysis}; {list of child clades}; {ancestral STR alleles}; origin latitude; origin longitude; shared coverage; shared coverage within age BED; oldest/defining MDKA; SNP age; {SNP age 95% confidence interval}; {SNP age probability distribution function [PDF] (e.g. in steps of 10 years)}; {SNP parent clade age PDF}; STR age; {STR age 95% confidence interval}; {STR age PDF}; {STR parent clade age PDF}; combined age; {combined age 95% confidence interval}; {combined age PDF},
 2. Select mutations with 100% calls and make a tree:
@@ -100,7 +100,7 @@ Goal: To use the captured data to automatically generate a haplotree
 (c) A *nix-style join should be done against the age analysis BED regions to determine the coverage used for the later age analysis.
 9. Output a visual representation of the tree and sorted matrix of Calls.
 
-PART C: Importing STR matches
+### PART C: Importing STR matches
 Goal: To predict haplogroups for testers without NGS tests, giving probabilities, which will also provide extra data for part D.
 1. A data structure (STRs) is needed, containing kit number; person; and a standardised array of STR results. Nulls must be representable.
 2. The People array must be consulted to populate person in the STRs array.
@@ -108,7 +108,7 @@ Goal: To predict haplogroups for testers without NGS tests, giving probabilities
 4. The tree can be parsed from top to bottom, assigning ancestral STRs to each node. An effective way to do this seems to be to start from the ancestral STRs from the parent clade, and assign mutations from this if two-thirds* of the sub-clades share this mutation (*not sure if this should be >= or > 2/3). Exceptions to this can be managed in step 3.
 5. Parse list of non-NGS testers, and match each up to a clade in a probabilistic (binomial) sense (cf. SAPP) using the identified mutations in that clade.
 
-PART D: Geographical analysis
+### PART D: Geographical analysis
 Goal: To identify the population distributions of each clade, debias them to absolute numbers via correct weighting, and use the clade-averaged position to predict the population's origin.
 1. Working from the bottom to the top of the Tree, combine the geographic origins of People into their most-recent known haplogroups. Weighting here is important. First, each country/region needs weighted according to the depth of testing (regional weight = population at average MRCA date / testing population). Haplogroups can then be combined, working up the tree:
 (a) If a clade has no sub-clades, the nodal location is = {Sum(Latitude * regional weight)/Sum(regional weight) ; Sum(Longitude * regional weight)/Sum(regional weight)}.
@@ -116,7 +116,7 @@ Goal: To identify the population distributions of each clade, debias them to abs
 (c) Update latitude and longitude of origin in Tree.
 2. Output a series of visualisations allowing migrations to be tracked.
 
-PART E: Age analysis
+### PART E: Age analysis
 Goal: To provide the age of the most-recent common ancestor for each clade
 1. For each Person, use Calls and Tree to count the singletons and shared SNPs which are (a) within the BED file of each Person and (b) within the regions of shared coverage for the most-recent known haplogroup.
 2. For each NGS test, use Poisson statistics to derive an array representing the PDF for the age of that clade, and multiply the PDF arrays together.
@@ -130,7 +130,7 @@ Goal: To provide the age of the most-recent common ancestor for each clade
 
 The final output will be a time-indexed, geo-coded haplogroup tree, which can be used to track relationships and migrations over the whole of the root haplogroup's history. The aim is to apply this to R-L11 and possibly a wider set of haplogroups.
 
-PRIORITIES
+### PRIORITIES
 This is a big project, so there is a need to prioritise how things happen. This prioritisation is driven largely by what the community needs, which I see as the following:
 
 1. The immediate need is to get back up and running the systems we had in place before. That means we need to start being able to generate a haplotree from input Build 38 BigY VCF/BED file pairs, and being able to output that haplotree in a meaningful form, cf. the "HTML table of clades" and "full report" in version 1. (PART A and B in the above).
