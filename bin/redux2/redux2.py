@@ -70,25 +70,27 @@ def touch_file(FILE):
     FILE = REDUX_ENV+'/'+FILE
     if not os.path.exists('merge-ignore.txt'):
         open('merge-ignore.txt','w').close()
+    
 def cmd_exists(CMD):
     return any(os.access(os.path.join(path, CMD), os.X_OK) for path in os.environ["PATH"].split(os.pathsep))
 
 def go_all():
-    go_backup()
-    go_prep()
-    go_data()
+    print "go all"
+#    go_backup()
+#    go_prep()
+#    go_data()
     
 def go_backup():
 
     print "** performing backup."
     print "** (msg) CREATING BACKUP COPIES OF EXISTING FILES..."
-
+    
     # autobackup dir
     refresh_dir('autobackup')
     for FILE_PATTERN in config['backup_files'].split():
         for FILE in glob.glob(FILE_PATTERN):
             shutil.copy(FILE,'autobackup')
-
+    
     # autobackup2 dir {{{
 
     # Make further backup copies when running the script from scratch
@@ -96,14 +98,14 @@ def go_backup():
     # For example:
     # gawk 'NR==FNR {c[$5]++;next};c[$5]==0' tree.txt autobackup2/tree.txt
     # will tell you the changes to the tree structure that have resulted from the addition of new kits between "from-scratch" runs.
-
+    
     #refresh_dir('autobackup2')
     #for FILE_PATTERN in config['backup_files'].split():
     #    for FILE in glob.glob(FILE_PATTERN):
     #        shutil.copy(FILE, 'autobackup2')
-
+    
     # }}}
-
+    
     if config['make_report']:
         #print "MAKING REPORT..."
         delete_file('report.csv')
@@ -116,6 +118,7 @@ def go_prep():
 
     # SKIPZIP check (beg)
 
+    config['skip_zip'] = False
     if not config['skip_zip']:
 
         # Check ZIPDIR - contains existing zip files {{{
@@ -137,7 +140,7 @@ def go_prep():
         # }}}
         # Get the list of input files {{{
 
-        FILES = glob.glob('zip/big*.zip')
+        FILES = glob.glob(REDUX_ENV+'/zips/bigy-*.zip')
 
         if len(FILES) == 0:
             print "No input files detected in zip folder. Aborting."
@@ -156,9 +159,10 @@ def go_prep():
         # }}}
         # Check whether SNP list exists {{{
 
-        if not os.path.exists('snps_hg19.csv'):
+        csv = config['SNP_CSV']
+        if not os.path.exists(csv):
             print "SNP names file does not exist. Try:"
-            print "wget http://ybrowse.org/gbrowse2/gff/"+SNP_CSV+" -O "+SNP_CSV+"\n"
+            print "wget http://ybrowse.org/gbrowse2/gff/"+csv+" -O "+csv+"\n"
             sys.exit()
 
         # }}}
@@ -176,7 +180,7 @@ def go_prep():
 
         if config['zip_update_only']:
             #FILES=(`diff <(ls zip/bigy-*.zip | sed 's/zip\/bigy-//' | sed 's/.zip//') <(ls unzip/*.vcf | sed 's/unzip\///' | sed 's/.vcf//') | grep '<' | awk '{print "zip/bigy-"$2".zip"}'`)
-            SET = [set(re.sub('zip/bigy-','',re.sub('.zip','',S)) for S in glob.glob('zips/bigy-*.zip')])-set([re.sub('bigy-','',S) for S in glob.glob('unzips/*.vcf')])
+            SET = [set(re.sub('zip/bigy-','',re.sub('.zip','',S)) for S in glob.glob('zips/bigy-*.zip'))]-set([re.sub('bigy-','',S) for S in glob.glob('unzips/*.vcf')])
             #print  ${#FILES[@]} "new files found"
             print "new files found: "+len(SET)
             print "new files detected: " + list(SET)
@@ -363,12 +367,20 @@ def go_prep():
     print "** + prep done."
     
 def go_data():
-
     print "** process SNP data."
     print "** + SNP processing done."
 
-REDUX_CONF = os.environ['REDUX_CONF']
-REDUX_ENV = os.environ['REDUX_ENV']
+try:
+    REDUX_CONF = os.environ['REDUX_CONF']
+except:
+    print "Missing environment variable REDUX_CONF. Aborting."
+    syx.exit()
+try:
+    REDUX_ENV = os.environ['REDUX_ENV']
+except:
+    print "Missing environment variable REDUX_ENV. Aborting."
+    syx.exit()
+
 config = yaml.load(open(REDUX_CONF))
 
 parser = argparse.ArgumentParser()
@@ -388,8 +400,8 @@ else:
         go_backup()
     if args.prep:
         go_prep()
-    if args.data:
-        go_data()
+    #if args.data:
+    #    go_data()
 
 print "** script complete.\n"
 
