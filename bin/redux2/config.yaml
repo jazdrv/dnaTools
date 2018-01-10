@@ -19,14 +19,14 @@ top_snp: U106
 # ZIPUPDATEONLY = don't re-extract that already exist # There's a bug here somewhere!
 # TESTFORREFPOS = test for positives in the references sequence and swap if needed: see below
 
-make_report: 1
-make_ages: 1
-make_short_report: 1
-make_html_report: 1 
+make_report: True
+make_ages: True
+make_short_report: True
+make_html_report: True
 skip_zip: 3
-check_data: 1
-zip_update_only: 1
-test_for_ref_pos: 0
+check_data: True
+zip_update_only: True
+test_for_ref_pos: False
 
 # These flags set options for Jef Treece's unpacking script and other options
 # They are not currently implemented
@@ -40,11 +40,11 @@ zip_set: -s 6:1,2,3,4,5,6
 # 0/1 - if 1: only run bash script; do not run clades.py for any operations
 # if setting to 1 when previously run w/ 0, clear out the unzip directory first
 
-bash_only: 1
+bash_only: True
 
 # 0/1 - if 1: drop and recreate the database if running with BASHONLY=0 -- takes a few minutes
 
-recreate_db: 0
+recreate_db: True
 
 # Notes on SKIPZIP
 # Set SKIPZIP to >0 skip the labour-intensive parts of the script. Requires MAKEREPORT=TRUE

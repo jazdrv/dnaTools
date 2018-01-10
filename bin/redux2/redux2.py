@@ -51,6 +51,20 @@
 
 import sys,argparse,yaml,os,glob,shutil
 
+def refresh_dir(DIR,cleanFlag=False):
+    if (os.path.isdir(DIR)):
+        files = glob.glob(DIR+'/*')
+        if cleanFlag:
+            for f in files:
+                os.remove(f)
+    else:
+        os.makedirs(DIR)
+    
+def delete_file(FILE):
+    if os.path.exists(FILE):
+        os.remove(FILE)
+
+
 def go_all():
     go_backup()
     go_prep()
@@ -64,17 +78,10 @@ def go_backup():
     print "** (msg) CREATING BACKUP COPIES OF EXISTING FILES..."
 
     # autobackup folder
-    
-    if (os.path.isdir("autobackup")):
-        files = glob.glob('autobackup/*')
-        for f in files:
-            os.remove(f)
-    else:
-        os.makedirs("autobackup")
-    
+    refresh_folder('autobackup')
     for FILE_PATTERN in config['backup_files'].split():
         for FILE in glob.glob(FILE_PATTERN):
-            shutil.copy(FILE, 'autobackup')
+            shutil.copy(FILE,'autobackup')
 
     # autobackup2 folder {{{
 
@@ -84,13 +91,10 @@ def go_backup():
     # gawk 'NR==FNR {c[$5]++;next};c[$5]==0' tree.txt autobackup2/tree.txt
     # will tell you the changes to the tree structure that have resulted from the addition of new kits between "from-scratch" runs.
 
-    #if (os.path.isdir("autobackup2")):
-    #    files = glob.glob('autobackup2/*')
-    #    for f in files:
-    #        os.remove(f)
-    #else:
-    #    os.makedirs("autobackup2")
-    
+    #refresh_folder('autobackup2')
+    #for FILE_PATTERN in config['backup_files'].split():
+    #    for FILE in glob.glob(FILE_PATTERN):
+    #        shutil.copy(FILE,'autobackup2')
     #for FILE_PATTERN in config['backup_files'].split():
     #    for FILE in glob.glob(FILE_PATTERN):
     #        shutil.copy(FILE, 'autobackup2')
@@ -99,10 +103,8 @@ def go_backup():
 
     if config['make_report'] > 0:
         #print "MAKING REPORT..."
-        if os.path.exists("report.csv"):
-            os.remove("report.csv")
+        delete_file('report.csv')
     
-
     print "** + backup done."
     
 def go_prep():
@@ -122,26 +124,12 @@ def go_prep():
         # }}}
         # Check WORKING - the zip working exists && Empty it, otherwise make it {{{
 
-        if not os.path.exists('working'):
-            os.makedirs("working")
-        else:
-            files = glob.glob('working/*')
-            for f in files:
-                os.remove(f)
+        refresh_dir('working')
 
     # }}}
         # Check UNZIP - the folder for the output exists && Empty it, otherwise make it {{{
 
-        if not os.path.exists('unzip'):
-            os.makedirs("unzip")
-        else:
-            if config['zip_update_only'] == 0:
-                files = glob.glob('unzip/*.bed')
-                for f in files:
-                    os.remove(f)
-                files = glob.glob('unzip/*.vcf')
-                for f in files:
-                    os.remove(f)
+        refresh_dir('unzip',!config['zip_update_only'])
 
         # }}}
         # Get the list of input files {{{
