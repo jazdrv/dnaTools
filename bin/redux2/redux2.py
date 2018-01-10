@@ -49,7 +49,7 @@
 
 # }}}
 
-import sys,argparse,yaml,os,glob
+import sys,argparse,yaml,os,glob,shutil
 
 def go_all():
     go_backup()
@@ -59,53 +59,52 @@ def go_all():
 def go_backup():
 
     print "** performing backup."
-    print "** (msg) CREATING BACKUP COPIES OF EXISTING FILES..."
     
     #BACKUPFILES = "variant-*.txt snps_hg19.csv snp-names.csv snp-used.csv report.csv short-report.csv clades.csv tree.txt raw-ages.txt"
-    print config['backup_files']
-    
-    #refresh autobackup folder
+    print "** (msg) CREATING BACKUP COPIES OF EXISTING FILES..."
+
+    # autobackup folder
     
     if (os.path.isdir("autobackup")):
         files = glob.glob('autobackup/*')
         for f in files:
             os.remove(f)
     else:
-        #os.makedirs("autobackup", exist_ok=True)
         os.makedirs("autobackup")
     
-    # pending {{{
-    
-    #for file in $BACKUPFILES; do
-    #    test -f $file && cp -p $file autobackup/
-    #done
-    
-    #if [ "$MAKEREPORT" -gt "0" ]; then
-    
-    #echo "MAKING REPORT..."
-    # #rm -f report.csv
-    
-    #if [ "$SKIPZIP" == "0" ]; then
-    
+    for FILE_PATTERN in config['backup_files'].split():
+        for FILE in glob.glob(FILE_PATTERN):
+            shutil.copy(FILE, 'autobackup')
+
+    # autobackup2 folder {{{
+
     # Make further backup copies when running the script from scratch
     # This is useful when you want to make changes to the bad/inconsistent list, but still want to compare to the original previous run.
-    
     # For example:
     # gawk 'NR==FNR {c[$5]++;next};c[$5]==0' tree.txt autobackup2/tree.txt
     # will tell you the changes to the tree structure that have resulted from the addition of new kits between "from-scratch" runs.
+
+    #if (os.path.isdir("autobackup2")):
+    #    files = glob.glob('autobackup2/*')
+    #    for f in files:
+    #        os.remove(f)
+    #else:
+    #    os.makedirs("autobackup2")
     
-    #if [ ! -d "autobackup2" ]; then
-    #    mkdir autobackup2
-    #else
-    #    rm -rf autobackup2/*
-    #fi
-    
-    #for file in $BACKUPFILES; do
-    #    test -f $file && cp -p $file autobackup2/
-    #done
-    
+    #for FILE_PATTERN in config['backup_files'].split():
+    #    for FILE in glob.glob(FILE_PATTERN):
+    #        shutil.copy(FILE, 'autobackup2')
+
     # }}}
+
+    if config['make_report'] > 0:
+        print "MAKING REPORT..."
+        if os.path.exists("report.csv"):
+            os.remove("report.csv")
     
+    # if config['skip_zip'] == 0:
+    #   ... don't know what this is for!
+
     print "** + backup done."
 
 def go_prep():
