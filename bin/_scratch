@@ -1,0 +1,7 @@
+FILES=(`diff < \
+(\
+ls zip/bigy-*.zip | sed 's/zip\/bigy-//' | sed 's/.zip//') <(\
+ls unzip/*.vcf | sed 's/unzip\///' | \ sed 's/.vcf//'\
+)\
+| grep '<' | awk '{print "zip/bigy-"$2".zip"}'`)
+
