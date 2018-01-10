@@ -34,7 +34,8 @@ If anyone wants to do anything differently or has other suggestions, let me know
 ### DETAILED PLAN
 
 ### PART A: Assemble the SNP data
-Goal: To capture data on people and get it into an internal database for analysis
+
+* Goal: To capture data on people and get it into an internal database for analysis
 * The records being stored on James's haplogroup-r.org datab ase contain VCF+BED zipped files with associated meta-data. A check needs to be made against this data and new files downloaded and unzipped. A data structure "Kits" references data structure "People", as some people have more than one kit at one company. Kits contains information on the kit (number, company, coverage, etc.), while people needs to contain aggregated and meta-data for each person: MDKA latitude; longitude; MDKA date; MDKA date uncertainty; MDKA text string; most-recent known haplogroup; shared testing coverage; shared testing coverage within age BED region; total testing coverage.
 * VCF files need parsed for a list of variants.
 * This list of variants needs compared against a database (e.g. YBrowse's snps_hg38.csv) to identify ancestral/derived values (replacing reference values).
