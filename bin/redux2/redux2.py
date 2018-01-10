@@ -186,7 +186,8 @@ def go_prep():
 
         if config['zip_update_only'] ==1:
             FILES=(`diff <(ls zip/bigy-*.zip | sed 's/zip\/bigy-//' | sed 's/.zip//') <(ls unzip/*.vcf | sed 's/unzip\///' | sed 's/.vcf//') | grep '<' | awk '{print "zip/bigy-"$2".zip"}'`)
-            echo ${#FILES[@]} "new files found"
+            print  ${#FILES[@]} "new files found"
+            print "new files detected: " + str(files)
 
         FILECOUNT=0
 
