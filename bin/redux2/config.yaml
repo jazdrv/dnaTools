@@ -25,7 +25,7 @@ make_short_report: 1
 make_html_report: 1 
 skip_zip: 3
 check_data: 1
-zip_up_date_only: 1
+zip_update_only: 1
 test_for_ref_pos: 0
 
 # These flags set options for Jef Treece's unpacking script and other options
