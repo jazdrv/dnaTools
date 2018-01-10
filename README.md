@@ -28,7 +28,7 @@ This README would normally document whatever steps are necessary to get your app
 * Repo owner or admin
 * Other community or team contact
 
-BACKGROUND
+BACKGROUND<br>
 This project was borne out of two needs: (1) a desire to have a matching service for BigY tests that was better than could be provided by Family Tree DNA itself; and (2) a desire to understand the cultural and migratory history of R-U106, by pinning the ages and geographic distributions of clades to known archaeological or historic cultures, by providing ages and geographical distributions for each clade. Part (1) was originally run by David Carlisle, who developed a degenerative condition, and was taken over by Andrew Booth, who died suddenly. Part (2) was already being run by me. As one of the few people who could, I took on the role on Andrew's death. However, since David's software was bespoke for Macs, I needed to make a hack-and-slash attempt to reproduce the output for myself. 
 
 This resulted in the old Build 37 "version 1" pipeline is on my website:
