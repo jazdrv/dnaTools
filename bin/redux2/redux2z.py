@@ -1,5 +1,7 @@
 #!/bin/python
 
+#note: I need to use Iain's version of python. perhaps merge some ideas in?
+
 # legacy redux.bash steps {{{
 
 # -b [backup]
