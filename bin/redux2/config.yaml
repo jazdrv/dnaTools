@@ -1,6 +1,10 @@
 ---
 # General Vars {{{
 
+snp_csv_19: snps_hg19.csv
+snp_csv_38: snps_hg38.csv
+SNP_CSV: snps_hg19.csv
+
 backup_files: variant-*.txt snps_hg19.csv snp-names.csv snp-used.csv report.csv short-report.csv clades.csv tree.txt raw-ages.txt
 
 # This label will define what your top-level SNP is called out of the (usually large number of) possible shared SNPs.
@@ -31,7 +35,10 @@ test_for_ref_pos: False
 # These flags set options for Jef Treece's unpacking script and other options
 # They are not currently implemented
 
-zip_dir: zip
+zip_dir: zips
+unzip_dir: unzips
+zip2_dir: zips2
+unzip2_dir: unzips2
 
 # if you only want a subset; add -d if unzip dir is already populated
 
