@@ -3,15 +3,19 @@
 This project was borne out of two needs: 
 
 (1) a desire to have a matching service for BigY tests that was better than could be provided by Family Tree DNA itself; and 
+
 (2) a desire to understand the cultural and migratory history of R-U106, by pinning the ages and geographic distributions of clades to known archaeological or historic cultures, by providing ages and geographical distributions for each clade. 
 
 Part (1) was originally run by David Carlisle, who developed a degenerative condition, and was taken over by Andrew Booth, who died suddenly. 
+
 Part (2) was already being run by me. As one of the few people who could, I took on the role on Andrew's death. However, since David's software was bespoke for Macs, I needed to make a hack-and-slash attempt to reproduce the output for myself. 
 
 This resulted in the old Build 37 "version 1" pipeline is on my website:
 www.jb.man.ac.uk/~mcdonald/genetics.html
+
 along with examples of the output. The list of SNP names can be found here:
 http://ybrowse.org/gbrowse2/gff/snps_hg19.csv
+
 and the repository for U106 input files is on the U106 forum:
 https://groups.yahoo.com/neo/groups/R1b1c_U106-S21/files/ Big-Y files/
 
@@ -27,6 +31,7 @@ The data repository we're using for this is here:
 www.haplogroup-r.org/submit_data.php
 
 For privacy and accountability reasons, the intention is for this to remain closed. To make progress, I've contacted some related testers in R-DF98 personally, and obtained their Build 38 data for use as test cases for use by anyone who wants to help with the coding. These include Jef and myself. They can be downloaded here:
+
 https://www.dropbox.com/sh/dq9fejhcmoolkb4/AAB9nASddMtiB6B3R0AYEbAta?dl=0
 
 Currently, only Family Tree DNA has converted to Build 38, but the other companies are expected to follow suit.
