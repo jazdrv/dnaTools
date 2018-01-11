@@ -11,6 +11,9 @@
 
 # }}}
 
+REDUX_CONF = os.environ['REDUX_CONF']
+REDUX_ENV = os.environ['REDUX_ENV']
+
 def db():
     db_init()
     db_drop_tables()
