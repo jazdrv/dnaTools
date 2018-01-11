@@ -19,6 +19,15 @@ from lib import *
 from db import *
 
 # }}}
+# setup notes {{{
+
+# beyond the modules specified in the lib areas, two env variables are
+# required (ie: can be set in ~/.bashrc):
+
+# REDUX_PATH - where these bin and conf files are
+# REDUX_ENV - where the data will be
+
+# }}}
 
 # trace
 
