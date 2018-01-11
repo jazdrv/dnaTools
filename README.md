@@ -40,8 +40,8 @@ Currently, only Family Tree DNA has converted to Build 38, but the other compani
 
 * So far, we haven't made much progress, other than me climbing the simultaneous learning curves of Python and SQL, and my hacking together some of our old code to form the Python script attached to this e-mail. Jef and I have had a bit of a think about database structures, but haven't finalised anything yet.
 * I have an e-mail from Zak today, saying he has done the following:
-- repo setup on bitbucket ... I sent you an invite
-- sent you a way we (+ others) can "collaborate" ... irc #dnatools
+1.	repo setup on bitbucket ... I sent you an invite
+2.	sent you a way we (+ others) can "collaborate" ... irc #dnatools
 * If anyone wants to do anything differently or has other suggestions, let me know. Otherwise, Zak can send out further invites. I'm in your (combined) more-experienced hands when it comes to anything to do with multi-person code writing.
 
 ### DETAILED PLAN
