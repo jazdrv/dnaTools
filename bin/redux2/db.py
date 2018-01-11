@@ -10,22 +10,32 @@
 # https://www.gnu.org/licenses/gpl.html
 
 # }}}
+# libs {{{
+
+import os,sqlite3,yaml,time,numpy as np
+from misc import *
+from lib import *
+
+# }}}
 
 REDUX_CONF = os.environ['REDUX_CONF']
 REDUX_ENV = os.environ['REDUX_ENV']
+config = yaml.load(open(REDUX_CONF))
+start_time = 0 # need to fix this
 
-def db():
-    db_init()
-    db_drop_tables()
-    db_create_tables()
-    db_inserts()
+def redux_db():
+    cur = db_init()
+    db_drop_tables(cur)
+    db_create_tables(cur)
+    db_inserts(cur)
     
-def init_db():
+def db_init():
     trace (1, "Initialising database...")
     db = sqlite3.connect('variant.db')
     dc = db.cursor()
+    return dc
     
-def db_drop_tables():
+def db_drop_tables(dc):
     if (config['drop_tables'] > 0):
         dc.execute('''DROP TABLE IF EXISTS variants''')
         dc.execute('''DROP TABLE IF EXISTS hg19''')
@@ -36,7 +46,7 @@ def db_drop_tables():
         dc.execute('''DROP TABLE IF EXISTS calls''')
         dc.execute('''DROP TABLE IF EXISTS tree''')
     
-def db_create_tables():
+def db_create_tables(dc):
 
     # variants tbl
 
@@ -285,7 +295,7 @@ def db_create_tables():
 
     # trace (1, "Processing Build 38 BigY files...")
     
-def db_inserts():
+def db_inserts(dc):
 
     # skip to <= 1 - unpack zips
 
@@ -313,7 +323,7 @@ def db_inserts():
     if (config['skip_to'] <= 11):
 
         trace (2, "Generating database of all variants...")
-        vcffiles = [f for f in os.listdir(config['unzip_dir']) if f.endswith('.vcf')]
+        vcffiles = [f for f in os.listdir(REDUX_ENV+'/'+config['unzip_dir']) if f.endswith('.vcf')]
         trace (10, "   %i files detected" % len(vcffiles))
         
         variant_dict = {}

@@ -12,25 +12,21 @@
 # }}}
 # libs {{{
 
-import os
+import os,yaml
+from misc import *
+from db import *
 
 # }}}
 
 REDUX_CONF = os.environ['REDUX_CONF']
 REDUX_ENV = os.environ['REDUX_ENV']
-
-# routines - debug
-
-def trace (level, msg):
-    print(msg)
-    #if level <= config['verbosity']:
-    #    print(msg)
-    
+config = yaml.load(open(REDUX_CONF))
 
 # routines - file/dir - Zak
 
 def refresh_dir(DIR,cleanFlag=False):
     DIR = REDUX_ENV+'/'+DIR
+    print DIR
     if (os.path.isdir(DIR)):
         files = glob.glob(DIR+'/*')
         if cleanFlag:
@@ -518,6 +514,7 @@ def go_prep():
 def go_db():
     print "** process SNP data."
     print "** + SNP processing done."
+    redux_db()
 
 # SNP extraction routines based on original - Harald 
 # extracts the SNP calls from the VCF files and

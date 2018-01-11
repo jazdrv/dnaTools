@@ -12,9 +12,9 @@
 # }}}
 # libs {{{
 
-import sys,argparse,yaml,os,glob,shutil,re
-import time,sqlite3,csv,zipfile,numpy as np
+import sys,argparse,yaml,os,glob,shutil,re,time,csv,zipfile
 from collections import defaultdict
+from misc import *
 from lib import *
 from db import *
 
@@ -28,7 +28,8 @@ trace (1, "Beginning run [%s]" % time.strftime("%H:%M:%S"))
 # env
 
 try:
-    REDUX_CONF = os.environ['REDUX_CONF']
+    sys.path.append(os.environ['REDUX_PATH'])
+    REDUX_CONF = os.environ['REDUX_PATH']+'/config.yaml'
 except:
     print "Missing environment variable REDUX_CONF. Aborting."
     sys.exit()
@@ -95,9 +96,7 @@ def go_prep():
 
         # Check ZIPDIR - contains existing zip files {{{
 
-        if not os.path.exists(config['zip_dir']):
-            print "Input zip folder does not appear to exist. Aborting.\n"
-            sys.exit()
+        refresh_dir('zips',False)
 
         # }}}
         # Check WORKING - the zip working exists && Empty it, otherwise make it {{{
