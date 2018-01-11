@@ -2,25 +2,25 @@
 
 # {{{
 
-@author: Iain McDonald
-Contributors: Jef Treece, Harald Alvestrand
-
-Purpose: Reduction and comparison script for Y-chromosome NGS test data
-For free distribution under the terms of the GNU General Public License,
-version 3 (29 June 2007)
-https://www.gnu.org/licenses/gpl.html
+# @author: Iain McDonald
+# Contributors: Jef Treece, Harald Alvestrand
+# Purpose: Reduction and comparison script for Y-chromosome NGS test data
+# For free distribution under the terms of the GNU General Public License,
+# version 3 (29 June 2007)
+# https://www.gnu.org/licenses/gpl.html
 
 # }}}
 
 import sys,argparse,yaml,os,glob,shutil,re
-import time,sqlite3,csv,shutil,zipfile,numpy as np
+import time,sqlite3,csv,zipfile,numpy as np
 from collections import defaultdict
 
 # routines - debug
 
 def trace (level, msg):
-    if level <= verbosity:
-        print(msg)
+    print(msg)
+    #if level <= config['verbosity']:
+    #    print(msg)
     
 
 # routines - file/dir - Zak
@@ -50,17 +50,17 @@ def cmd_exists(CMD):
 
 # routines - file/dir - Jef/Harald
 
-def setup_dirs (unzip_dir):
-    shutil.rmtree(unzip_dir, ignore_errors=True)
-    os.makedirs(unzip_dir)
+def setup_dirs():
+    shutil.rmtree(config['unzip_dir'],ignore_errors=True)
+    os.makedirs(config['unzip_dir'])
     
-def extract_zips(unzip_dir,zip_dir):
+def extract_zips():
 
-    if not os.path.isdir(zip_dir):
-        trace (0, '   Warn: no directory with zip files: %s' % zip_dir)
+    if not os.path.isdir(config['zip_dir']):
+        trace (0, '   Warn: no directory with zip files: %s' % config['zip_dir'])
         return []
 
-    FILES=os.listdir(zip_dir)
+    FILES = os.listdir(config['zip_dir'])
 
     # try to parse out at least the kit number by trying a series of regular expressions
     # adding regular expressions at the end of this list is safer than at the beginning
@@ -68,6 +68,7 @@ def extract_zips(unzip_dir,zip_dir):
 
     # constants used in filename regular expressions
     # groupings (?:xxx) are ignored
+
     ws = r'^[_]?'
     nam1 = r"[a-z]{0,20}|O\&#39;[a-z]{3,20}|O['][a-z]{3,20}"
     cname = r'([\w]{1,20})' #matches unicode chars; also matches digits though
@@ -85,13 +86,15 @@ def extract_zips(unzip_dir,zip_dir):
     kit = r'(?:(?:kit|ftdna)?[ #]?)?([enhb1-9][0-9]{3,6})'
     rzip = r'zip(?:.zip)?'
     plac = r'([A-Z]{2})'
+
+    #0 e.g. bigy-Treece-N4826.zip
+    #1 e.g. N4826_Treece_US_BigY_RawData_2018-01-03.zip
+    #2 e.g. 548872_Lindstrom_Germany_BigY_RawData_2018-01-01.zip
+
     name_re = [
-        #0 e.g. bigy-Treece-N4826.zip
         (re.compile(ws+sep.join([bigy,name,kit,rzip]), re.I), 'name', 'kit'),
-        #1 e.g. N4826_Treece_US_BigY_RawData_2018-01-03.zip
         (re.compile(ws +sepp.join([kit,name,plac,bigy,rslt,ndate])+'.zip', re.I), 'kit', 'name'),
-        #2 e.g. 548872_Lindström_Germany_BigY_RawData_2018-01-01.zip
-        (re.compile(ws +sepp.join([kit,cname,plac,bigy,rslt,ndate])+'.zip', re.I), 'kit', 'name'),
+        (re.compile(ws +sepp.join([kit,cname,plac,bigy,rslt,ndate])+'.zip', re.I), 'kit', 'name')
         ]
 
 
@@ -151,7 +154,7 @@ def extract_zips(unzip_dir,zip_dir):
     for fname in fname_dict:
         kitnumber, kitname = fname_dict[fname]
         try:
-            zf = zipfile.ZipFile(os.path.join(zip_dir, fname))
+            zf = zipfile.ZipFile(os.path.join(config['zip_dir'], fname))
         except:
             trace (1, '   ERROR: file %s is not a zip' % fname)
         listfiles = zf.namelist()
@@ -171,10 +174,10 @@ def extract_zips(unzip_dir,zip_dir):
             trace(1, '   Warn: BED or VCF file is missing for %s' % fname)
             trace(1, '   This is an unexpected error. %s not processed.' % fname)
             continue
-        zf.extractall(unzip_dir, [bedfile, vcffile])
+        zf.extractall(config['unzip_dir'], [bedfile, vcffile])
         base = '%s-%s' % (kitname, kitnumber)
         try:
-            fpath = os.path.join(unzip_dir, '%s')
+            fpath = os.path.join(config['unzip_dir'], '%s')
             trace (40, "      "+fpath % base)
             os.rename(fpath % bedfile, (fpath % base)+'.bed')
             os.rename(fpath % vcffile, (fpath % base)+'.vcf')
@@ -182,11 +185,12 @@ def extract_zips(unzip_dir,zip_dir):
             trace(1, '   Warn: could not identify VCF and/or BED file for '+base)
 
     # clean up any empty dirs unzip created
+
     if emptydirs:
         trace (30, '   Trying to remove droppings:')
         for dir in emptydirs:
             try:
-                dp = os.path.join(unzip_dir, dir)
+                dp = os.path.join(config['unzip_dir'], dir)
                 os.removedirs(dp)
                 trace (30, '     {0}'.format(dp))
             except FileNotFoundError:
@@ -196,16 +200,18 @@ def extract_zips(unzip_dir,zip_dir):
                 pass
 
     # list of file names we unzipped
-    files = os.listdir(unzip_dir)
+
+    files = os.listdir(config['unzip_dir'])
     return files
-def unpack(zip_dir, unzip_dir, verbosity):
+    
+def unpack():
 
     # messy problem - messy solution - kit names not consistent - Harald/Jef
     # collect run time statistics
 
     trace(10,'   Running the unpack-zip script...')
-    setup_dirs(unzip_dir)
-    fnames = extract_zips(unzip_dir, zip_dir)
+    setup_dirs()
+    fnames = extract_zips()
     trace (10, '   Number of files: {0}'.format(len(fnames)))
     trace (40, '   Files unpacked:')
     for ff in fnames:
@@ -536,10 +542,10 @@ def analyzeBed(file):
         trace (30, "   Extracting BED: %s" % bedfile)
         result = []
         for line in bedfile:
-        fields = line.split()
-        if (fields[0] == 'chrY'):
-            result.append((int(fields[1]), int(fields[2])))
-    return result
+            fields = line.split()
+            if (fields[0] == 'chrY'):
+                result.append((int(fields[1]), int(fields[2])))
+        return result
     
 def makeCall(pos, index_container, bed_calls):
 
@@ -681,7 +687,7 @@ def main():
     #}}}
     # Drop table{{{
 
-    if (droptables > 0):
+    if (config['drop_tables'] > 0):
         dc.execute('''DROP TABLE IF EXISTS variants''')
         dc.execute('''DROP TABLE IF EXISTS hg19''')
         dc.execute('''DROP TABLE IF EXISTS hg38''')
@@ -945,7 +951,7 @@ def main():
     #}}}
     # Unpack ZIP files{{{
 
-    if (skipto <= 1):
+    if (config['skip_to'] <= 1):
         trace (2, "Unpacking ZIP files...")
         unpack(zip_dir,unzip_dir,verbosity)
         t = float((time.clock() - start_time))
@@ -956,7 +962,7 @@ def main():
     #}}}
     # Associate kits with people{{{
 
-    if (skipto <= 10):
+    if (config['skip_to'] <= 10):
         trace (2, "Associating kits with people...")
         
     #}}}
@@ -969,10 +975,10 @@ def main():
     #   Using a dictionary here means only one copy of each variant is
     #   created.
 
-    if (skipto <= 11):
+    if (config['skip_to'] <= 11):
 
         trace (2, "Generating database of all variants...")
-        vcffiles = [f for f in os.listdir(unzip_dir) if f.endswith('.vcf')]
+        vcffiles = [f for f in os.listdir(config['unzip_dir']) if f.endswith('.vcf')]
         trace (10, "   %i files detected" % len(vcffiles))
         
         variant_dict = {}
@@ -1006,14 +1012,11 @@ def main():
 
         t = float((time.clock() - start_time))
         trace(10, '   ...complete after %.3f seconds' % t)
-
-        }}}
-
-    # }}}
-
+        
+        # }}}
     # Reading calls for variants {{{
 
-    if (skipto <= 12):
+    if (config['skip_to'] <= 12):
         trace (2, "Generating database of calls...")
         vcffiles = [f for f in os.listdir(unzip_dir) if f.endswith('.vcf')]
         trace (10, "   %i files detected" % len(vcffiles))
@@ -1035,7 +1038,7 @@ def main():
     # look up their ancestral values. We'll get the SNP names while we're
     # at it.
 
-    if (skipto <= 13):
+    if (config['skip_to'] <= 13):
         trace (2, "Getting names of variants...")
 
         # Read in SNPs from reference lists
@@ -1078,6 +1081,21 @@ def main():
     # }}}
 
     # sys.exit(0)
+
+    # }}}
+
+try:
+    REDUX_CONF = os.environ['REDUX_CONF']
+except:
+    print "Missing environment variable REDUX_CONF. Aborting."
+    sys.exit()
+try:
+    REDUX_ENV = os.environ['REDUX_ENV']
+except:
+    print "Missing environment variable REDUX_ENV. Aborting."
+    syx.exit()
+
+config = yaml.load(open(REDUX_CONF))
 
 main()
 

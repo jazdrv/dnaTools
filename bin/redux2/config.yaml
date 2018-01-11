@@ -12,6 +12,13 @@ backup_files: variant-*.txt snps_hg19.csv snp-names.csv snp-used.csv report.csv 
 haplogroup: R
 top_snp: U106
 
+# This allows you to start the programme at a particular point:
+    # skipto = 0 -> run whole programme
+    # skipto = 10 -> work only with already-unzipped files
+    # skipto = 20 -> do not re-extract the VCF calls
+    # skipto = 30 -> do not re-make the tree
+skip_to: 11
+
 # These flags define what actually gets done
 # Unless MAKEREPORT is non-zero, the other reports will be based on the current report.csv
 # MAKEREPORT = do the main reduction and create report.csv, else use an existing one
@@ -142,7 +149,7 @@ b37_snp_file: "snps_hg19.csv"
 b38_snp_file: "snps_hg38.csv"
 
 # This defines whether tables get made again
-droptables: 1
+drop_tables: 1
 
 # }}}
 # User defined file mapping {{{
