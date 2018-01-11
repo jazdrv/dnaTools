@@ -10,16 +10,16 @@ Part (1) was originally run by David Carlisle, who developed a degenerative cond
 
 Part (2) was already being run by me. As one of the few people who could, I took on the role on Andrew's death. However, since David's software was bespoke for Macs, I needed to make a hack-and-slash attempt to reproduce the output for myself. 
 
-This resulted in the old Build 37 "version 1" pipeline is on my website:
++ This resulted in the old Build 37 "version 1" pipeline is on my website:
 www.jb.man.ac.uk/~mcdonald/genetics.html
 
-along with examples of the output. The list of SNP names can be found here:
++ along with examples of the output. The list of SNP names can be found here:
 http://ybrowse.org/gbrowse2/gff/snps_hg19.csv
 
-and the repository for U106 input files is on the U106 forum:
++ and the repository for U106 input files is on the U106 forum:
 https://groups.yahoo.com/neo/groups/R1b1c_U106-S21/files/ Big-Y files/
 
-I've been helped in this by both Harald and Jef. Jef has also helped me extend the effort to cover P312, so knows the software and its shortfalls.
++ I've been helped in this by both Harald and Jef. Jef has also helped me extend the effort to cover P312, so knows the software and its shortfalls.
 
 ### SUMMARY OF PLANS
 
@@ -27,21 +27,21 @@ I've been helped in this by both Harald and Jef. Jef has also helped me extend t
 * While it would be possible to convert the original code to deal with the Build 38 files with a week or two's work, I feel this hack-and-slash effort has run its course. Part of the reasoning behind this is that too much of my time is being spent patching up the haplotrees with manual adjustments that can be automated. Another motivation is that I'm under increasing moral pressure to include other types of test into this analysis, and I think I've working out the mathematical reasoning that allows me to do so. A third motivation is that I need to learn Python for a project I'm doing at work, and SQL will be useful in another project I'm involved in, which motivates the choice of language and database software: Python + SQL, in order that I can learn both.
 * At the end of this e-mail, I've attached a more detailed description of what I want to see happen. Different parts of this have different priorities, and the overall aims are fairly ambitious. One of the reasons for this is that I am trying to attract government funding to buy myself research time to work on this. This will require a project with significant scientific impact (and ideally also commercial impact) in order to get any money. This also motivates stricter ethical controls over data access and privacy.
 
-The data repository we're using for this is here:
++ The data repository we're using for this is here:
 www.haplogroup-r.org/submit_data.php
 
-For privacy and accountability reasons, the intention is for this to remain closed. To make progress, I've contacted some related testers in R-DF98 personally, and obtained their Build 38 data for use as test cases for use by anyone who wants to help with the coding. These include Jef and myself. They can be downloaded here:
++ For privacy and accountability reasons, the intention is for this to remain closed. To make progress, I've contacted some related testers in R-DF98 personally, and obtained their Build 38 data for use as test cases for use by anyone who wants to help with the coding. These include Jef and myself. They can be downloaded here:
 
-https://www.dropbox.com/sh/dq9fejhcmoolkb4/AAB9nASddMtiB6B3R0AYEbAta?dl=0
++ https://www.dropbox.com/sh/dq9fejhcmoolkb4/AAB9nASddMtiB6B3R0AYEbAta?dl=0
 
-Currently, only Family Tree DNA has converted to Build 38, but the other companies are expected to follow suit.
++ Currently, only Family Tree DNA has converted to Build 38, but the other companies are expected to follow suit.
 
 ### PROGRESS AND DIRECTIONS
 
 * So far, we haven't made much progress, other than me climbing the simultaneous learning curves of Python and SQL, and my hacking together some of our old code to form the Python script attached to this e-mail. Jef and I have had a bit of a think about database structures, but haven't finalised anything yet.
 * I have an e-mail from Zak today, saying he has done the following:
-1.	repo setup on bitbucket ... I sent you an invite
-2.	sent you a way we (+ others) can "collaborate" ... irc #dnatools
+	1. repo setup on bitbucket ... I sent you an invite
+	2. sent you a way we (+ others) can "collaborate" ... irc #dnatools
 * If anyone wants to do anything differently or has other suggestions, let me know. Otherwise, Zak can send out further invites. I'm in your (combined) more-experienced hands when it comes to anything to do with multi-person code writing.
 
 ### DETAILED PLAN
@@ -65,24 +65,24 @@ Currently, only Family Tree DNA has converted to Build 38, but the other compani
 * Goal: To use the captured data to automatically generate a haplotree
 * Create a data structure (Tree) noting clade ID; parent ID; clade name; {list of variants}; {quality scores for phylogenic accuracy}; {one or more flags for variants for later analysis}; {list of child clades}; {ancestral STR alleles}; origin latitude; origin longitude; shared coverage; shared coverage within age BED; oldest/defining MDKA; SNP age; {SNP age 95% confidence interval}; {SNP age probability distribution function [PDF] (e.g. in steps of 10 years)}; {SNP parent clade age PDF}; STR age; {STR age 95% confidence interval}; {STR age PDF}; {STR parent clade age PDF}; combined age; {combined age 95% confidence interval}; {combined age PDF},
 * Select mutations with 100% calls and make a tree:
-(a) Sort Calls matrix vertically by variant to get the most-common SNPs to the top.
-(b) Sort Calls horizontally by person to group people with common SNPs into clades.
-(c) Form clades from square blocks of positive calls {Variants,People} in this 2D space.
-(d) Assign positive calls as positive and negative calls as negative in Calls (hence assignment and call are redundant, but the distinction is needed later).
-(e) Identify members of these clades from People, associate Variants with a clade, and assign a parent and children to each clade.
+	1. Sort Calls matrix vertically by variant to get the most-common SNPs to the top.
+	2. Sort Calls horizontally by person to group people with common SNPs into clades.
+	3. Form clades from square blocks of positive calls {Variants,People} in this 2D space.
+	4. Assign positive calls as positive and negative calls as negative in Calls (hence assignment and call are redundant, but the distinction is needed later).
+	5. Identify members of these clades from People, associate Variants with a clade, and assign a parent and children to each clade.
 * Progress individually through progressively worse-called SNPs...
-(a) Parse a list of manual implications, which dictate where positives can be implied from comparative clades (e.g. if a kit is P310+ and L11 is uncalled, a positive is implied for L11).
-(b) Parse a reject list, which manually removes bad mutations from the tree.
-(c) Recognise if a mutation is clearly equivalent to an existing clade or clearly forms a new clade (e.g. if all positive variants are P312+ but some U106+ tests or low-coverage (YSeq/pack) tests are uncalled, the no calls can be assigned as negative).
-(d) In ambiguous cases, identify all phylogenically possible locations in the tree, mark the variant as approximately located in the quality score array, and probabilistically chose a location among them (e.g. a variant is most likely located in a clade with more equivalent SNPs). Ambiguous singleton SNPs should be identified as such, not merged up, as they will later not be counted by the age analysis.
+	1. Parse a list of manual implications, which dictate where positives can be implied from comparative clades (e.g. if a kit is P310+ and L11 is uncalled, a positive is implied for L11).
+	2. Parse a reject list, which manually removes bad mutations from the tree.
+	3. Recognise if a mutation is clearly equivalent to an existing clade or clearly forms a new clade (e.g. if all positive variants are P312+ but some U106+ tests or low-coverage (YSeq/pack) tests are uncalled, the no calls can be assigned as negative).
+	4. In ambiguous cases, identify all phylogenically possible locations in the tree, mark the variant as approximately located in the quality score array, and probabilistically chose a location among them (e.g. a variant is most likely located in a clade with more equivalent SNPs). Ambiguous singleton SNPs should be identified as such, not merged up, as they will later not be counted by the age analysis.
 * Identify and merge MNPs. Also decide whether they are just poorly recorded complex indels.
 * Consult a reference list of named haplogroups (e.g. a text dump of FTDNA's haplotree) to assign a name to each clade in the Tree. Otherwise, automatically assign one.
 * Assign oldest or defining MDKAs to nodes in Tree from People (likely with cross-reference to a manually curated list).
 * Assign most-recent known haplogroups to People.
 * Compute a coverage (BED / callableLoci) for each branch in Tree, and for each tester in People:
-(a) The total testing coverage for People should be the coverage of their NGS test. In cases where more than one test is taken (e.g. BigY+YElite, BigY+WGS, BigY+YSeq), the concatenation of tests should be used.
-(b) The shared testing coverage for Tree nodes should be the count of the number of bases tested by two or more People under that node. The most effective way to do this is to generate new BED files for each node of the tree.
-(c) A *nix-style join should be done against the age analysis BED regions to determine the coverage used for the later age analysis.
+	1. The total testing coverage for People should be the coverage of their NGS test. In cases where more than one test is taken (e.g. BigY+YElite, BigY+WGS, BigY+YSeq), the concatenation of tests should be used.
+	2. The shared testing coverage for Tree nodes should be the count of the number of bases tested by two or more People under that node. The most effective way to do this is to generate new BED files for each node of the tree.
+	3. A *nix-style join should be done against the age analysis BED regions to determine the coverage used for the later age analysis.
 * Output a visual representation of the tree and sorted matrix of Calls.
 
 ### PART C: Importing STR matches
@@ -98,9 +98,9 @@ Currently, only Family Tree DNA has converted to Build 38, but the other compani
 
 * Goal: To identify the population distributions of each clade, debias them to absolute numbers via correct weighting, and use the clade-averaged position to predict the population's origin.
 * Working from the bottom to the top of the Tree, combine the geographic origins of People into their most-recent known haplogroups. Weighting here is important. First, each country/region needs weighted according to the depth of testing (regional weight = population at average MRCA date / testing population). Haplogroups can then be combined, working up the tree:
-(a) If a clade has no sub-clades, the nodal location is = {Sum(Latitude * regional weight)/Sum(regional weight) ; Sum(Longitude * regional weight)/Sum(regional weight)}.
-(b) If a clade has one or more sub-clades, the weight for each sub-clade should be multiplied by the square root of the number of testers within it, then included in the sum in the same way. (The best choice of weight may need some adjustment from a square root, but that would be a good first guess.)
-(c) Update latitude and longitude of origin in Tree.
+	1. If a clade has no sub-clades, the nodal location is = {Sum(Latitude * regional weight)/Sum(regional weight) ; Sum(Longitude * regional weight)/Sum(regional weight)}.
+	2. If a clade has one or more sub-clades, the weight for each sub-clade should be multiplied by the square root of the number of testers within it, then included in the sum in the same way. (The best choice of weight may need some adjustment from a square root, but that would be a good first guess.)
+	3. Update latitude and longitude of origin in Tree.
 * Output a series of visualisations allowing migrations to be tracked.
 
 ### PART E: Age analysis
