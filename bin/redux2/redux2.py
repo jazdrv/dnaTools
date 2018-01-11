@@ -12,6 +12,7 @@ For free distribution under the terms of the GNU General Public License,
 version 3 (29 June 2007)
 https://www.gnu.org/licenses/gpl.html
 
+#{{{
 *** Search below for USER DEFINED VARIABLES ***
 
 Works on Anaconda Python
@@ -104,6 +105,7 @@ U106_515653_Hogenmiller_BigY_RawData_2016_11_20.zip, 515653, Hogenmiller
 bigy-Bettinger57020.zip, 57020, Bettinger
 """
 #-----end hand-editing
+#}}}
 
 rename_dict = {}
 
