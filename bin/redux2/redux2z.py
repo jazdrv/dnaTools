@@ -36,12 +36,12 @@ try:
     REDUX_ENV = os.environ['REDUX_ENV']
 except:
     print "Missing environment variable REDUX_ENV. Aborting."
-    syx.exit()
+    sys.exit()
 
 config = yaml.load(open(REDUX_CONF))
 #print ('\n'+sys.argv[0]+' version: '+config['VERSION']+'\n')
 
-# arg parser
+# arg parser (we can replace this -if useful- with getOpts or whatever)
 
 parser = argparse.ArgumentParser()
 parser.add_argument('-A', '--all', help='perform all possible steps', action='store_true')

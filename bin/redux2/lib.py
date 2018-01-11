@@ -10,6 +10,14 @@
 # https://www.gnu.org/licenses/gpl.html
 
 # }}}
+# libs {{{
+
+import os
+
+# }}}
+
+REDUX_CONF = os.environ['REDUX_CONF']
+REDUX_ENV = os.environ['REDUX_ENV']
 
 # routines - debug
 
@@ -577,28 +585,29 @@ def makeCall(pos, index_container, bed_calls):
     
 def extract(unzip_dir,files,variants):
 
-  d = []
-  s = []
+    d = []
+    s = []
 
-  curpath = os.path.abspath(os.curdir)
-  with open(os.path.join(curpath, 'variant-list.txt')) as line_headings:
-    for line in line_headings:
-      d.append(line.rstrip())
-      x = line.split(',')
-      s.append(int(x[0]))  # s holds the genome position for each line
+    curpath = os.path.abspath(os.curdir)
+    with open(os.path.join(curpath, 'variant-list.txt')) as line_headings:
+        for line in line_headings:
+            d.append(line.rstrip())
+            x = line.split(',')
+            s.append(int(x[0]))  # s holds the genome position for each line
 
-  for file in files:
-    vcf_calls = analyzeVcf(unzip_dir + file)
-    bed_calls = analyzeBed(unzip_dir + file)
-    bed_index = [0]
-    for lineno in range(len(d)):
-      d[lineno] += ','
-      if s[lineno] in vcf_calls:
-        d[lineno] += vcf_calls[s[lineno]]
-      d[lineno] += makeCall(s[lineno], bed_index, bed_calls)
+    for file in files:
+        vcf_calls = analyzeVcf(unzip_dir + file)
+        bed_calls = analyzeBed(unzip_dir + file)
+        bed_index = [0]
+        for lineno in range(len(d)):
+            d[lineno] += ','
+            if s[lineno] in vcf_calls:
+                d[lineno] += vcf_calls[s[lineno]]
+            d[lineno] += makeCall(s[lineno], bed_index, bed_calls)
 
-  for line in d:
-    print (line)
+        for line in d:
+            print (line)
+    
 def file_len(fname):
 
     #File length, thanks to StackOverflow
