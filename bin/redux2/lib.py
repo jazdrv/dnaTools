@@ -13,7 +13,7 @@
 # libs {{{
 
 import os,yaml,shutil,glob,re,csv,zipfile
-from misc import *
+#from misc import *
 from db import *
 from collections import defaultdict
 
@@ -88,7 +88,7 @@ def extract_zips():
         trace (0, '   Warn: no directory with zip files: %s' % config['zip_dir'])
         return []
 
-    FILES = os.listdir(config['zip_dir'])
+    FILES = os.listdir(REDUX_ENV+'/'+config['zip_dir'])
 
     # try to parse out at least the kit number by trying a series of regular expressions
     # adding regular expressions at the end of this list is safer than at the beginning
@@ -263,8 +263,8 @@ def go_all():
     
 def go_backup():
 
-    print "** performing backup."
-    print "** (msg) CREATING BACKUP COPIES OF EXISTING FILES..."
+    trace(0,"** performing backup.")
+    trace(0,"** (msg) CREATING BACKUP COPIES OF EXISTING FILES...")
     
     # autobackup dir
     refresh_dir('autobackup')
@@ -291,11 +291,11 @@ def go_backup():
         #print "MAKING REPORT..."
         delete_file('report.csv')
     
-    print "** + backup done."
+    trace(0,"** + backup done.")
     
 def go_prep():
 
-    print "** prepare file structure."
+    trace(0,"** prepare file structure.")
 
     # SKIPZIP check (beg)
 
@@ -305,7 +305,7 @@ def go_prep():
         # Check ZIPDIR - contains existing zip files {{{
 
         if not os.path.exists(config['zip_dir']):
-            print "Input zip folder does not appear to exist. Aborting.\n"
+            trace(0,"Input zip folder does not appear to exist. Aborting.\n")
             sys.exit()
 
         # }}}
@@ -324,17 +324,17 @@ def go_prep():
         FILES = glob.glob(REDUX_ENV+'/zips/bigy-*.zip')
 
         if len(FILES) == 0:
-            print "No input files detected in zip folder. Aborting."
-            print "Check name format: should be bigy-<NAME>-<NUMBER>.zip\n"
+            trace(0,"No input files detected in zip folder. Aborting.")
+            trace(0,"Check name format: should be bigy-<NAME>-<NUMBER>.zip\n")
             sys.exit()
         else:
-            print "input files detected: " + str(FILES)
+            trace(0,"input files detected: " + str(FILES))
 
         # }}}
         # Check whether unzip is installed {{{
 
         if not cmd_exists('unzip'):
-            print "Unzip package not found. Aborting."
+            trace(0,"Unzip package not found. Aborting.")
             sys.exit()
 
         # }}}
@@ -342,8 +342,8 @@ def go_prep():
 
         csv = config['SNP_CSV']
         if not os.path.exists(csv):
-            print "SNP names file does not exist. Try:"
-            print "wget http://ybrowse.org/gbrowse2/gff/"+csv+" -O "+csv+"\n"
+            trace(0,"SNP names file does not exist. Try:")
+            trace(0,"wget http://ybrowse.org/gbrowse2/gff/"+csv+" -O "+csv+"\n")
             sys.exit()
 
         # }}}
@@ -357,14 +357,14 @@ def go_prep():
 
         # Unzip each zip in turn {{{
 
-        print "Unzipping..."
+        trace(0,"Unzipping...")
 
         if config['zip_update_only']:
             #FILES=(`diff <(ls zip/bigy-*.zip | sed 's/zip\/bigy-//' | sed 's/.zip//') <(ls unzip/*.vcf | sed 's/unzip\///' | sed 's/.vcf//') | grep '<' | awk '{print "zip/bigy-"$2".zip"}'`)
             SET = [set(re.sub('zip/bigy-','',re.sub('.zip','',S)) for S in glob.glob('zips/bigy-*.zip'))]-set([re.sub('bigy-','',S) for S in glob.glob('unzips/*.vcf')])
             #print  ${#FILES[@]} "new files found"
-            print "new files found: "+len(SET)
-            print "new files detected: " + list(SET)
+            trace(0,"new files found: "+len(SET))
+            trace(0,"new files detected: " + list(SET))
 
         #FILECOUNT=0
 
@@ -545,16 +545,16 @@ def go_prep():
 
     # fix bash code (end)
 
-    print "** + prep done."
+    trace(0,"** + prep done.")
     
 def go_db():
-    print "** process SNP data."
+    trace(0,"** process SNP data.")
     #redux_db(trace)
     cur = db_init(trace)
     db_drop_tables(cur)
     db_create_tables(cur)
     db_inserts(cur,trace,unpack,readVcf)
-    print "** + SNP processing done."
+    trace(0,"** + SNP processing done.")
 
 # SNP extraction routines based on original - Harald 
 # extracts the SNP calls from the VCF files and

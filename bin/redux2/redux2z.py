@@ -14,7 +14,7 @@
 
 import sys,argparse,yaml,os,glob,shutil,re,time,csv,zipfile
 from collections import defaultdict
-from misc import *
+#from misc import *
 from lib import *
 from db import *
 
@@ -40,12 +40,12 @@ try:
     sys.path.append(os.environ['REDUX_PATH'])
     REDUX_CONF = os.environ['REDUX_PATH']+'/config.yaml'
 except:
-    print "Missing environment variable REDUX_CONF. Aborting."
+    trace(0,"Missing environment variable REDUX_CONF. Aborting.")
     sys.exit()
 try:
     REDUX_ENV = os.environ['REDUX_ENV']
 except:
-    print "Missing environment variable REDUX_ENV. Aborting."
+    trace(0,"Missing environment variable REDUX_ENV. Aborting.")
     sys.exit()
 
 config = yaml.load(open(REDUX_CONF))
@@ -60,8 +60,6 @@ parser.add_argument('-p', '--prep', help='prep file structure', action='store_tr
 parser.add_argument('-d', '--data', help='SNP data processing', action='store_true')
 args = parser.parse_args()
 
-print ""
-
 if args.all:
     go_backup()
     go_prep()
@@ -74,5 +72,5 @@ else:
     if args.data:
         go_db()
 
-print "** script complete.\n"
+trace(0, "** script complete.\n")
 

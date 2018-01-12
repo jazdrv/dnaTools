@@ -387,14 +387,14 @@ def db_inserts(dc,trace,unpack,readVcf):
         # Read in SNPs from reference lists
         trace (10, "   Importing SNP reference lists...")
 
-        snp_reference = csv.reader(open(config['b37_snp_file']))
+        snp_reference = csv.reader(open(REDUX_ENV+'/'+config['b37_snp_file']))
         #for rec in snp_reference:
         #   print "INSERT INTO hg19(grch37,grch37end,name,anc,der) VALUES (?,?,?,?,?)", (rec[3], rec[4], rec[8], rec[10], rec[11])
         #   dc.execute("INSERT INTO hg19(grch37,grch37end,name,anc,der) VALUES (?,?,?,?,?)", (rec[3], rec[4], rec[8], rec[10], rec[11]))
         dc.executemany("INSERT INTO hg19(grch37,grch37end,name,anc,der) VALUES (?,?,?,?,?)",
                        ((rec[3], rec[4], rec[8], rec[10], rec[11]) for rec in snp_reference))
     
-        snp_reference = csv.reader(open(config['b38_snp_file']))
+        snp_reference = csv.reader(open(REDUX_ENV+'/'+config['b38_snp_file']))
         dc.executemany("INSERT INTO hg38(grch38,grch38end,name,anc,der) VALUES (?,?,?,?,?)",
                        ((rec[3], rec[4], rec[8], rec[10], rec[11]) for rec in snp_reference))
 
