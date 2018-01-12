@@ -4,3 +4,4 @@ merge-ignore.txt
 snps_hg19.csv
 zip
 *.pyc
+variant.db
