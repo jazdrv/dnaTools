@@ -13,8 +13,6 @@
 # libs {{{
 
 import sys,os,sqlite3,yaml,time,csv,numpy as np
-#from misc import *
-#from lib import *
 
 # }}}
 
