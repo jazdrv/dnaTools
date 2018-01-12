@@ -390,6 +390,9 @@ def db_inserts(dc,trace,unpack,readVcf):
         trace (10, "   Importing SNP reference lists...")
 
         snp_reference = csv.reader(open(config['b37_snp_file']))
+        #for rec in snp_reference:
+        #   print "INSERT INTO hg19(grch37,grch37end,name,anc,der) VALUES (?,?,?,?,?)", (rec[3], rec[4], rec[8], rec[10], rec[11])
+        #   dc.execute("INSERT INTO hg19(grch37,grch37end,name,anc,der) VALUES (?,?,?,?,?)", (rec[3], rec[4], rec[8], rec[10], rec[11]))
         dc.executemany("INSERT INTO hg19(grch37,grch37end,name,anc,der) VALUES (?,?,?,?,?)",
                        ((rec[3], rec[4], rec[8], rec[10], rec[11]) for rec in snp_reference))
     
@@ -398,8 +401,8 @@ def db_inserts(dc,trace,unpack,readVcf):
                        ((rec[3], rec[4], rec[8], rec[10], rec[11]) for rec in snp_reference))
 
         # Test data has entered database correctly
-        # dc.execute('SELECT * FROM hg38 LIMIT 5')
-        # print (dc.fetchone())
+        #dc.execute('SELECT * FROM hg38 LIMIT 5')
+        #print (dc.fetchone())
 
         # Read in SNPs from reference lists
         # Probably doesn't need done at this point
