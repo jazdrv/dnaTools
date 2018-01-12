@@ -13,7 +13,6 @@
 # libs {{{
 
 import os,yaml,shutil,glob,re,csv,zipfile
-#from misc import *
 from db import *
 from collections import defaultdict
 
