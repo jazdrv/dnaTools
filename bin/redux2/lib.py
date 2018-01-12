@@ -257,7 +257,6 @@ def unpack():
 # routines - arghandler - Zak
 
 def go_all():
-    print "go all"
     go_backup()
     go_prep()
     go_db()
@@ -550,12 +549,12 @@ def go_prep():
     
 def go_db():
     print "** process SNP data."
-    print "** + SNP processing done."
     #redux_db(trace)
     cur = db_init(trace)
     db_drop_tables(cur)
     db_create_tables(cur)
     db_inserts(cur,trace,unpack,readVcf)
+    print "** + SNP processing done."
 
 # SNP extraction routines based on original - Harald 
 # extracts the SNP calls from the VCF files and
@@ -634,8 +633,8 @@ def extract(unzip_dir,files,variants):
             s.append(int(x[0]))  # s holds the genome position for each line
 
     for file in files:
-        vcf_calls = analyzeVcf(unzip_dir + file)
-        bed_calls = analyzeBed(unzip_dir + file)
+        vcf_calls = analyzeVcf(config['unzip_dir'] + file)
+        bed_calls = analyzeBed(config['unzip_dir'] + file)
         bed_index = [0]
         for lineno in range(len(d)):
             d[lineno] += ','
