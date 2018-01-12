@@ -18,6 +18,7 @@ top_snp: U106
     # skipto = 20 -> do not re-extract the VCF calls
     # skipto = 30 -> do not re-make the tree
 skip_to: 11
+skip_to: 0
 
 # These flags define what actually gets done
 # Unless MAKEREPORT is non-zero, the other reports will be based on the current report.csv

@@ -12,9 +12,9 @@
 # }}}
 # libs {{{
 
-import os,sqlite3,yaml,time,numpy as np
+import sys,os,sqlite3,yaml,time,numpy as np
 from misc import *
-from lib import *
+#from lib import *
 
 # }}}
 
@@ -23,13 +23,9 @@ REDUX_ENV = os.environ['REDUX_ENV']
 config = yaml.load(open(REDUX_CONF))
 start_time = 0 # need to fix this
 
-def redux_db():
-    cur = db_init()
-    db_drop_tables(cur)
-    db_create_tables(cur)
-    db_inserts(cur)
-    
-def db_init():
+#note: this lib could easily be a class
+
+def db_init(trace):
     trace (1, "Initialising database...")
     db = sqlite3.connect('variant.db')
     dc = db.cursor()
@@ -295,13 +291,14 @@ def db_create_tables(dc):
 
     # trace (1, "Processing Build 38 BigY files...")
     
-def db_inserts(dc):
+def db_inserts(dc,trace,unpack):
 
     # skip to <= 1 - unpack zips
 
     if (config['skip_to'] <= 1):
         trace (2, "Unpacking ZIP files...")
-        unpack(zip_dir,unzip_dir,verbosity)
+        #unpack(REDUX_ENV+'/'+config['zip_dir'],REDUX_ENV+'/'+config['unzip_dir'],config['verbosity'])
+        unpack()
         t = float((time.clock() - start_time))
         trace(10, '   ...complete after %.3f seconds' % t)
         trace (5, "Associating unzipped files with kits...")
@@ -322,14 +319,17 @@ def db_inserts(dc):
 
     if (config['skip_to'] <= 11):
 
+        #logic 
+
         trace (2, "Generating database of all variants...")
         vcffiles = [f for f in os.listdir(REDUX_ENV+'/'+config['unzip_dir']) if f.endswith('.vcf')]
         trace (10, "   %i files detected" % len(vcffiles))
         
+        sys.exit()
         variant_dict = {}
-        for file in vcffiles:
-            vcf_calls = readVcf(unzip_dir + file)
-            variant_dict.update(vcf_calls)
+        #for file in vcffiles:
+        #    vcf_calls = readVcf(REDUX_ENV(config['unzip_dir'] + file)
+        #    variant_dict.update(vcf_calls)
         
         trace (10, "   %i variants found" % len(variant_dict))
         t = float((time.clock() - start_time))
@@ -347,6 +347,8 @@ def db_inserts(dc):
         trace (30, "      Check variant [%s] is %s" % (len(variant_dict)-1, variant_array[len(variant_dict)-1]))
         trace (30, "      Check variant [%s] position is %s" % (len(variant_dict)-1, variant_array[len(variant_dict)-1][1]))
 
+        #db calls
+
         trace (20, "   Inserting data into variant array database...")
         dc.executemany('''INSERT INTO variants(id,ref,alt) VALUES (?,?,?)''', variant_array)
 
@@ -359,9 +361,11 @@ def db_inserts(dc):
         
     # skip to <= 12 - reading calls for variants
 
+    #db calls
+
     if (config['skip_to'] <= 12):
         trace (2, "Generating database of calls...")
-        vcffiles = [f for f in os.listdir(unzip_dir) if f.endswith('.vcf')]
+        vcffiles = [f for f in os.listdir(REDUX_ENV+'/'+config['unzip_dir']) if f.endswith('.vcf')]
         trace (10, "   %i files detected" % len(vcffiles))
 
         dc.execute('''INSERT INTO calls(variant,person)
@@ -377,6 +381,8 @@ def db_inserts(dc):
     # Some variants are positive in the reference sequence, so we need to
     # look up their ancestral values. We'll get the SNP names while we're
     # at it.
+
+    #db calls
 
     if (config['skip_to'] <= 13):
         trace (2, "Getting names of variants...")

@@ -12,15 +12,35 @@
 # }}}
 # libs {{{
 
-import os,yaml
+import os,yaml,shutil,glob,re,csv
 from misc import *
 from db import *
+from collections import defaultdict
 
 # }}}
 
 REDUX_CONF = os.environ['REDUX_CONF']
 REDUX_ENV = os.environ['REDUX_ENV']
 config = yaml.load(open(REDUX_CONF))
+
+# ==
+# USER DEFINED FILE MAPPING
+# ==
+names = """
+FTDNA345238Newell.zip, 345238, Newell
+155941_BigY_RawData_20140911-1.zip, 155941, Unknown
+Lee 237414 BigY Raw Data.zip, 237414, Lee
+U106_515653_Hogenmiller_BigY_RawData_2016_11_20.zip, 515653, Hogenmiller
+bigy-Bettinger57020.zip, 57020, Bettinger
+"""
+# ==
+# RENAME_DICT
+# ==
+rename_dict = {}
+for row in csv.reader(names.splitlines()):
+    if row and row[0]:
+        rename_dict[row[0].strip()] = (row[1].strip(), row[2].strip())
+# ==
 
 # routines - file/dir - Zak
 
@@ -56,7 +76,7 @@ def setup_dirs():
     
 def extract_zips():
 
-    if not os.path.isdir(config['zip_dir']):
+    if not os.path.isdir(REDUX_ENV+'/'+config['zip_dir']):
         trace (0, '   Warn: no directory with zip files: %s' % config['zip_dir'])
         return []
 
@@ -105,7 +125,7 @@ def extract_zips():
     nomatch=[]
     # all of the file names we could parse
     fname_dict = {}
-
+    
     for line in FILES:
         fname = line.strip()
         if fname in rename_dict:
@@ -201,7 +221,7 @@ def extract_zips():
 
     # list of file names we unzipped
 
-    files = os.listdir(config['unzip_dir'])
+    files = os.listdir(REDUX_ENV+'/'+config['unzip_dir'])
     return files
     
 def unpack():
@@ -210,7 +230,8 @@ def unpack():
     # collect run time statistics
 
     trace(10,'   Running the unpack-zip script...')
-    setup_dirs()
+    #setup_dirs()
+    refresh_dir(config['unzip_dir'],cleanFlag=False)
     fnames = extract_zips()
     trace (10, '   Number of files: {0}'.format(len(fnames)))
     trace (40, '   Files unpacked:')
@@ -514,7 +535,11 @@ def go_prep():
 def go_db():
     print "** process SNP data."
     print "** + SNP processing done."
-    redux_db()
+    #redux_db(trace)
+    cur = db_init(trace)
+    db_drop_tables(cur)
+    db_create_tables(cur)
+    db_inserts(cur,trace,unpack)
 
 # SNP extraction routines based on original - Harald 
 # extracts the SNP calls from the VCF files and
