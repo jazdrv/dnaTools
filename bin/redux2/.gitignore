@@ -2,3 +2,4 @@ note
 zak.notes
 variant.db
 __pycache__
+*.pyc
