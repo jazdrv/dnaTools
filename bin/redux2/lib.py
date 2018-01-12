@@ -12,7 +12,7 @@
 # }}}
 # libs {{{
 
-import os,yaml,shutil,glob,re,csv
+import os,yaml,shutil,glob,re,csv,zipfile
 from misc import *
 from db import *
 from collections import defaultdict
@@ -42,11 +42,19 @@ for row in csv.reader(names.splitlines()):
         rename_dict[row[0].strip()] = (row[1].strip(), row[2].strip())
 # ==
 
+# routines - debug
+
+def trace (level, msg):
+    print(msg)
+    #if level <= config['verbosity']:
+    #    print(msg)
+    
+
 # routines - file/dir - Zak
 
 def refresh_dir(DIR,cleanFlag=False):
     DIR = REDUX_ENV+'/'+DIR
-    print DIR
+    #print DIR
     if (os.path.isdir(DIR)):
         files = glob.glob(DIR+'/*')
         if cleanFlag:
@@ -135,8 +143,9 @@ def extract_zips():
             trace(25, '     {3:>2} {0:<50s}{1:<15s}{2:<10s}'.format(fname, nname, kkit, 'd'))
             cnt['d'] += 1
         else:
-            if fname[-4:] not in ('.zip'):
-                trace (15, '   Found foreigner hanging out in zip directory: {0}'.format(fname))
+            if fname[-4:] not in ('.gitignore'):
+                if fname[-4:] not in ('.zip'):
+                    trace (15, '   Found foreigner hanging out in zip directory: {0}'.format(fname))
                 continue
             d = {}
             for ii, (r,k1,k2) in enumerate(name_re):
@@ -156,7 +165,8 @@ def extract_zips():
                         trace (1, '   FAILURE on filename:', fname)
                     break
             else:
-                nomatch.append(line)
+                if line not in ('.gitignore'):
+                    nomatch.append(line)
 
     trace (20, '   Number of filenames not matched: {0}'.format(len(nomatch)))
     trace (22, '   Which expressions were matched:')
@@ -166,7 +176,10 @@ def extract_zips():
     if len(nomatch) > 0:
         trace (10, '   Files that did not match:')
         for ll in nomatch:
-            trace (10, '    %s' % ll.strip())
+            if ll.strip() not in ('.gitignore'):
+                trace (10, '    %s' % ll.strip())
+            else:
+                nomatch = nomatch - 1
 
     # keep track of what needs to be cleaned up
     emptydirs = []
@@ -174,9 +187,12 @@ def extract_zips():
     for fname in fname_dict:
         kitnumber, kitname = fname_dict[fname]
         try:
-            zf = zipfile.ZipFile(os.path.join(config['zip_dir'], fname))
+            zf = zipfile.ZipFile(REDUX_ENV+'/'+config['zip_dir']+'/'+fname)
+            #zf = zipfile.ZipFile(os.path.join(config['zip_dir'],fname))
+
         except:
             trace (1, '   ERROR: file %s is not a zip' % fname)
+            sys.exit()
         listfiles = zf.namelist()
         bedfile = vcffile = None
         for ff in listfiles:
@@ -539,7 +555,7 @@ def go_db():
     cur = db_init(trace)
     db_drop_tables(cur)
     db_create_tables(cur)
-    db_inserts(cur,trace,unpack)
+    db_inserts(cur,trace,unpack,readVcf)
 
 # SNP extraction routines based on original - Harald 
 # extracts the SNP calls from the VCF files and

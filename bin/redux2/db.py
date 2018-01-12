@@ -1,4 +1,4 @@
-#!/bin/python
+# !/bin/python
 
 # authors/licensing{{{
 
@@ -12,8 +12,8 @@
 # }}}
 # libs {{{
 
-import sys,os,sqlite3,yaml,time,numpy as np
-from misc import *
+import sys,os,sqlite3,yaml,time,csv,numpy as np
+#from misc import *
 #from lib import *
 
 # }}}
@@ -291,7 +291,7 @@ def db_create_tables(dc):
 
     # trace (1, "Processing Build 38 BigY files...")
     
-def db_inserts(dc,trace,unpack):
+def db_inserts(dc,trace,unpack,readVcf):
 
     # skip to <= 1 - unpack zips
 
@@ -325,11 +325,10 @@ def db_inserts(dc,trace,unpack):
         vcffiles = [f for f in os.listdir(REDUX_ENV+'/'+config['unzip_dir']) if f.endswith('.vcf')]
         trace (10, "   %i files detected" % len(vcffiles))
         
-        sys.exit()
         variant_dict = {}
-        #for file in vcffiles:
-        #    vcf_calls = readVcf(REDUX_ENV(config['unzip_dir'] + file)
-        #    variant_dict.update(vcf_calls)
+        for file in vcffiles:
+            vcf_calls = readVcf(REDUX_ENV+'/'+config['unzip_dir']+'/'+ file)
+            variant_dict.update(vcf_calls)
         
         trace (10, "   %i variants found" % len(variant_dict))
         t = float((time.clock() - start_time))
@@ -390,11 +389,11 @@ def db_inserts(dc,trace,unpack):
         # Read in SNPs from reference lists
         trace (10, "   Importing SNP reference lists...")
 
-        snp_reference = csv.reader(open(b37_snp_file))
+        snp_reference = csv.reader(open(config['b37_snp_file']))
         dc.executemany("INSERT INTO hg19(grch37,grch37end,name,anc,der) VALUES (?,?,?,?,?)",
                        ((rec[3], rec[4], rec[8], rec[10], rec[11]) for rec in snp_reference))
     
-        snp_reference = csv.reader(open(b38_snp_file))
+        snp_reference = csv.reader(open(config['b38_snp_file']))
         dc.executemany("INSERT INTO hg38(grch38,grch38end,name,anc,der) VALUES (?,?,?,?,?)",
                        ((rec[3], rec[4], rec[8], rec[10], rec[11]) for rec in snp_reference))
 
