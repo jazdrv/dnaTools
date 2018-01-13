@@ -548,11 +548,11 @@ def go_prep():
     
 def go_db():
     trace(0,"** process SNP data.")
-    #redux_db(trace)
-    cur = db_init(trace)
-    db_drop_tables(cur)
-    db_create_tables(cur)
-    db_inserts(cur,trace,unpack,readVcf)
+    dbo = DB()
+    cur = dbo.cursor(trace)
+    dbo.drop_tables()
+    dbo.create_tables()
+    dbo.insert_tables(trace,unpack,readVcf)
     trace(0,"** + SNP processing done.")
 
 # SNP extraction routines based on original - Harald 

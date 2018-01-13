@@ -21,30 +21,39 @@ REDUX_ENV = os.environ['REDUX_ENV']
 config = yaml.load(open(REDUX_CONF))
 start_time = 0 # need to fix this
 
-#note: this lib could easily be a class
-
-def db_init(trace):
-    trace (1, "Initialising database...")
-    db = sqlite3.connect('variant.db')
-    dc = db.cursor()
-    return dc
+class DB(object):
     
-def db_drop_tables(dc):
-    if (config['drop_tables'] > 0):
-        dc.execute('''DROP TABLE IF EXISTS variants''')
-        dc.execute('''DROP TABLE IF EXISTS hg19''')
-        dc.execute('''DROP TABLE IF EXISTS hg38''')
-        dc.execute('''DROP TABLE IF EXISTS kits''')
-        dc.execute('''DROP TABLE IF EXISTS people''')
-        dc.execute('''DROP TABLE IF EXISTS strs''')
-        dc.execute('''DROP TABLE IF EXISTS calls''')
-        dc.execute('''DROP TABLE IF EXISTS tree''')
-    
-def db_create_tables(dc):
+    def __init__(self):
+        db = None
+        dc = None
+        
+    def cursor(self,trace):
+        trace (1, "Initialising database...")
+        self.db = sqlite3.connect('variant.db')
+        #print "here"
+        self.dc = self.db.cursor()
+        #print "her1"
+        
+    def drop_tables(self):
+        if (config['drop_tables'] > 0):
+            self.dc.execute('''DROP TABLE IF EXISTS variants''')
+            self.dc.execute('''DROP TABLE IF EXISTS hg19''')
+            self.dc.execute('''DROP TABLE IF EXISTS hg38''')
+            self.dc.execute('''DROP TABLE IF EXISTS kits''')
+            self.dc.execute('''DROP TABLE IF EXISTS people''')
+            self.dc.execute('''DROP TABLE IF EXISTS strs''')
+            self.dc.execute('''DROP TABLE IF EXISTS calls''')
+            self.dc.execute('''DROP TABLE IF EXISTS tree''')
+        
+    def create_tables(self):
 
-    # variants tbl
+        #self.dc.execute('create table foo (id int)');
+        #self.dc.execute('insert into foo values (1)');
+        #sys.exit()
 
-    dc.execute('''CREATE TABLE IF NOT EXISTS variants
+        # variants tbl
+
+        self.dc.execute('''CREATE TABLE IF NOT EXISTS variants
                   (id INTEGER PRIMARY KEY,
                   grch37 INTEGER,
                   length SMALLINT,
@@ -52,9 +61,9 @@ def db_create_tables(dc):
                   alt TEXT,
                   inage BOOLEAN)''')
 
-    # hg19
+        # hg19
 
-    dc.execute('''CREATE TABLE IF NOT EXISTS hg19
+        self.dc.execute('''CREATE TABLE IF NOT EXISTS hg19
                   (id INTEGER PRIMARY KEY,
                   snp BOOLEAN,
                   grch37 INTEGER,
@@ -63,9 +72,9 @@ def db_create_tables(dc):
                   anc CHARACTER(64),
                   der CHARACTER(64))''')
 
-    # hg38
+        # hg38
 
-    dc.execute('''CREATE TABLE IF NOT EXISTS hg38
+        self.dc.execute('''CREATE TABLE IF NOT EXISTS hg38
                   (id INTEGER PRIMARY KEY,
                   snp BOOLEAN,
                   grch38 INTEGER,
@@ -74,9 +83,9 @@ def db_create_tables(dc):
                   anc CHARACTER(64),
                   der CHARACTER(64))''')
 
-    # kits
+        # kits
 
-    dc.execute('''CREATE TABLE IF NOT EXISTS kits
+        self.dc.execute('''CREATE TABLE IF NOT EXISTS kits
                   (id INTEGER PRIMARY KEY,
                   vcffile CHARACTER(256),
                   bedfile CHARACTER(256),
@@ -87,9 +96,9 @@ def db_create_tables(dc):
                   uploaddate INTEGER,
                   personid INTEGER)''')
 
-    # people
+        # people
 
-    dc.execute('''CREATE TABLE IF NOT EXISTS people
+        self.dc.execute('''CREATE TABLE IF NOT EXISTS people
                   (person INTEGER PRIMARY KEY,
                   ngstest BOOLEAN,
                   ftdnaid CHARAACTER(16) REFERENCES kits(kitnum),
@@ -116,9 +125,9 @@ def db_create_tables(dc):
                   qsingletons SMALLINT,
                   agesingletons SMALLINT)''')
 
-    # strs
+        # strs
 
-    dc.execute('''CREATE TABLE IF NOT EXISTS strs
+        self.dc.execute('''CREATE TABLE IF NOT EXISTS strs
                   (person INTEGER PRIMARY KEY,
                   DYS393 TINYINT,
                   DYS390 TINYINT,
@@ -232,9 +241,9 @@ def db_create_tables(dc):
                   DYS461 TINYINT,
                   DYS435 TINYINT)''')
 
-    # calls
+        # calls
 
-    dc.execute('''CREATE TABLE IF NOT EXISTS calls
+        self.dc.execute('''CREATE TABLE IF NOT EXISTS calls
                   (id LONGINT PRIMARY KEY,
                   person INTEGER REFERENCES people(person),
                   variant INTEGER REFERENCES variants(id),
@@ -247,9 +256,9 @@ def db_create_tables(dc):
                   nanc TINYINT
                   )''')
 
-    # tree
+        # tree
 
-    dc.execute('''CREATE TABLE IF NOT EXISTS tree
+        self.dc.execute('''CREATE TABLE IF NOT EXISTS tree
                   (id INTEGER PRIMARY KEY,
                   parendid INTEGER,
                   clade CHARACTER(16),
@@ -287,143 +296,144 @@ def db_create_tables(dc):
                   combagepdf BLOB)''')
 
 
-    # trace (1, "Processing Build 38 BigY files...")
+        # trace (1, "Processing Build 38 BigY files...")
     
-def db_inserts(dc,trace,unpack,readVcf):
+    def insert_tables(self,trace,unpack,readVcf):
 
-    # skip to <= 1 - unpack zips
+        # skip to <= 1 - unpack zips
 
-    if (config['skip_to'] <= 1):
-        trace (2, "Unpacking ZIP files...")
-        #unpack(REDUX_ENV+'/'+config['zip_dir'],REDUX_ENV+'/'+config['unzip_dir'],config['verbosity'])
-        unpack()
-        t = float((time.clock() - start_time))
-        trace(10, '   ...complete after %.3f seconds' % t)
-        trace (5, "Associating unzipped files with kits...")
+        if (config['skip_to'] <= 1):
+            trace (2, "Unpacking ZIP files...")
+            #unpack(REDUX_ENV+'/'+config['zip_dir'],REDUX_ENV+'/'+config['unzip_dir'],config['verbosity'])
+            unpack()
+            t = float((time.clock() - start_time))
+            trace(10, '   ...complete after %.3f seconds' % t)
+            trace (5, "Associating unzipped files with kits...")
         
-    # skip to <= 10 - associate kits with people
+        # skip to <= 10 - associate kits with people
 
-    if (config['skip_to'] <= 10):
-        trace (2, "Associating kits with people...")
+        if (config['skip_to'] <= 10):
+            trace (2, "Associating kits with people...")
         
-    # skip to <= 11 - generate dictionary of variant positions 
+        # skip to <= 11 - generate dictionary of variant positions 
 
-    #   The VCF files are parsed twice. The first pass identifies the list
-    #   of variants to be queried. The second pass reads the calls for those
-    #   variants. This means we only need to treat positions with a variant,
-    #   rather than every position in a chromosome.
-    #   Using a dictionary here means only one copy of each variant is
-    #   created.
+        #   The VCF files are parsed twice. The first pass identifies the list
+        #   of variants to be queried. The second pass reads the calls for those
+        #   variants. This means we only need to treat positions with a variant,
+        #   rather than every position in a chromosome.
+        #   Using a dictionary here means only one copy of each variant is
+        #   created.
 
-    if (config['skip_to'] <= 11):
+        if (config['skip_to'] <= 11):
 
-        #logic 
+            #logic 
 
-        trace (2, "Generating database of all variants...")
-        vcffiles = [f for f in os.listdir(REDUX_ENV+'/'+config['unzip_dir']) if f.endswith('.vcf')]
-        trace (10, "   %i files detected" % len(vcffiles))
+            trace (2, "Generating database of all variants...")
+            vcffiles = [f for f in os.listdir(REDUX_ENV+'/'+config['unzip_dir']) if f.endswith('.vcf')]
+            trace (10, "   %i files detected" % len(vcffiles))
         
-        variant_dict = {}
-        for file in vcffiles:
-            vcf_calls = readVcf(REDUX_ENV+'/'+config['unzip_dir']+'/'+ file)
-            variant_dict.update(vcf_calls)
+            variant_dict = {}
+            for file in vcffiles:
+                vcf_calls = readVcf(REDUX_ENV+'/'+config['unzip_dir']+'/'+ file)
+                variant_dict.update(vcf_calls)
         
-        trace (10, "   %i variants found" % len(variant_dict))
-        t = float((time.clock() - start_time))
-        trace(10, '   ...complete after %.3f seconds' % t)
+            trace (10, "   %i variants found" % len(variant_dict))
+            t = float((time.clock() - start_time))
+            trace(10, '   ...complete after %.3f seconds' % t)
 
-        # dump variant dictionary into sorted array
+            # dump variant dictionary into sorted array
 
-        trace (20, "   Dumping variants into array...")
-        variant_array = np.array(list(variant_dict.values()))
+            trace (20, "   Dumping variants into array...")
+            variant_array = np.array(list(variant_dict.values()))
 
-        # variant_array = np.array([],dtype={'names': ('start', 'anc', 'der'),'formats': ('i4', 'S20', 'S20')})
+            # variant_array = np.array([],dtype={'names': ('start', 'anc', 'der'),'formats': ('i4', 'S20', 'S20')})
 
-        trace (30, "      Check variant [0] is %s" % variant_array[0])
-        trace (30, "      Check variant [0] position is %s" % variant_array[0][1])
-        trace (30, "      Check variant [%s] is %s" % (len(variant_dict)-1, variant_array[len(variant_dict)-1]))
-        trace (30, "      Check variant [%s] position is %s" % (len(variant_dict)-1, variant_array[len(variant_dict)-1][1]))
+            trace (30, "      Check variant [0] is %s" % variant_array[0])
+            trace (30, "      Check variant [0] position is %s" % variant_array[0][1])
+            trace (30, "      Check variant [%s] is %s" % (len(variant_dict)-1, variant_array[len(variant_dict)-1]))
+            trace (30, "      Check variant [%s] position is %s" % (len(variant_dict)-1, variant_array[len(variant_dict)-1][1]))
+
+            #db calls
+
+            trace (20, "   Inserting data into variant array database...")
+            self.dc.executemany('''INSERT INTO variants(id,ref,alt) VALUES (?,?,?)''', variant_array)
+
+            # Test data has entered database correctly
+            #dc.execute('SELECT * FROM variants LIMIT 5')
+            #print (dc.fetchone())
+
+            t = float((time.clock() - start_time))
+            trace(10, '   ...complete after %.3f seconds' % t)
+        
+        # skip to <= 12 - reading calls for variants
 
         #db calls
 
-        trace (20, "   Inserting data into variant array database...")
-        dc.executemany('''INSERT INTO variants(id,ref,alt) VALUES (?,?,?)''', variant_array)
+        if (config['skip_to'] <= 12):
+            trace (2, "Generating database of calls...")
+            vcffiles = [f for f in os.listdir(REDUX_ENV+'/'+config['unzip_dir']) if f.endswith('.vcf')]
+            trace (10, "   %i files detected" % len(vcffiles))
 
-        # Test data has entered database correctly
-        # dc.execute('SELECT * FROM variants LIMIT 5')
-        # print (dc.fetchone())
-
-        t = float((time.clock() - start_time))
-        trace(10, '   ...complete after %.3f seconds' % t)
-        
-    # skip to <= 12 - reading calls for variants
-
-    #db calls
-
-    if (config['skip_to'] <= 12):
-        trace (2, "Generating database of calls...")
-        vcffiles = [f for f in os.listdir(REDUX_ENV+'/'+config['unzip_dir']) if f.endswith('.vcf')]
-        trace (10, "   %i files detected" % len(vcffiles))
-
-        dc.execute('''INSERT INTO calls(variant,person)
+            self.dc.execute('''INSERT INTO calls(variant,person)
                       SELECT id, person
                       FROM variants CROSS JOIN people''')
 
-    # Test data has entered database correctly
-    # dc.execute('SELECT * FROM calls LIMIT 5')
-    # print (dc.fetchone())
-
-    # skip to <= 13 - name variants and derive ancestral values
-
-    # Some variants are positive in the reference sequence, so we need to
-    # look up their ancestral values. We'll get the SNP names while we're
-    # at it.
-
-    #db calls
-
-    if (config['skip_to'] <= 13):
-        trace (2, "Getting names of variants...")
-
-        # Read in SNPs from reference lists
-        trace (10, "   Importing SNP reference lists...")
-
-        snp_reference = csv.reader(open(REDUX_ENV+'/'+config['b37_snp_file']))
-        #for rec in snp_reference:
-        #   print "INSERT INTO hg19(grch37,grch37end,name,anc,der) VALUES (?,?,?,?,?)", (rec[3], rec[4], rec[8], rec[10], rec[11])
-        #   dc.execute("INSERT INTO hg19(grch37,grch37end,name,anc,der) VALUES (?,?,?,?,?)", (rec[3], rec[4], rec[8], rec[10], rec[11]))
-        dc.executemany("INSERT INTO hg19(grch37,grch37end,name,anc,der) VALUES (?,?,?,?,?)",
-                       ((rec[3], rec[4], rec[8], rec[10], rec[11]) for rec in snp_reference))
-    
-        snp_reference = csv.reader(open(REDUX_ENV+'/'+config['b38_snp_file']))
-        dc.executemany("INSERT INTO hg38(grch38,grch38end,name,anc,der) VALUES (?,?,?,?,?)",
-                       ((rec[3], rec[4], rec[8], rec[10], rec[11]) for rec in snp_reference))
-
         # Test data has entered database correctly
-        #dc.execute('SELECT * FROM hg38 LIMIT 5')
-        #print (dc.fetchone())
+        # dc.execute('SELECT * FROM calls LIMIT 5')
+        # print (dc.fetchone())
 
-        # Read in SNPs from reference lists
-        # Probably doesn't need done at this point
-        # trace (10, "   Joining reference lists to variant database...")
+        # skip to <= 13 - name variants and derive ancestral values
 
+        # Some variants are positive in the reference sequence, so we need to
+        # look up their ancestral values. We'll get the SNP names while we're
+        # at it.
 
-        # dc.execute('''SELECT hg38.grch38, hg38.name
-        # FROM hg38
-        # INNER JOIN hg19 on hg19.name = hg38.name''')
+        #db calls
 
-        # dc.execute('''SELECT variants.id, hg38.name
-        # FROM variants
-        # LEFT OUTER JOIN hg38 on hg38.grch38 = variants.id''')
+        if (config['skip_to'] <= 13):
+            trace (2, "Getting names of variants...")
+
+            # Read in SNPs from reference lists
+            trace (10, "   Importing SNP reference lists...")
+            
+            snp_reference = csv.reader(open(REDUX_ENV+'/'+config['b37_snp_file']))
+            #for rec in snp_reference:
+            #   print "INSERT INTO hg19(grch37,grch37end,name,anc,der) VALUES (?,?,?,?,?)", (rec[3], rec[4], rec[8], rec[10], rec[11])
+            #   dc.execute("INSERT INTO hg19(grch37,grch37end,name,anc,der) VALUES (?,?,?,?,?)", (rec[3], rec[4], rec[8], rec[10], rec[11]))
+            self.dc.executemany("INSERT INTO hg19(grch37,grch37end,name,anc,der) VALUES (?,?,?,?,?)",
+                       ((rec[3], rec[4], rec[8], rec[10], rec[11]) for rec in snp_reference))
+            
+            snp_reference = csv.reader(open(REDUX_ENV+'/'+config['b38_snp_file']))
+            self.dc.executemany("INSERT INTO hg38(grch38,grch38end,name,anc,der) VALUES (?,?,?,?,?)",
+                       ((rec[3], rec[4], rec[8], rec[10], rec[11]) for rec in snp_reference))
+
+            # Test data has entered database correctly
+            #self.dc.execute('SELECT * FROM hg38 LIMIT 5')
+            #print (dc.fetchone())
+
+            # Read in SNPs from reference lists
+            # Probably doesn't need done at this point
+            # trace (10, "   Joining reference lists to variant database...")
+
+            # self.dc.execute('''SELECT hg38.grch38, hg38.name
+            # FROM hg38
+            # INNER JOIN hg19 on hg19.name = hg38.name''')
+
+            # self.dc.execute('''SELECT variants.id, hg38.name
+            # FROM variants
+            # LEFT OUTER JOIN hg38 on hg38.grch38 = variants.id''')
+
+            t = float((time.clock() - start_time))
+            trace(10, '   ...complete after %.3f seconds' % t)
+            
+        #commit
+
+        self.db.commit()
+
+        # Print final message and exit {{{{
 
         t = float((time.clock() - start_time))
-        trace(10, '   ...complete after %.3f seconds' % t)
-            
-    # Print final message and exit {{{{
+        trace (1, "Execution finished in: %.3f seconds" % t)
 
-    t = float((time.clock() - start_time))
-    trace (1, "Execution finished in: %.3f seconds" % t)
-
-    # }}}
-
-    # sys.exit(0)
+        # }}}
 
