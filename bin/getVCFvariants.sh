@@ -6,6 +6,7 @@
 #ie: ./getVCFvariants.sh "unzip/Donald-120386.vcf"
 
 FILE="$1"
+FILE="$REDUX_ENV/unzips/Newell-345238.vcf"
 if [ "$1" == "" ]; then
     echo "Nothing given. Aborting."
     exit
