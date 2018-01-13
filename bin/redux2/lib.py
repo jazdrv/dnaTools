@@ -252,6 +252,129 @@ def unpack():
     trace (40, '   Files unpacked:')
     for ff in fnames:
         trace (40, ff)
+def skip_to(dbo):
+
+    # skip to <= 1 - unpack zips
+
+    if (config['skip_to'] <= 1):
+        trace (2, "Unpacking ZIP files...")
+        #unpack(REDUX_ENV+'/'+config['zip_dir'],REDUX_ENV+'/'+config['unzip_dir'],config['verbosity'])
+        unpack()
+        t = float((time.clock() - start_time))
+        trace(10, '   ...complete after %.3f seconds' % t)
+        trace (5, "Associating unzipped files with kits...")
+        
+    # skip to <= 10 - associate kits with people
+
+    if (config['skip_to'] <= 10):
+        trace (2, "Associating kits with people...")
+        
+    # skip to <= 11 - generate dictionary of variant positions 
+
+    #   The VCF files are parsed twice. The first pass identifies the list
+    #   of variants to be queried. The second pass reads the calls for those
+    #   variants. This means we only need to treat positions with a variant,
+    #   rather than every position in a chromosome.
+    #   Using a dictionary here means only one copy of each variant is
+    #   created.
+
+    if (config['skip_to'] <= 11):
+
+        #vcffiles
+
+        trace (2, "Generating database of all variants...")
+        vcffiles = [f for f in os.listdir(REDUX_ENV+'/'+config['unzip_dir']) if f.endswith('.vcf')]
+        trace (10, "   %i files detected" % len(vcffiles))
+        
+        #variant_dict
+
+        variant_dict = {}
+        for file in vcffiles:
+            vcf_calls = readVcf(REDUX_ENV+'/'+config['unzip_dir']+'/'+ file)
+            variant_dict.update(vcf_calls)
+        trace (10, "   %i variants found" % len(variant_dict))
+        t = float((time.clock() - start_time))
+        trace(10, '   ...complete after %.3f seconds' % t)
+
+        # dump variant dict into sorted array
+
+        trace (20, "   Dumping variants into array...")
+        variant_array = np.array(list(variant_dict.values()))
+
+        # variant_array = np.array([],dtype={'names': ('start', 'anc', 'der'),'formats': ('i4', 'S20', 'S20')})
+
+        trace (30, "      Check variant [0] is %s" % variant_array[0])
+        trace (30, "      Check variant [0] position is %s" % variant_array[0][1])
+        trace (30, "      Check variant [%s] is %s" % (len(variant_dict)-1, variant_array[len(variant_dict)-1]))
+        trace (30, "      Check variant [%s] position is %s" % (len(variant_dict)-1, variant_array[len(variant_dict)-1][1]))
+
+        #db calls
+
+        trace (20, "   Inserting data into variant array database...")
+        dbo.insert_variants(variant_array)
+        t = float((time.clock() - start_time))
+        trace(10, '   ...complete after %.3f seconds' % t)
+        
+    # skip to <= 12 - reading calls for variants
+    
+    #db calls
+    
+    if (config['skip_to'] <= 12):
+        trace (2, "Generating database of calls...")
+        vcffiles = [f for f in os.listdir(REDUX_ENV+'/'+config['unzip_dir']) if f.endswith('.vcf')]
+        trace (10, "   %i files detected" % len(vcffiles))
+        dbo.insert_calls()
+
+    # skip to <= 13 - name variants and derive ancestral values
+
+    # Some variants are positive in the reference sequence, so we need to
+    # look up their ancestral values. We'll get the SNP names while we're
+    # at it.
+
+    #db calls
+
+    if (config['skip_to'] <= 13):
+        # Read in SNPs from reference lists
+        trace (2, "Getting names of variants...")
+        trace (10, "   Importing SNP reference lists...")
+            
+        snp_reference = csv.reader(open(REDUX_ENV+'/'+config['b37_snp_file']))
+        #for rec in snp_reference:
+        #   print "INSERT INTO hg19(grch37,grch37end,name,anc,der) VALUES (?,?,?,?,?)", (rec[3], rec[4], rec[8], rec[10], rec[11])
+        dbo.insert_hg19(snp_reference)
+            
+        snp_reference = csv.reader(open(REDUX_ENV+'/'+config['b38_snp_file']))
+        dbo.insert_hg38(snp_reference)
+
+        # db work - how we doing? {{{
+
+        # Read in SNPs from reference lists
+        # Probably doesn't need to be done at this point
+        # trace (10, "   Joining reference lists to variant database...")
+
+        # self.dc.execute('''SELECT hg38.grch38, hg38.name
+        # FROM hg38
+        # INNER JOIN hg19 on hg19.name = hg38.name''')
+
+        # self.dc.execute('''SELECT variants.id, hg38.name
+        # FROM variants
+        # LEFT OUTER JOIN hg38 on hg38.grch38 = variants.id''')
+
+        # }}}
+
+        t = float((time.clock() - start_time))
+        trace(10, '   ...complete after %.3f seconds' % t)
+            
+    #commit
+
+    dbo.db.commit()
+
+    # Print final message and exit {{{{
+
+    t = float((time.clock() - start_time))
+    trace (1, "Execution finished in: %.3f seconds" % t)
+
+    # }}}
 
 # routines - arghandler - Zak
 
@@ -552,7 +675,8 @@ def go_db():
     cur = dbo.cursor(trace)
     dbo.drop_tables()
     dbo.create_tables()
-    dbo.insert_tables(trace,unpack,readVcf)
+    #dbo.insert_tables(trace,unpack,readVcf)
+    skip_to(dbo)
     trace(0,"** + SNP processing done.")
 
 # SNP extraction routines based on original - Harald 
