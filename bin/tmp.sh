@@ -28,9 +28,6 @@ cat $REDUX_ENV/new.0|awk 'BEGIN{p=0;f=0;t=0;a="beg";k="";c1="";c2="";}{
 > $REDUX_ENV/new.1
 #>> $REDUX_ENV/new.1
 
-#get the default hg38 data (doesn't need to be run every time)
-#tail -n +2 $REDUX_ENV/snps_hg38.csv|cut -d'"' -f8,22,24 | sed -e 's/"/,/g' |sort -u> $REDUX_ENV/hg38.0
-
 #this gives me the variants that haven't changed in a kit's data (according to the syntax of the variants.vcf file)
 cat $REDUX_ENV/new.1 | grep "\.$" > $REDUX_ENV/old.0
 
@@ -40,16 +37,16 @@ cat $REDUX_ENV/new.1 | sed "/\.$/d" | sed -e "s/|/,/g"> $REDUX_ENV/new.2
 #from the "new" variants, these are the ones that the hg38 list has names/definitions for
 comm -13 $REDUX_ENV/hg38.0 $REDUX_ENV/new.2 > $REDUX_ENV/new.3
 
-#to compare the rest ... let's just deal with the beginning locations (for the hg38 list)
+#to compare these "new variants" that hg38 knows about too ... let's just deal with the beginning locations (for the hg38 list)
 cat $REDUX_ENV/hg38.0|cut -d',' -f1 | sort -u > $REDUX_ENV/hg38.1
-#and the known new mutations of this kit's variants.vcf
+#and same thing for the new list
 cat $REDUX_ENV/new.3|cut -d',' -f1 | sort -u > $REDUX_ENV/new.4
 
-#and then just isolate those that hg38 already had ... that are *truly* new
+#and then just isolate those where the new list is an even newer version of this variant
 comm -12 hg38.1 new.4 |sed -e 's/$/,/g' > $REDUX_ENV/new.5
 #hg38.1: 10147234,G,T
 #new.4.: 10147234,G,A <-- truly new
 
-#OK! now let's get the rest of the data
-grep -f $REDUX_ENV/new.5 $REDUX_ENV/hg38.1 > $REDUX_ENV/new.6
+#OK! now let's get the rest of the data (so we have the complete definition for the new variant)
+grep -f $REDUX_ENV/new.5 $REDUX_ENV/hg38.0 > $REDUX_ENV/new.6
 
