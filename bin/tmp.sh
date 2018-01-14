@@ -65,7 +65,7 @@ echo;echo "step 9 - new.6 - and here's where we get the rest of the data for tha
 echo "$ grep -f new.5 hg38.0 > new.6"
 time grep -f $REDUX_ENV/new.5 $REDUX_ENV/hg38.0 > $REDUX_ENV/new.6
 
-echo "sep 10 - get count of unique new variants"
+echo "step 10 - get count of unique new variants"
 cntWInsDel=`cat $REDUX_ENV/new.6 | wc -l`
 cntWOInsDel=`cat $REDUX_ENV/new.6 | sed '/ins/d' |wc -l`
 echo "count w/ ins+del (bad entries): $cntWInsDel"
