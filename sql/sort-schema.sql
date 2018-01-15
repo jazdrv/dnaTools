@@ -12,7 +12,7 @@ create table s_variants (
 );
 
 create table s_calls(
- call_id int, -- PK
+ -- call_id int, -- PK - commenting out for now
  kit_id int, 
  variant_loc int,
  assigned boolean 

@@ -98,6 +98,7 @@ class DB(object):
     def insert_sample_sort_data(self):
 
         #sample data: 3019783,M343,1,1,Null,1,1,1,1,1,1,1
+        #{'v': '3019783', 'n': 'M343', 'k1': '1', 'k2': '1', 'k3': 'Null', 'k4': '1', 'k5': '1', 'k6': '1', 'k7': '1', 'k8': '1', 'k9': '1', 'k10': '1', 'k11': None, 'k12': None}
 
         #create table s_kits(
         # kit_id  int,  -- later this can be person_id
@@ -112,22 +113,34 @@ class DB(object):
         #);
 
         #create table s_calls(
-        # call_id int, -- PK
         # kit_id int,
         # variant_loc int,
         # assigned boolean
         #);
 
+        for k in range(1,11):
+            self.dc.execute("insert into s_kits (kit_id) values ("+str(k)+");")
+
         with open(REDUX_DATA+'/sample-sort-data.csv','r') as FILE:
-            for row in csv.DictReader(FILE,'v n k1 k2 k3 k4 k5 k6 k7 k8 k9 k10 k11 k12'.split()):
+            for row in csv.DictReader(FILE,'v n k1 k2 k3 k4 k5 k6 k7 k8 k9 k10'.split()):
                 row = json.loads(json.dumps(row).replace('\\ufeff','')) #hack: remove byte order mark
-                print(row)
+                self.dc.execute("insert into s_variants (variant_loc,name) values ("+row['v']+",'"+row['n']+"');")
+                print(' - inserting sample variant data: '+str(row['v']))
+                for k in range(1,11):
+                    kv = str(row['k'+str(k)])
+                    #'null' if kv == "None" else kv
+                    vv = str(row['v'])
+                    #print (kv)
+                    self.dc.execute("insert into s_calls (kit_id,variant_loc,assigned) values ("+str(k)+","+vv+","+kv+");")
+                    #print (kv+":"+vv)
+                #break;
+                #sys.exit()
+                #print(row)
                 #print(row.encode('utf-8-sig'))
             #for (l,n,v1,v2,v3,v4,v5,v6,v7,v8,v9,v10,v11,v12) in dr]
             #    print (n)
             #self.dc.executemany("insert into s_kits (col1, col2) VALUES (?, ?);", to_db)
             #(variant_loc,name,) = t_db
-            #self.dc.executemany("insert into s_variants (variant_loc,name) VALUES (?,?);", to_db);
             #con.commit()
             #con.close()
         
