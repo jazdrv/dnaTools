@@ -97,7 +97,7 @@ create table variants(
     pos INTEGER,
     ref TEXT,
     alt TEXT,
-    UNIQUE(pos, ref, alt)
+    UNIQUE(buildID, pos, ref, alt)
     );
 
 create index varidx
