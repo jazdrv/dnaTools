@@ -12,7 +12,7 @@
 # }}}
 # libs {{{
 
-import sys,os,sqlite3,yaml,time,csv,numpy as np
+import sys,os,sqlite3,yaml,time,csv,json,numpy as np
 
 # }}}
 
@@ -97,8 +97,12 @@ class DB(object):
         
     def insert_sample_sort_data(self):
 
-        foo = 1
         #sample data: 3019783,M343,1,1,Null,1,1,1,1,1,1,1
+
+        #create table s_kits(
+        # kit_id  int,  -- later this can be person_id
+        # sort_order int
+        #);
 
         #create table s_variants (
         # -- variant_id int, -- not needed for prototype
@@ -114,12 +118,18 @@ class DB(object):
         # assigned boolean
         #);
 
-        #with open(REDUX_DATA+'/'+data.csv','rb') as FILE:
-        #    dr = csv.DictReader(FILE) # comma is default delimiter
-        #    to_db = [(i['col1'], i['col2']) for i in dr]
-        #    cur.executemany("insert into s_variants (col1, col2) VALUES (?, ?);", to_db)
-        #    con.commit()
-        #    con.close()
+        with open(REDUX_DATA+'/sample-sort-data.csv','r') as FILE:
+            for row in csv.DictReader(FILE,'v n k1 k2 k3 k4 k5 k6 k7 k8 k9 k10 k11 k12'.split()):
+                row = json.loads(json.dumps(row).replace('\\ufeff','')) #hack: remove byte order mark
+                print(row)
+                #print(row.encode('utf-8-sig'))
+            #for (l,n,v1,v2,v3,v4,v5,v6,v7,v8,v9,v10,v11,v12) in dr]
+            #    print (n)
+            #self.dc.executemany("insert into s_kits (col1, col2) VALUES (?, ?);", to_db)
+            #(variant_loc,name,) = t_db
+            #self.dc.executemany("insert into s_variants (variant_loc,name) VALUES (?,?);", to_db);
+            #con.commit()
+            #con.close()
         
     def sort_data(self):
         sql = """
