@@ -55,19 +55,19 @@ config = yaml.load(open(REDUX_CONF))
 parser = argparse.ArgumentParser()
 
 #note: probably needs to be rethought
-parser.add_argument('-A', '--all', help='perform all possible steps', action='store_true')
+parser.add_argument('-A', '--all', help='perform all possible steps (prob best not to use for now)', action='store_true')
 
 #note: redux2.bash refactoring area (part 1)
-parser.add_argument('-b', '--backup', help='do a backup', action='store_true')
+parser.add_argument('-b', '--backup', help='do a "backup" (redux.bash stuff)', action='store_true')
 
 #note: redux2.bash refactoring area (part 2)
-parser.add_argument('-p', '--prep', help='prep file structure', action='store_true')
+parser.add_argument('-p', '--prep', help='prep file structure (redux.bash stuff)', action='store_true')
 
 #note: redux2.py refactoring area
-parser.add_argument('-r', '--redux2', help='redux2', action='store_true')
+parser.add_argument('-r', '--redux2', help='redux2.py stuff (v1 schema) ', action='store_true')
 
 #note: sort prototype stuff
-parser.add_argument('-s', '--sort', help='sort data prototype', action='store_true')
+parser.add_argument('-s', '--sort', help='sort data prototype (s_ schema currently)', action='store_true')
 
 #note: Jef's new v2 schema
 parser.add_argument('-n', '--new', help='new v2 schema', action='store_true')
