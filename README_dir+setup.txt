@@ -6,7 +6,7 @@ some quick notes about the folder + setup scheme so far
 Directory Structure:
 ---------------------------------------------------
 
-./LICENSE - open GL 3 license (got this from github)
+./LICENSE - open GPL 3 license (got this from github)
 
 ./README.md - originally pushed this in using bitbucket, it's the project default
 readme at GitHub
