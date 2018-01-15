@@ -1,5 +1,6 @@
 .*.sw?
 autobackup
+clades.db
 merge-ignore.txt
 snps_hg19.csv
 zip
