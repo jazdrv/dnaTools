@@ -690,6 +690,7 @@ def go_sort_db():
     dbo.drop_sort_tables()
     dbo.create_sort_tables()
     dbo.insert_sample_sort_data()
+    dbo.sort_data()
     dbo.commit()
     #trace(0,"** + SNP processing done.")
 

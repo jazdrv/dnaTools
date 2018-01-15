@@ -145,14 +145,7 @@ class DB(object):
             #con.close()
         
     def sort_data(self):
-        sql = """
-            select count(positive), kit_id
-            sorted_positive_variants(kit_id),sorted_negative_variants(kid_id)
-            from calls
-            where positive is True
-            group by positive
-            order by 1
-            """;
+        sql = "select cnt_variant_positives(kit_id), cnt_variant_negatives(kit_id), fetch_ordered_variants(kit_id) from kits;"
         
         #   for K in kits:
         #    ...
