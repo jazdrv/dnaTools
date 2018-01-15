@@ -94,4 +94,16 @@ class DB(object):
         
     def insert_sort_data(self):
         foo = 2
+        #sorted_kits = select count(positive), kit_id
+        #    sorted_positive_variants(kit_id),sorted_negative_variants(kid_id)
+        #    from calls
+        #    where positive is True
+        #    group by positive
+        #    order by 1
+        #
+        #    for K in kits:
+        #       ...
+        #
+        #sort_positive_variants(kit_id)
+
 
