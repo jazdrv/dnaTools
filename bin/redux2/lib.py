@@ -376,7 +376,7 @@ def skip_to(dbo):
 
     # }}}
 
-# routines - arghandler - Zak
+# routines - arghandler (redux2) - Zak
 
 def go_all():
     go_backup()
@@ -678,6 +678,17 @@ def go_db():
     #dbo.insert_tables(trace,unpack,readVcf)
     skip_to(dbo)
     trace(0,"** + SNP processing done.")
+
+#routines - "arghandler" (sort prototype) - Zak
+
+def go_sort_db():
+    #trace(0,"** process SNP data.")
+    dbo = DB()
+    cur = dbo.cursor(trace)
+    dbo.drop_sort_tables()
+    dbo.create_sort_tables()
+    dbo.insert_sort_data()
+    #trace(0,"** + SNP processing done.")
 
 # SNP extraction routines based on original - Harald 
 # extracts the SNP calls from the VCF files and

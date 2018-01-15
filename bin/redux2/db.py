@@ -32,6 +32,9 @@ class DB(object):
         self.db = sqlite3.connect('variant.db')
         self.dc = self.db.cursor()
         
+
+    #redux2 ddl+dml
+
     def drop_tables(self):
         if (config['drop_tables'] > 0):
             tbls = "variants hg19 hg38 kits people strs calls tree"
@@ -315,4 +318,15 @@ class DB(object):
         # db-debug hg38 insertion
         #self.dc.execute('SELECT * FROM hg38 LIMIT 5')
         #print (dc.fetchone())
+
+    #tree sort prototype ddl+dml
+    
+    def drop_sort_tables():
+        foo = 1
+        
+    def create_sort_tables():
+        foo = 1
+        
+    def insert_sort_data():
+        foo = 2
 

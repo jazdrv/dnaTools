@@ -12,4 +12,6 @@
 #
 #sort_positive_variants(kit_id)
 
+create sort_db()
+create_sort_tbls()
 
