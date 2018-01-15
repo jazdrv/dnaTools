@@ -54,8 +54,8 @@ config = yaml.load(open(REDUX_CONF))
 
 parser = argparse.ArgumentParser()
 
-#note: probably needs to be rethought - commenting out for now
-#parser.add_argument('-A', '--all', help='perform all possible steps', action='store_true')
+#note: probably needs to be rethought
+parser.add_argument('-A', '--all', help='perform all possible steps', action='store_true')
 
 #note: redux2.bash refactoring area (part 1)
 parser.add_argument('-b', '--backup', help='do a backup', action='store_true')
@@ -79,18 +79,21 @@ if args.all:
     go_prep()
     go_db()
 else:
+    # redux.bash stuff
     if args.backup:
         go_backup()
+    # redux.bash stuff
     if args.prep:
         go_prep()
+    # redux2.py stuff (v1 schema)
     if args.redux2:
-        go_db()
+        go_v1_db()
+    # sort prototype
     if args.sort:
         go_sort_db()
-    if args.redux2:
-        go_db()
+    # (v2 schema)
     if args.new:
-        go_new_db()
+        go_db()
 
 trace(0, "** script complete.\n")
 

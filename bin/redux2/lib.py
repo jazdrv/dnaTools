@@ -311,7 +311,7 @@ def skip_to(dbo):
         #db calls
 
         trace (20, "   Inserting data into variant array database...")
-        dbo.insert_variants(variant_array)
+        dbo.insert_v1_variants(variant_array)
         t = float((time.clock() - start_time))
         trace(10, '   ...complete after %.3f seconds' % t)
         
@@ -323,7 +323,7 @@ def skip_to(dbo):
         trace (2, "Generating database of calls...")
         vcffiles = [f for f in os.listdir(REDUX_ENV+'/'+config['unzip_dir']) if f.endswith('.vcf')]
         trace (10, "   %i files detected" % len(vcffiles))
-        dbo.insert_calls()
+        dbo.insert_v1_calls()
 
     # skip to <= 13 - name variants and derive ancestral values
 
@@ -341,10 +341,10 @@ def skip_to(dbo):
         snp_reference = csv.reader(open(REDUX_ENV+'/'+config['b37_snp_file']))
         #for rec in snp_reference:
         #   print "INSERT INTO v1_hg19(grch37,grch37end,name,anc,der) VALUES (?,?,?,?,?)", (rec[3], rec[4], rec[8], rec[10], rec[11])
-        dbo.insert_hg19(snp_reference)
+        dbo.insert_v1_hg19(snp_reference)
             
         snp_reference = csv.reader(open(REDUX_ENV+'/'+config['b38_snp_file']))
-        dbo.insert_hg38(snp_reference)
+        dbo.insert_v1_hg38(snp_reference)
 
         # db work - how we doing? {{{
 
@@ -376,7 +376,7 @@ def skip_to(dbo):
 
     # }}}
 
-# routines - arghandler (redux2) - Zak
+# routines - arghandler (redux1) - Zak
 
 def go_all():
     go_backup()
@@ -669,15 +669,17 @@ def go_prep():
 
     trace(0,"** + prep done.")
     
-def go_db():
+
+# routines - arghandler (redux2) - Zak
+
+def go_v1_db():
     trace(1, "Initialising database...")
     dbo = DB()
     cur = dbo.cursor()
-    dbo.drop_tables()
-    dbo.create_tables()
-    #dbo.insert_tables(trace,unpack,readVcf)
+    dbo.drop_v1_tables()
+    dbo.create_v1_tables()
     skip_to(dbo)
-    #trace(0,"** + SNP processing done.")
+    
 
 #routines - "arghandler" (sort prototype) - Zak
 
@@ -690,6 +692,15 @@ def go_sort_db():
     dbo.insert_sort_data()
     dbo.commit()
     #trace(0,"** + SNP processing done.")
+
+#routines - "arghandler" (new v2 schema)- Jef/Zak
+
+def go_db():
+    trace(1, "Initialising database...")
+    dbo = DB()
+    cur = dbo.cursor()
+    dbo.drop_tables()
+    dbo.create_tables()
 
 # SNP extraction routines based on original - Harald 
 # extracts the SNP calls from the VCF files and
