@@ -2,7 +2,7 @@
 
 -- variants
 
-CREATE TABLE IF NOT EXISTS variants (
+CREATE TABLE IF NOT EXISTS v1_variants (
     id INTEGER PRIMARY KEY,
     grch37 INTEGER,
     length SMALLINT,
@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS variants (
 
 -- hg19
 
-CREATE TABLE IF NOT EXISTS hg19 (
+CREATE TABLE IF NOT EXISTS v1_hg19 (
     id INTEGER PRIMARY KEY,
     snp BOOLEAN,
     grch37 INTEGER,
@@ -25,7 +25,7 @@ CREATE TABLE IF NOT EXISTS hg19 (
 
 -- hg38
 
-CREATE TABLE IF NOT EXISTS hg38 (
+CREATE TABLE IF NOT EXISTS v1_hg38 (
     id INTEGER PRIMARY KEY,
     snp BOOLEAN,
     grch38 INTEGER,
@@ -35,7 +35,7 @@ CREATE TABLE IF NOT EXISTS hg38 (
     der CHARACTER(64)
 );
 
-CREATE TABLE IF NOT EXISTS kits (
+CREATE TABLE IF NOT EXISTS v1_kits (
     id INTEGER PRIMARY KEY,
     vcffile CHARACTER(256),
     bedfile CHARACTER(256),
@@ -49,7 +49,7 @@ CREATE TABLE IF NOT EXISTS kits (
 
 -- people
 
-CREATE TABLE IF NOT EXISTS people (
+CREATE TABLE IF NOT EXISTS v1_people (
     person INTEGER PRIMARY KEY,
     ngstest BOOLEAN,
     ftdnaid CHARACTER(16) REFERENCES kits(kitnum),
@@ -79,7 +79,7 @@ CREATE TABLE IF NOT EXISTS people (
 
 -- calls
 
-CREATE TABLE IF NOT EXISTS calls
+CREATE TABLE IF NOT EXISTS v1_calls
     (id LONGINT PRIMARY KEY,
     person INTEGER REFERENCES people(person),
     variant INTEGER REFERENCES variants(id),
@@ -95,7 +95,7 @@ CREATE TABLE IF NOT EXISTS calls
 -- tree
 /* (commented out for now) {{{
 
-CREATE TABLE IF NOT EXISTS tree
+CREATE TABLE IF NOT EXISTS v1_tree
     (id INTEGER PRIMARY KEY,
     parendid INTEGER,
     clade CHARACTER(16),
@@ -138,7 +138,7 @@ CREATE TABLE IF NOT EXISTS tree
 -- strs
 /* (commented out for now){{{
 
-CREATE TABLE IF NOT EXISTS strs (
+CREATE TABLE IF NOT EXISTS v1_strs (
     person INTEGER PRIMARY KEY,
     DYS393 TINYINT,
     DYS390 TINYINT,

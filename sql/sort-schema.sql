@@ -64,8 +64,4 @@ create table s_sort_kits(
 
 -- }}}
 
--- DML
-
--- insert into s_variants (variant_id,reference) values (3019783,'M343');
--- insert into s_variants (variant_id,refernece) values (6920349
 

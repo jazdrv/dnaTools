@@ -52,13 +52,13 @@ class DB(object):
         self.run_sql_file('redux2-schema.sql')
         
     def insert_variants(self,variant_array):
-        self.dc.executemany('''INSERT INTO variants(id,ref,alt) VALUES (?,?,?)''', variant_array)
+        self.dc.executemany('''INSERT INTO v1_variants(id,ref,alt) VALUES (?,?,?)''', variant_array)
         # db-debug variants insertion
         #dc.execute('SELECT * FROM variants LIMIT 5')
         #print (dc.fetchone())
         
     def insert_calls(self):
-        self.dc.execute('''INSERT INTO calls(variant,person)
+        self.dc.execute('''INSERT INTO v1_calls(variant,person)
             SELECT id, person
             FROM variants CROSS JOIN people''')
         # db-debug calls insertion
@@ -66,11 +66,11 @@ class DB(object):
         # print (dc.fetchone())
         
     def insert_hg19(self,snp_reference):
-        self.dc.executemany("INSERT INTO hg19(grch37,grch37end,name,anc,der) VALUES (?,?,?,?,?)",
+        self.dc.executemany("INSERT INTO v1_hg19(grch37,grch37end,name,anc,der) VALUES (?,?,?,?,?)",
             ((rec[3], rec[4], rec[8], rec[10], rec[11]) for rec in snp_reference))
             
     def insert_hg38(self,snp_reference):
-        self.dc.executemany("INSERT INTO hg38(grch38,grch38end,name,anc,der) VALUES (?,?,?,?,?)",
+        self.dc.executemany("INSERT INTO v1_hg38(grch38,grch38end,name,anc,der) VALUES (?,?,?,?,?)",
             ((rec[3], rec[4], rec[8], rec[10], rec[11]) for rec in snp_reference))
         # db-debug hg38 insertion
         #self.dc.execute('SELECT * FROM hg38 LIMIT 5')

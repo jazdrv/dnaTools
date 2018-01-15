@@ -340,7 +340,7 @@ def skip_to(dbo):
             
         snp_reference = csv.reader(open(REDUX_ENV+'/'+config['b37_snp_file']))
         #for rec in snp_reference:
-        #   print "INSERT INTO hg19(grch37,grch37end,name,anc,der) VALUES (?,?,?,?,?)", (rec[3], rec[4], rec[8], rec[10], rec[11])
+        #   print "INSERT INTO v1_hg19(grch37,grch37end,name,anc,der) VALUES (?,?,?,?,?)", (rec[3], rec[4], rec[8], rec[10], rec[11])
         dbo.insert_hg19(snp_reference)
             
         snp_reference = csv.reader(open(REDUX_ENV+'/'+config['b38_snp_file']))

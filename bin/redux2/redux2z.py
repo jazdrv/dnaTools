@@ -53,11 +53,25 @@ config = yaml.load(open(REDUX_CONF))
 # arg parser (we can replace this -if useful- with getOpts or whatever)
 
 parser = argparse.ArgumentParser()
-parser.add_argument('-A', '--all', help='perform all possible steps', action='store_true')
+
+#note: probably needs to be rethought - commenting out for now
+#parser.add_argument('-A', '--all', help='perform all possible steps', action='store_true')
+
+#note: redux2.bash refactoring area (part 1)
 parser.add_argument('-b', '--backup', help='do a backup', action='store_true')
+
+#note: redux2.bash refactoring area (part 2)
 parser.add_argument('-p', '--prep', help='prep file structure', action='store_true')
-parser.add_argument('-d', '--data', help='SNP data processing', action='store_true')
+
+#note: redux2.py refactoring area
+parser.add_argument('-r', '--redux2', help='redux2', action='store_true')
+
+#note: sort prototype stuff
 parser.add_argument('-s', '--sort', help='sort data prototype', action='store_true')
+
+#note: Jef's new v2 schema
+parser.add_argument('-n', '--new', help='new v2 schema', action='store_true')
+
 args = parser.parse_args()
 
 if args.all:
@@ -69,10 +83,14 @@ else:
         go_backup()
     if args.prep:
         go_prep()
-    if args.data:
+    if args.redux2:
         go_db()
     if args.sort:
         go_sort_db()
+    if args.redux2:
+        go_db()
+    if args.new:
+        go_new_db()
 
 trace(0, "** script complete.\n")
 
