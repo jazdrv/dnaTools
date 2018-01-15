@@ -37,7 +37,7 @@ def trace (level, msg):
 DEBUG=0
 
 # where the files reside, currently hardwired
-UNZIPDIR = 'unzip'
+UNZIPDIR = '/Users/jazdrv/_prj/dnatools/env/unzips2'
 
 # the name of the SQLite database on disk
 DBFILE = 'clades.db'
