@@ -54,7 +54,9 @@ Setup
 I've been operating under the idea that a yaml config can be used. See:
 ./bin/redux2/config.yaml
 
-And also one or two things that can be set as environment variables:
+And also one or two things that can be set as environment variables.
+
+As I write this ... these are the .bashrc settings I currently have:
 
 export REDUX_CONF="/Users/jazdrv/_prj/dnatools/bin/redux2/config.yaml"
 export PYTHONPATH="$PYTHONPATH:/Users/jazdrv/_prj/dnatools/bin/redux2"
@@ -64,7 +66,9 @@ export REDUX_PATH="/Users/jazdrv/_prj/dnatools/bin/redux2"
 export REDUX_DATA="/Users/jazdrv/_prj/dnatools/data"
 
 I don't think all these environment var's need setting like this though. They can be done
-in the config file too in a better way. 
+in the config file too in a better way. (or various other techniques)
+But I am trying to keep things separate, and also keep moving forward.
+So this is what I've been doing so far (and why).
 
 Again, I'm not tied to anything in the setup either. I can accomodate
 multiple ideas -- whatever makes sense.
