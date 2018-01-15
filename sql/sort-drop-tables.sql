@@ -1,5 +1,7 @@
-drop table if exists variants;
-drop table if exists call_passes;
-drop table if exists call_fails;
-drop table if exists sort_variants;
-drop table if exists sort_kits;
+-- sort prototype drop tables
+
+drop table if exists s_variants;
+drop table if exists s_call_passes;
+drop table if exists s_call_fails;
+drop table if exists s_sort_variants;
+drop table if exists s_sort_kits;

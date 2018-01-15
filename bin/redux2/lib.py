@@ -367,7 +367,7 @@ def skip_to(dbo):
             
     #commit
 
-    dbo.db.commit()
+    dbo.commit()
 
     # Print final message and exit {{{{
 
@@ -670,24 +670,25 @@ def go_prep():
     trace(0,"** + prep done.")
     
 def go_db():
-    trace(0,"** process SNP data.")
+    trace(1, "Initialising database...")
     dbo = DB()
-    cur = dbo.cursor(trace)
+    cur = dbo.cursor()
     dbo.drop_tables()
     dbo.create_tables()
     #dbo.insert_tables(trace,unpack,readVcf)
     skip_to(dbo)
-    trace(0,"** + SNP processing done.")
+    #trace(0,"** + SNP processing done.")
 
 #routines - "arghandler" (sort prototype) - Zak
 
 def go_sort_db():
     #trace(0,"** process SNP data.")
     dbo = DB()
-    cur = dbo.cursor(trace)
+    cur = dbo.cursor()
     dbo.drop_sort_tables()
     dbo.create_sort_tables()
     dbo.insert_sort_data()
+    dbo.commit()
     #trace(0,"** + SNP processing done.")
 
 # SNP extraction routines based on original - Harald 

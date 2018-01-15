@@ -57,6 +57,7 @@ parser.add_argument('-A', '--all', help='perform all possible steps', action='st
 parser.add_argument('-b', '--backup', help='do a backup', action='store_true')
 parser.add_argument('-p', '--prep', help='prep file structure', action='store_true')
 parser.add_argument('-d', '--data', help='SNP data processing', action='store_true')
+parser.add_argument('-s', '--sort', help='sort data prototype', action='store_true')
 args = parser.parse_args()
 
 if args.all:
@@ -70,6 +71,8 @@ else:
         go_prep()
     if args.data:
         go_db()
+    if args.sort:
+        go_sort_db()
 
 trace(0, "** script complete.\n")
 
