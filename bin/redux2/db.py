@@ -17,10 +17,13 @@ import sys,os,sqlite3,yaml,time,csv,numpy as np
 # }}}
 
 REDUX_CONF = os.environ['REDUX_CONF']
-REDUX_ENV = os.environ['REDUX_ENV']
-REDUX_SQL = os.environ['REDUX_SQL']
 config = yaml.load(open(REDUX_CONF))
 start_time = 0 # need to fix this
+
+#TODO: need to put this info properly into yaml file (for now, I'm hacking bashrc)
+REDUX_ENV = os.environ['REDUX_ENV']
+REDUX_SQL = os.environ['REDUX_SQL']
+REDUX_DATA = os.environ['REDUX_DATA']
 
 class DB(object):
     
@@ -92,7 +95,33 @@ class DB(object):
     def create_sort_tables(self):
         self.run_sql_file('sort-schema.sql')
         
-    def insert_sort_data(self):
+    def insert_sample_sort_data(self):
+
+        foo = 1
+        #sample data: 3019783,M343,1,1,Null,1,1,1,1,1,1,1
+
+        #create table s_variants (
+        # -- variant_id int, -- not needed for prototype
+        # variant_loc int,  -- PK
+        # name varchar(20)
+        # -- old_reference varchar(2), -- commenting out right now cuz not part of ian's doc
+        #);
+
+        #create table s_calls(
+        # call_id int, -- PK
+        # kit_id int,
+        # variant_loc int,
+        # assigned boolean
+        #);
+
+        #with open(REDUX_DATA+'/'+data.csv','rb') as FILE:
+        #    dr = csv.DictReader(FILE) # comma is default delimiter
+        #    to_db = [(i['col1'], i['col2']) for i in dr]
+        #    cur.executemany("insert into s_variants (col1, col2) VALUES (?, ?);", to_db)
+        #    con.commit()
+        #    con.close()
+        
+    def sort_data(self):
         sql = """
             select count(positive), kit_id
             sorted_positive_variants(kit_id),sorted_negative_variants(kid_id)
