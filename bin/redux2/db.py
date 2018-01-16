@@ -171,7 +171,7 @@ class DB(object):
         #[{"k1":[{"v12060401",1)},{"v6920349",1), ... ]}
         #[{"k2":[{"v12060401",1)},{"v6920349",None), ... ]}
         #and display it
-        for call in calls:
+        #for call in calls:
         #   for K in kits:
         #    ...
         #   sort_positive_variants(kit_id)
