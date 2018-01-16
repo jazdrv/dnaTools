@@ -149,79 +149,107 @@ class DB(object):
         
     def sort_data(self):
 
-        #sql_1 = "select kit_id,count(*) as pos_k_cnt from s_calls where assigned = 1 group by kit_id order by count(*) desc;"
-        #self.dc.execute(sql_1)
-        #kitA = self.dc.fetchall()
-        #print("---")
-        #print("kit check")
-        #print(kitA)
-        #[(4, 9), (9, 8), (2, 7), (7, 7), (8, 7), (3, 6), ... ]
-
         print("===")
-        print("START: 'For Each Variant'")
+        print("PROCESS: FILTER, STEP: A ")
         print("===")
-        sql_0 = "select distinct variant_loc from s_calls;"
-        self.dc.execute(sql_0)
+        sql = "select distinct variant_loc from s_calls;"
+        self.dc.execute(sql)
         A = self.dc.fetchall()
         print("A - distinct variants")
-        print(A)
+        print(A) #A - distinct variants
         print("---")
         print('numA - num distinct variants')
-        print(len(A)) #num distinct variants
+        print(len(A)) #numA - num distinct variants
 
         print("===")
-        print("SORT STEP: B")
+        print("FILTER - STEP: B")
         print("===")
-        sql_1 = "select distinct variant_loc from s_calls where assigned = 0;"
-        self.dc.execute(sql_1)
+        sql = "select distinct variant_loc from s_calls where assigned = 0;"
+        self.dc.execute(sql)
         B1 = self.dc.fetchall()
-        B0 = set(A)-set(B1)
-        #print("---")
-        #print("sql result")
-        #print(f1)
-        #sys.exit()
-        #print("---")
+        B0 = list(set(A)-set(B1))
         print("B0 - variants that don't have negs")
-        #print(B0) #B0 -  variants that don't have negs 
-        print(list(B0))
+        print(B0) #B0 - variants that don't have negs
         print("---")
         print("B1 - variants that have negs")
         print(B1) #B1 - variants that have negs 
 
         print("===")
-        print("SORT STEP: C")
+        print("FILTER - STEP: C")
         print("===")
         sql_2 = "select variant_loc,count(*) as cnt from s_calls where assigned = 1 group by variant_loc;"
         self.dc.execute(sql_2)
         f2 = self.dc.fetchall()
         f2a = list(filter(lambda x: x[1]==(len(f2)-1), f2))
-        C1 = list(set(B1) & set(f2a)) # intersection = singletons
+        C1 = list(set(B1) & set(f2a)) #intersection
         C0 = list(set(B1)-set(C1))
         print("list of *all* one person +ve's")
         print(f2a)
         print("---")
         print("not singletons")
-        print(C0)
+        print(C0) #C0 - not singletons
         print("---")
-        print("singletons")
+        print("singletons") #C1 - singletons
         print(C1)
 
         print("===")
-        print("SORT STEP: D")
+        print("FILTER - STEP: D")
         print("===")
         sql_3 = "select distinct variant_loc from s_calls where assigned is null group by variant_loc;"
         self.dc.execute(sql_3)
         f3 = self.dc.fetchall()
-        D0 = list(set(C1)-set(f3)) #imperfect variants
+        D0 = list(set(C1)-set(f3))
         D1 = list(set(f3)-set(D0))
         print("list of variants that are sometimes not called")
         print(f3)
         print("---")
         print("imperfect variants")
-        print(D0)
+        print(D0) #D0 - imperfect variants
         print("---")
-        print("calls of perfect share variants")
-        print(D1)
+        print("calls of perfect share variants - these go through the next PROCESS, SORT")
+        print(D1) #D1 - perfect share variants
+
+        print("===")
+        print("PROCESS: SORT")
+        print("===")
+        sql_3 = "select kit_id,variant_loc from s_calls where ;"
+
+        #------------------------------
+        #note: I think the latter (byK) sort of construct might be what we're looking
+        #to work with (and sort)
+        #------------------------------
+
+        #byV = [
+        #    { v1:
+        #        ({pos:[k4,k3]},{cnt:2},{neg:[]},{unk:[]})
+        #        },
+        #    { v2:
+        #        ({pos:[k1,k2,k3]},{cnt:3},{neg:[]},{unk:[]})
+        #        },
+        #    { v3:
+        #        ({pos:[k4,k3]},{cnt:2},{neg:[]},{unk:[]})
+        #        },
+        #    { v4:
+        #        ({pos:[k2,k1]},(cnt:2},{neg:[]},{unk:[]})
+        #        }
+        #    ]
+
+        #byK = [
+        #    { k1:
+        #        ({pos:[v2,v4]},{cnt:2},{neg:[]},{unk:[]})
+        #        },
+        #    { k2:
+        #        ({pos,[v2,v4]},{cnt:2},{neg:[]},{unk:[]})
+        #        },
+        #    { k3:
+        #        ({pos,[v1,v2,v3]},{cnt:2},{neg:[]},{unk:[]})
+        #        },
+        #    { k4:
+        #        ({pos,[v1,v3]},{cnt:2},{neg:[]},{unk:[]})
+        #        }
+        #    ]
+            
+        #------------------------------
 
         sys.exit()
 
