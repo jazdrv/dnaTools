@@ -1,3 +1,5 @@
 autobackup
 notes
 *.sw?
+env
+env2
