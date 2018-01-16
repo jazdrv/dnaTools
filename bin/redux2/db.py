@@ -148,14 +148,14 @@ class DB(object):
         
     def sort_data(self):
         #self.cursor()
-        sql_1 = "select kit_id,count(*) as pos_k_cnt from s_calls where assigned = 1 group by kit_id order by count(*);"
+        sql_1 = "select kit_id,count(*) as pos_k_cnt from s_calls where assigned = 1 group by kit_id order by count(*) desc;"
         self.dc.execute(sql_1)
         kitA = self.dc.fetchall()
         #[(1, 5), (2, 7), (3, 6), (4, 9), (5, 4), (6, 4), (7, 7), (8, 7), (9, 8), (10, 4)]
         print("---")
         print(kitA)
         print("---")
-        sql_2 = "select variant_loc,count(*) as pos_v_cnt from s_calls where assigned = 1 group by variant_loc order by count(*);"
+        sql_2 = "select variant_loc,count(*) as pos_v_cnt from s_calls where assigned = 1 group by variant_loc order by count(*) desc;"
         self.dc.execute(sql_2)
         varA = self.dc.fetchall()
         #[(3019783, 9), (6920349, 2), (7378685, 5), (8928037, 8), (12060401, 2), (12878820, 2), ... ]
