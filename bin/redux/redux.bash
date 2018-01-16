@@ -7,7 +7,6 @@ C1=`echo "$M1" | awk '{print $1-17}'`
 C2=`echo "$M2" | awk '{print $1-17+1}'`
 echo "$M1 $M2" 
 awk 'NR<16 || $1+0==0 || $2~"P312" || $2~"L21" || $2~"L459" || $2~"DF13" || $16>=m1 && $16<=m2' m1="$M1" m2="$M2" FS=, p312/short-report.csv | cut -d, -f1-17,"$M1"-"$M2" > p312/short-report-l21-zz10.csv
-
 awk '$0~"Row 1" {intable=1} \
 $0~"</table>" {intable=0} \
 intable==0 {print} \
