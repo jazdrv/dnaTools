@@ -118,15 +118,16 @@ class DB(object):
         # assigned boolean
         #);
 
-        for k in range(1,11):
+        cols=10
+        for k in range(1,cols+1):
             self.dc.execute("insert into s_kits (kit_id) values ("+str(k)+");")
 
         with open(REDUX_DATA+'/sample-sort-data.csv','r') as FILE:
             for row in csv.DictReader(FILE,'v n k1 k2 k3 k4 k5 k6 k7 k8 k9 k10'.split()):
                 row = json.loads(json.dumps(row).replace('\\ufeff','')) #hack: remove byte order mark
                 self.dc.execute("insert into s_variants (variant_loc,name) values ("+row['v']+",'"+row['n']+"');")
-                print(' - inserting sample variant data: '+str(row['v']))
-                for k in range(1,11):
+                #print(' - inserting sample variant data: '+str(row['v']))
+                for k in range(1,cols+1):
                     kv = str(row['k'+str(k)])
                     #'null' if kv == "None" else kv
                     vv = str(row['v'])
@@ -147,26 +148,107 @@ class DB(object):
         self.commit()
         
     def sort_data(self):
-        #self.cursor()
-        sql_1 = "select kit_id,count(*) as pos_k_cnt from s_calls where assigned = 1 group by kit_id order by count(*) desc;"
+
+        #sql_1 = "select kit_id,count(*) as pos_k_cnt from s_calls where assigned = 1 group by kit_id order by count(*) desc;"
+        #self.dc.execute(sql_1)
+        #kitA = self.dc.fetchall()
+        #print("---")
+        #print("kit check")
+        #print(kitA)
+        #[(4, 9), (9, 8), (2, 7), (7, 7), (8, 7), (3, 6), ... ]
+
+        print("===")
+        print("START: 'For Each Variant'")
+        print("===")
+        sql_0 = "select distinct variant_loc from s_calls;"
+        self.dc.execute(sql_0)
+        A = self.dc.fetchall()
+        print("A - distinct variants")
+        print(A)
+        print("---")
+        print('numA - num distinct variants')
+        print(len(A)) #num distinct variants
+
+        print("===")
+        print("SORT STEP: B")
+        print("===")
+        sql_1 = "select distinct variant_loc from s_calls where assigned = 0;"
         self.dc.execute(sql_1)
-        kitA = self.dc.fetchall()
-        #[(1, 5), (2, 7), (3, 6), (4, 9), (5, 4), (6, 4), (7, 7), (8, 7), (9, 8), (10, 4)]
+        B1 = self.dc.fetchall()
+        B0 = set(A)-set(B1)
+        #print("---")
+        #print("sql result")
+        #print(f1)
+        #sys.exit()
+        #print("---")
+        print("B0 - variants that don't have negs")
+        #print(B0) #B0 -  variants that don't have negs 
+        print(list(B0))
         print("---")
-        print(kitA)
-        print("---")
-        sql_2 = "select variant_loc,count(*) as pos_v_cnt from s_calls where assigned = 1 group by variant_loc order by count(*) desc;"
+        print("B1 - variants that have negs")
+        print(B1) #B1 - variants that have negs 
+
+        print("===")
+        print("SORT STEP: C")
+        print("===")
+        sql_2 = "select variant_loc,count(*) as cnt from s_calls where assigned = 1 group by variant_loc;"
         self.dc.execute(sql_2)
-        varA = self.dc.fetchall()
-        #[(3019783, 9), (6920349, 2), (7378685, 5), (8928037, 8), (12060401, 2), (12878820, 2), ... ]
-        print(varA)
+        f2 = self.dc.fetchall()
+        f2a = list(filter(lambda x: x[1]==(len(f2)-1), f2))
+        C1 = list(set(B1) & set(f2a)) # intersection = singletons
+        C0 = list(set(B1)-set(C1))
+        print("list of *all* one person +ve's")
+        print(f2a)
         print("---")
+        print("not singletons")
+        print(C0)
+        print("---")
+        print("singletons")
+        print(C1)
+
+        print("===")
+        print("SORT STEP: D")
+        print("===")
+        sql_3 = "select distinct variant_loc from s_calls where assigned is null group by variant_loc;"
+        self.dc.execute(sql_3)
+        f3 = self.dc.fetchall()
+        D0 = list(set(C1)-set(f3)) #imperfect variants
+        D1 = list(set(f3)-set(D0))
+        print("list of variants that are sometimes not called")
+        print(f3)
+        print("---")
+        print("imperfect variants")
+        print(D0)
+        print("---")
+        print("calls of perfect share variants")
+        print(D1)
+
+        sys.exit()
+
+        #sql_2b = "select variant_loc,count(*) as pos_v_cnt from s_calls where assigned = 0 group by variant_loc order by count(*) desc;"
+        #self.dc.execute(sql_2b)
+        #varAn = self.dc.fetchall()
+        #print("---")
+        #print("variant negative check")
+        #print(varAn)
+
+        sql_2b = "select variant_loc,count(*) as pos_v_cnt from s_calls where assigned = 0 group by variant_loc order by count(*) desc;"
+        sql_2c = "select variant_loc,count(*) as pos_v_cnt from s_calls where assigned is not null group by variant_loc order by count(*) desc;"
+        self.dc.execute(sql_2c)
+        varAa = self.dc.fetchall()
+        print("---")
+        print("variant all check")
+        print(varAa)
+        #(3) 9 perfectly called variants - execute sort on these
+        #(4) 6 imperfectly called variants - do Step A
+
         sql_3 = "select * from s_calls order by kit_id,assigned;"
         self.dc.execute(sql_3)
         callsA = self.dc.fetchall()
+        print("---")
         #[(1, 12060401, None), (1, 6920349, 0), (1, 7378685, 0), (1, 13668461, 0), (1, 19538924, 0), ... ]
         print (callsA);
-        print("---")
+
         #Note: build the default structure with the kits ordered like kitA and the variants ordered like varA
         #[{"k1":[{"v12060401",1)},{"v6920349",1), ... ]}
         #[{"k2":[{"v12060401",1)},{"v6920349",None), ... ]}
@@ -175,5 +257,6 @@ class DB(object):
         #   for K in kits:
         #    ...
         #   sort_positive_variants(kit_id)
+
 
 
