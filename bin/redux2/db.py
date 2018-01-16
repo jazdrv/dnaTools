@@ -132,6 +132,7 @@ class DB(object):
                     vv = str(row['v'])
                     #print (kv)
                     self.dc.execute("insert into s_calls (kit_id,variant_loc,assigned) values ("+str(k)+","+vv+","+kv+");")
+                    #self.commit()
                     #print (kv+":"+vv)
                 #break;
                 #sys.exit()
@@ -143,12 +144,34 @@ class DB(object):
             #(variant_loc,name,) = t_db
             #con.commit()
             #con.close()
+        self.commit()
         
     def sort_data(self):
-        sql_1 = "select kit_id,count(*) as pos_cnt from s_calls where assigned is true group by kit_id order by kit_id;"
-        sql_2 = "select kit_id,count(*) as neg_cnt from s_calls where assigned is false group by kit_id order by kit_id;"
+        #self.cursor()
+        sql_1 = "select kit_id,count(*) as pos_k_cnt from s_calls where assigned = 1 group by kit_id order by count(*);"
+        self.dc.execute(sql_1)
+        kitA = self.dc.fetchall()
+        #[(1, 5), (2, 7), (3, 6), (4, 9), (5, 4), (6, 4), (7, 7), (8, 7), (9, 8), (10, 4)]
+        print("---")
+        print(kitA)
+        print("---")
+        sql_2 = "select variant_loc,count(*) as pos_v_cnt from s_calls where assigned = 1 group by variant_loc order by count(*);"
+        self.dc.execute(sql_2)
+        varA = self.dc.fetchall()
+        #[(3019783, 9), (6920349, 2), (7378685, 5), (8928037, 8), (12060401, 2), (12878820, 2), ... ]
+        print(varA)
+        print("---")
         sql_3 = "select * from s_calls order by kit_id,assigned;"
-        
+        self.dc.execute(sql_3)
+        callsA = self.dc.fetchall()
+        #[(1, 12060401, None), (1, 6920349, 0), (1, 7378685, 0), (1, 13668461, 0), (1, 19538924, 0), ... ]
+        print (callsA);
+        print("---")
+        #Note: build the default structure with the kits ordered like kitA and the variants ordered like varA
+        #[{"k1":[{"v12060401",1)},{"v6920349",1), ... ]}
+        #[{"k2":[{"v12060401",1)},{"v6920349",None), ... ]}
+        #and display it
+        for call in calls:
         #   for K in kits:
         #    ...
         #   sort_positive_variants(kit_id)

@@ -675,7 +675,7 @@ def go_prep():
 def go_v1_db():
     trace(1, "Initialising database...")
     dbo = DB()
-    cur = dbo.cursor()
+    dbo.cursor()
     dbo.drop_v1_tables()
     dbo.create_v1_tables()
     skip_to(dbo)
@@ -686,12 +686,12 @@ def go_v1_db():
 def go_sort_db():
     #trace(0,"** process SNP data.")
     dbo = DB()
-    cur = dbo.cursor()
+    dbo.cursor()
     dbo.drop_sort_tables()
     dbo.create_sort_tables()
     dbo.insert_sample_sort_data()
+    #dbo.commit()
     dbo.sort_data()
-    dbo.commit()
     #trace(0,"** + SNP processing done.")
 
 #routines - "arghandler" (new v2 schema)- Jef/Zak
@@ -699,7 +699,7 @@ def go_sort_db():
 def go_db():
     trace(1, "Initialising database...")
     dbo = DB()
-    cur = dbo.cursor()
+    dbo.cursor()
     dbo.drop_tables()
     dbo.create_tables()
 
