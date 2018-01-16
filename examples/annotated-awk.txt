@@ -1,0 +1,546 @@
+# annotated awk scripts
+
+# This script walks the .bed files and sums up the amount of coverage
+# that is in certain ranges. It also produces the sum of all of the
+# ranges in the bed file the ranges of interestare specified in age.bed
+STATS1=`gawk 'NR==FNR {a[NR]=$2;b[NR]=$3;n=NR} FNR==1 && NR!=1 {if (nfiles>0) print s,as,nrf;s=as=0;nfiles++} NR!=FNR {s+=$3-$2; for (i=1;i<=n;i++) if ($2<=b[i] && $3>=a[i]) {x=($3>b[i]?b[i]:$3)-($2>a[i]?$2:a[i]); if (x<0) x=0; as+=x}} {nrf=FNR} END {print s,as,FNR}' age.bed unzip/*.bed`
+
+# this script walks the .vcf files and produces some counts
+STATS2=`gawk '$1=="chrY" {n++} $1=="chrY" && $7=="PASS" {v++; if ($4!="." && $5!=".") {if (length($4)==1 && length($5)==1) {s++} else {i++}}} FNR==1 && NR!=1 {print n,v,s,0,0,0,i,0,0; n=v=s=i=0} END {print n,v,s,0,0,0,i,0,0}' unzip/*.vcf`
+
+$1=="chrY" {
+    n++} # count number of records in the vcf (they're all chrY)
+$1=="chrY" && $7=="PASS" {
+    v++; # positive call count
+    if ($4!="." && $5!=".") {
+	if (length($4)==1 && length($5)==1){
+	    s++} # snp count
+	else {
+	    i++} # indel count
+        }
+    }
+FNR==1 && NR!=1 {
+    print n,v,s,0,0,0,i,0,0; # print counts for each file, zero counts for next file
+    n=v=s=i=0}
+END {
+    print n,v,s,0,0,0,i,0,0}
+
+
+# This script is used in post-processing of raw results to swap out
+# upstream positives.  It builds a string of -/+ used by the next script
+# to either erase (-) or retain (+) the variant.
+v="$VARIANT" # the position, a number
+a=0
+$1=="chrY" && $2==v && $7=="PASS" {
+    a=$10==0?"+":"-"}
+END {printf "%s",a}'
+
+# this script erases an upstream variant from the consolidated results,
+# based on string above "A".  If the 10th column in the vcf file is 0,
+# the value is retained.  I think this means the kit's value differs
+# from the reference genome but I don't yet understand why we're doing
+# this.
+v="$VARIANT"
+a="$A"
+npos="$NPOS"
+lc="$LEFTCOLS"
+FS=,
+OFS=,
+    
+$1!=v {
+    print
+}
+$1==v {
+    truevar=$1"."$4"."$3;
+    printf "%s,%s,%s,%s,%s,%s,",$1,$2,$4,$3,$5,npos;
+    for (i=7;i<=lc;i++)
+	printf "%s,",$i;
+    for (i=lc+1;i<=NF;i++) {
+	if ($i~";") {
+	    split ($i,foo,";");
+	    x=";"foo[2]}
+	else {
+	    x=""};
+	q=substr(a,i-lc,1);
+	if (q=="-") o=x;
+	if (q=="+") o=truevar""x;
+	if (q=="0") o=x;
+	printf "%s,",o
+    };
+    printf "\n"
+}
+
+
+echo "Merging identical indels..."
+sort -nrk1 -t, variant-match.txt | gawk -v a=999999999 '
+{
+    for (i=18;i<=NF;i++)
+	if ($i~$1 && $i!~$1"."$3"."$4) {
+	    split(i,is,";");
+	    $i=is[2]
+	}
+}
+{
+    if ($5=="Indel" && aa[5]=="Indel") {
+	if (a>$1 && aa[3]==substr($3,a-$1+1,length($3)-a)""aa[4])
+	    replace=1;
+	if (a>$1 && aa[4]==substr($4,a-$1+1,length($4)-(a-$1))""aa[3])
+	    replace=1;
+	if (a==$1 && (($3~aa[3] && $4~aa[4]) || (aa[3]~$3 && aa[4]~$4)))
+	    replace=1;
+	if (replace==1) {
+	    n=0;
+	    for (i=18;i<=NF;i++) {
+		if (aa[i]~aa[1] && $i!~$1) {
+		    $i="(I)"$1"."$3"."$4$i
+		};
+		if ($i~$1)
+		    n++;
+		$6=n
+	    }
+	}
+	else {
+	    print a0,last
+	}
+    }
+    else {
+	print a0
+    }
+}
+{
+     last=replace;
+     a=$1;
+     a0=$0;
+     split(a0,aa,",");
+     replace=0
+ }'
+
+ FS=, OFS=, > foo
+
+
+# The memory hog query "identifying clades that can be merged up"
+awk
+
+NR==FNR{                      # first file in the list
+    for (i=1;i<=NF;i++)
+	t[NR,i]=$i;           # populate t array from the csv's
+    n[NR]=split($5,x,";");    # x:list of variant addresses; n:count
+    for (j=1;j<=n[NR];j++)
+	s[NR,j]=x[j];         # save these variant addresses in s array
+    nc=FNR                    # how many lines in the tree
+}
+NR!=FNR {                     # the lines in variant-not-shared.txt
+    for (i=1;i<=NF;i++)
+	if (i<18) {
+	    d[FNR,i]=$i       # save the leading columns
+	}
+	else {                # save flag in d array: kit may have this snp
+	                      # 1 if ;nc, (?+);nc, ;cbl, etc
+	                      # 0 if blank
+	    d[FNR,i]=length($i)>0?1:0
+	};
+    ns=FNR                    # ns is the count of variants
+}
+END {
+    for (i=1;i<=nc;i++)
+	for (j=1;j<i;j++)
+	    if (t[j,7]==substr(t[i,7],1,length(t[i,7])-2))
+		parent[i]=j;  # looking for parent e.g. 0.1.2 parent of 0.1.2.1
+    for (i=1;i<=nc;i++)       # loop over lines in tree
+	for (j=1;j<=n[i];j++) { # loop over list of variants in line of tree
+	    for (k=1;k<=ns;k++) # loop over all variants
+		if (d[k,1]==s[i,j] || d[k,2]==s[i,j]) {
+		    # this row (k) from variants-not-shared.txt matching
+		    # the variant(s) corresponding to the row in the
+		    # tree
+		    nneg=0;
+		    # looping over d for range covered by the parent node
+		    for (l=t[parent[i],3];l<=t[parent[i],4];l++)
+			# what range does the parent node cover
+			if ((l<t[i,3] || l>t[i,4]) && d[k,l]==0) {
+			    # if it covers more than the range of the child
+			    # and some values outside the child's range are 0
+			    # for a SNP that the child has,
+			    # then it can't be merged
+			    nneg++};
+		            # if the parent doesn't at least cover the same
+		            # range as the original line, we can't merge this
+		            # node into the parent
+		    if (nneg==0)
+			print s[i,j],"can be merged into",t[parent[i],8]
+		}
+	}
+}
+
+FS=, tree.csv variant-not-shared.txt
+
+
+# FIRST SORT
+# sort on column 6 in descending order (count) then col8 then variant name col1
+sort -nk6,6r -nk8,8 -nk1,1 -t, variant-not-shared.txt > foo
+# write this file in ascending order to variant-not-shared
+tac foo > variant-not-shared.txt
+
+
+# HORIZONTAL RE-SORT #1
+ORDER=`gawk -v FS=, '
+NR==1 {
+    for (i=1;i<=NF-17;i++)
+	new[i]=i}
+
+{ # variant-not-sorted: variants already sorted in decreasing count
+    delete p;
+    for (i=1;i<=NF-17;i++) {
+	p[i]=0;
+	if (($(i+17)~$1 || $(i+17)~/(?+)/) && $(i+17)!~/(R)/)
+	    p[i]++ # 1 if positive or presumed positive
+    }; # column flag, given the current row
+    n=0;
+    for (i=1;i<=NF-17;i++) {
+	if (p[new[i]]==1) {
+	    n++;
+	    new2[n]=new[i] # move people with 1-count to the beginning
+	}
+    };
+    for (i=1;i<=NF-17;i++) {
+	if (p[new[i]]==0) {
+	    n++;
+	    new2[n]=new[i] # move people with 0-count to the end
+	}
+    };
+    for (i=1;i<=NF-17;i++)
+	new[i]=new2[i] # re-jigger the sequence; 0's at end
+}
+END {
+    for (i=1;i<=NF-17;i++)
+	printf "%i ",new[i]
+}'
+variant-not-shared.txt`
+
+# now utilize the order determined just prior on report.csv
+gawk -v FS=, -v o="$ORDER" '
+NR==1 {
+    n=split(o,s," ") # column order from step above
+}
+{
+    for (i=1;i<=17;i++)
+	printf "%s,",$i; # first 17 columns unchanged
+    for (i=1;i<=n;i++)
+	printf "%s,",$(s[i]+17); # appropriate column based on the order array
+    printf "\n"
+}'
+report.csv > foo;
+mv foo report.csv # re-write report.csv
+
+# re-write variant-not-shared.txt with this column order
+gawk -v FS=, -v o="$ORDER" '
+NR==1 {
+    n=split(o,s," ") # form array from the column order from step above
+}
+{
+    for (i=1;i<=5;i++)
+	printf "%s,",$i; # first five columns unchanged
+    for (i=6;i<=17;i++)
+	if ($i>0) {
+	    printf "%04i,",$i # print numbers in 6-17
+	}
+	else {
+	    printf "%s,",$i
+	};
+    for (i=1;i<=n;i++)
+	printf "%s,",$(s[i]+17); # print data numbers 18-end
+    printf "\n"
+}'
+variant-not-shared.txt > foo;
+mv foo variant-not-shared.txt # re-write variant-not-shared.txt
+
+# do the same thing to variant-shared
+gawk -v FS=, -v o="$ORDER" '
+<SAME AS ABOVE>
+variant-shared.txt > foo;
+mv foo variant-shared.txt
+
+# do the same thing to variant-bad
+gawk -v FS=, -v o="$ORDER" '
+<SAME AS ABOVE>
+variant-bad.txt > foo;
+mv foo variant-bad.txt
+
+
+
+# VERTICAL RE-SORT #1
+echo "Vertical re-sort #1"
+gawk -v FS=, -v OFS=, '
+{
+    $16=NF;
+    for (i=NF;i>=18;i--)
+	if ($i~$1 || $i~/(?+)/)
+	    $16=i;
+    pruns=prun=0;
+    for (i=18;i<=NF;i++)
+	if ($i~$1 || $i ~ /(?+)/) {
+	    if (prun==0) {
+		prun=1; pruns++
+	    }
+	}
+	else {
+	    if (length($i)<2)
+		prun=0
+	};
+    $17=pruns;
+    print
+}'
+variant-not-shared.txt > foo
+sort -n -nk6,6r -nk16,16 -nk1,1 -t, foo > bar;
+tac bar > variant-not-shared.txt
+
+
+echo "Horizontal re-sort #2"
+# Sorting SNPs horizontally
+gawk '
+<IDENTICAL TO SORT #1>
+variant-not-shared.txt`
+
+
+# count SNPs
+# count all U106 SNPs across all kits
+U106SNPS=`gawk -v FS=, -v OFS=, '
+$5=="SNP" {
+    s=$2;
+    for (i=1;i<=NF-17;i++)
+	if (($(i+17)~$2 && length($2)>0) || ($(i+17)~$1 && length($2)==0) || $(i+17)~/\(R/) { # count column if equal to rowname or "(R..."
+	    n[i]++
+	}
+}
+END {
+    for (i=1;i<=NF-17;i++) {
+	x+=n[i]; # print column totals
+	printf "%i,",n[i]
+    }
+}'
+variant-not-shared.txt`
+
+# same, but for indels
+U106INDELS=`gawk -v FS=, -v OFS=, '
+$5=="Indel" {
+    s=$2;
+    for (i=1;i<=NF-17;i++)
+	if (($(i+17)~$2 && length($2)>0) || ($(i+17)~$1 && length($2)==0) || $(i+17)~/\(R/) {
+	    n[i]++
+	}
+}
+END {
+    for (i=1;i<=NF-17;i++) {
+	x+=n[i];
+	printf "%i,",n[i]
+    }
+}'
+variant-not-shared.txt`
+
+# same, but for SNPs with column6==1
+SINGSNPS=`gawk -v FS=, -v OFS=, '
+$5=="SNP" && $6==1 {
+    s=$2;
+    for (i=1;i<=NF-17;i++)
+	if (($(i+17)~$2 && length($2)>0) || ($(i+17)~$1 && length($2)==0) || $(i+17)~/\(R/) {
+	    n[i]++
+	}
+}
+END {
+    for (i=1;i<=NF-17;i++) {
+	x+=n[i];
+	printf "%i,",n[i]
+    }
+}'
+variant-not-shared.txt`
+
+# same, but for indels
+SINGINDELS=`gawk -v FS=, -v OFS=, '
+$5=="Indel" && $6==1 {
+    s=$2;
+    for (i=1;i<=NF-17;i++)
+	if (($(i+17)~$2 && length($2)>0) || ($(i+17)~$1 && length($2)==0) || $(i+17)~/\(R/) {
+	    n[i]++
+	}
+}
+END {
+    for (i=1;i<=NF-17;i++) {
+	x+=n[i];
+	printf "%i,",n[i]
+    }
+}'
+variant-not-shared.txt`
+
+# 
+AGESINGSNPS=`gawk -v FS=, -v OFS=, '
+NR==FNR {
+    split($0,ax," ");
+    a[NR]=ax[2];
+    b[NR]=ax[3];
+    na=NR
+}
+NR!=FNR && $5=="SNP" && $6==1 {
+    s=$2;
+    for (i=1;i<=NF-17;i++)
+	if (($(i+17)~$2 && length($2)>0) || ($(i+17)~$1 && length($2)==0) || $(i+17)~/\(R/) {
+	    for (j=1;j<=na;j++)
+		if ($1>=a[j] && $1<=b[j]) {
+		    n[i]++
+		}
+	}
+}
+END {
+    for (i=1;i<=NF-17;i++) {
+	x+=n[i];
+	printf "%i,",n[i]
+    }
+}'
+age.bed variant-not-shared.txt`
+
+# use numbers calculated above to modify first lines of the report
+gawk -v FS=, -v OFS=, -v us="$U106SNPS" -v ui="$U106INDELS" -v ss="$SINGSNPS" -v si="$SINGINDELS" -v as="$AGESINGSNPS" '
+NR==9 {
+    print $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,us
+}
+NR==10 {
+    print $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,ss
+}
+NR==11 {
+    print $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,as
+}
+NR==13 {
+    print $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,ui
+}
+NR==14 {
+    print $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,si
+}
+NR<9 || NR==12 || NR>14 {
+    print
+}'
+report.csv > foo; mv foo report.csv
+
+
+
+# Insert presumed positives
+# Translate matrix for better memory efficiency
+gawk -v FS=, '
+{
+    n=NF;
+    for (i=1;i<=NF;i++)
+	if (NR==1) {
+	    t[i]=$i
+	}
+	else {
+	    t[i]=t[i]","$i
+	}
+}
+END {
+    for (i=1;i<=n;i++)
+	print t[i]
+}
+' variant-output.txt > foo
+
+gawk -v FS=, -v OFS=, '
+NR==FNR && $1+0>0 {
+    n++;
+    split($0,u," ");
+    a[n]=u[1];
+    if (u[2]==">") {
+	b[n]=u[3];
+	c[n]=""
+    }
+    else
+	if (u[2]=="&") {
+	    b[n]=u[5];
+	    c[n]=u[3]
+	}
+}									\
+NR!=FNR && FNR==1 {
+    for (i=1;i<=NF;i++)
+	grch[i]=$i;
+    m=NF;
+    for (i=1;i<=n;i++) {
+	ja[i]=jb[i]=jc[i]=m+1;
+	test=1;
+	for (j=1;j<=m;j++) {
+	    if (grch[j]==a[i])
+		ja[i]=j;
+	    if (grch[j]==b[i])
+		jb[i]=j;
+	    if (grch[j]==c[i] && length(c[i])>0)
+		jc[i]=j
+	}
+    }
+}							   \
+NR!=FNR && FNR>17 {
+    for (i=1;i<=n;i++) {
+	ap=bp=cp=0;							\
+	if (length($ja[i])>5 && substr($ja[i],1,1)!=";")
+	    ap=1;
+	if (length($jb[i])>5 && substr($jb[i],1,1)!=";")
+	    bp=1;
+	if (jc[i]>m || (jc[i]<=m && length($jc[i])>5 && substr($jc[i],1,1)!=";"))
+	    cp=1;							\
+	if (ap==1 && (jb[i]<=m && bp==0) && cp==1)
+	    $jb[i]="(?+)"$jb[i]
+    }
+}
+NR!=FNR {
+    print
+}
+' implications.txt foo > bar
+
+gawk -v FS=, '
+{
+    n=NF;
+    for (i=1;i<=NF;i++)
+	if (NR==1) {
+	    t[i]=$i
+	}
+	else {
+	    t[i]=t[i]","$i
+	}
+}
+END {
+    for (i=1;i<=n;i++)
+	print t[i]
+}
+' bar > variant-output.txt
+		  
+
+
+  gawk -v FS=, '
+  NR==FNR {
+      grch[NR]=$1;
+      n++
+  }
+  NR!=FNR {
+      flag=0;
+      for (i=1;i<=n;i++)
+	  if ($1==grch[i])
+	      flag=1;
+      if (flag==1) print
+  }
+  ' badlist.txt variant-not-shared.txt > variant-bad.txt
+
+
+# make html tree
+gawk '
+{
+    dat[NR]=$0;
+    c[NR]=$7;
+    n[NR]=split($5,snps,";");
+    nxx=split($7,xx,".");
+    x[NR]=xx[nxx];
+    numr=NR
+}
+END {
+    for (i=1;i<=numr;i++)
+	for (j=1;j<=i;j++)
+	    if (c[j]"."x[i]==c[i])
+		parent[i]=j;
+    for (i=1;i<=numr;i++) {
+	nsnp[i]=nsnp[parent[i]]+n[i];
+	print dat[i],nsnp[parent[i]]+1,nsnp[i]
+    }
+}' FS=, OFS=, tree.csv | sort -t, -nk10,10 -nk3,3 > foo
