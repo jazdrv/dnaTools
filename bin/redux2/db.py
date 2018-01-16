@@ -181,7 +181,8 @@ class DB(object):
         self.dc.execute(sql)
         F = self.dc.fetchall()
         Fa = list(filter(lambda x: x[1]==(len(A)-1), F))
-        C1 = list(set(B1) & set(Fa)) #intersection
+        Fb = [(a) for a,b in Fa] #strip out 2nd element, the count
+        C1 = list(set(B1) & set(Fb)) #intersection
         C0 = list(set(B1)-set(C1))
         print("list of *all* one person +ve's")
         print(Fa)
@@ -250,6 +251,16 @@ class DB(object):
         print("SORT")
         print("===")
         sql = "select kit_id,variant_loc from s_calls order by kit_id, variant_loc;"
+        self.dc.execute(sql)
+        F = self.dc.fetchall()
+        print("all kits + variants")
+        print("+ grabbing kits by variant: 3019783")
+        #[(1, 3019783), (1, 6920349), (1, 7378685), (1, 8928037), ... ]
+        Fa = list(filter(lambda x: x[1]==3019783, F))
+        Fb = [(a) for a,b in Fa] #strip out 2nd element, the count
+        #[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+        print(Fb)
+        print("---")
         
         sys.exit()
 
