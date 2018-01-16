@@ -1,4 +1,6 @@
--- redux2 drop tables
+-- redux2 schema
+
+-- DROPS
 
 drop table if exists v1_variants;
 drop table if exists v1_hg19;
@@ -8,7 +10,8 @@ drop table if exists v1_people;
 drop table if exists v1_calls;
 drop table if exists v1_strs;
 drop table if exists v1_tree;
--- redux2 schema
+
+-- CREATES
 
 -- variants
 

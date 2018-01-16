@@ -1,4 +1,6 @@
--- sort prototype drop tables
+-- sort prototype schema
+
+-- DROPS
 
 drop table if exists s_variants;
 drop table if exists s_calls;
@@ -8,10 +10,7 @@ drop table if exists s_calls;
 drop table if exists s_kits;
 -- drop table if exists s_sort_kits;
 
--- sort prototype schema
-
--- Note: appending 's_' prefix to keep it separate from other schema tbls with
--- same name
+-- CREATES
 
 create table s_variants (
  -- variant_id int, -- not needed for prototype
