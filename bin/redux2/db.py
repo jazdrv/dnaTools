@@ -48,10 +48,7 @@ class DB(object):
 
     #redux2 ddl+dml
 
-    def drop_v1_tables(self):
-        self.run_sql_file('redux2-drop-tables.sql')
-        
-    def create_v1_tables(self):
+    def redux2_schema(self):
         self.run_sql_file('redux2-schema.sql')
         
     def insert_v1_variants(self,variant_array):
@@ -81,18 +78,12 @@ class DB(object):
 
     #v2 db schema ddl+dml
 
-    def drop_tables(self):
-        self.run_sql_file('v2-drop-tables.sql')
-        
-    def create_tables(self):
-        self.run_sql_file('v2-schema.sql')
+    def v2_schema(self):
+        self.run_sql_file('schema-v2.sql')
 
     #tree sort prototype ddl+dml
     
-    def drop_sort_tables(self):
-        self.run_sql_file('sort-drop-tables.sql')
-        
-    def create_sort_tables(self):
+    def sort_schema(self):
         self.run_sql_file('sort-schema.sql')
         
     def insert_sample_sort_data(self):

@@ -676,8 +676,7 @@ def go_v1_db():
     trace(1, "Initialising database...")
     dbo = DB()
     dbo.cursor()
-    dbo.drop_v1_tables()
-    dbo.create_v1_tables()
+    dbo.redux2_schema()
     skip_to(dbo)
     
 
@@ -687,8 +686,7 @@ def go_sort_db():
     #trace(0,"** process SNP data.")
     dbo = DB()
     dbo.cursor()
-    dbo.drop_sort_tables()
-    dbo.create_sort_tables()
+    dbo.sort_schema()
     dbo.insert_sample_sort_data()
     #dbo.commit()
     dbo.sort_data()
@@ -700,8 +698,7 @@ def go_db():
     trace(1, "Initialising database...")
     dbo = DB()
     dbo.cursor()
-    dbo.drop_tables()
-    dbo.create_tables()
+    dbo.v2_schema()
 
 # SNP extraction routines based on original - Harald 
 # extracts the SNP calls from the VCF files and

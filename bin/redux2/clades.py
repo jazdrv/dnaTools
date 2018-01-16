@@ -79,6 +79,7 @@ for a in namespace.action:
 
 # trace (print) output if it exceeds the noise level
 def trace (level, msg):
+    print(msg)
     if level <= verbose:
         print(msg, file=sys.stderr)
         sys.stderr.flush()
@@ -218,12 +219,15 @@ if create:
     dbcurs.execute ('delete from vcfcalls where id=?', (myid,))
     trace(3, 'inserting to vcfcalls {}'.format(cl))
     dbcurs.executemany('insert into vcfcalls(id, vid, origin) values(?,?,?)', cl)
+    dbconn.commit()
 
     calls = []
     rejects = []
     stats = []
     ipos = [a for (a,b,c) in vl]
+    print(files)
     for fname in files:
+        print("fname:"+fname)
         if fname.endswith('.vcf'):
             ny = nv = ns = ni = nr = 0
             myid = dbcurs.execute('select id from files where name = ?', (os.path.splitext(fname)[0],)).fetchone()[0]
