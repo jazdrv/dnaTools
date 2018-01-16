@@ -1,5 +1,7 @@
 # !/bin/bash
 
+#Note: (zak version of redux.bash ... so I can understand it)
+
 # hide-this-1{{{
 
 # Author: Iain McDonald
@@ -150,10 +152,12 @@ TOPSNP="U106"
 # ZIPUPDATEONLY = don't re-extract that already exist # There's a bug here somewhere!
 # TESTFORREFPOS = test for positives in the references sequence and swap if needed: see below
 MAKEREPORT=1
-MAKEAGES=1
+#MAKEAGES=1
+MAKEAGES=0
 MAKESHORTREPORT=1
 MAKEHTMLREPORT=1
-SKIPZIP=3
+#SKIPZIP=3
+SKIPZIP=0
 CHECKDATA=1
 ZIPUPDATEONLY=1
 TESTFORREFPOS=0
