@@ -8,10 +8,9 @@ Directory Structure:
 
 ./LICENSE - open GPL 3 license (got this from github)
 
-./README.md - originally pushed this in using bitbucket, it's the project default
-readme at GitHub
+./README.md - the project default readme at GitHub
 
-./bin - this is the place I am setting up for where the executables are to be found
+./bin - executables for current version
 
 ./data - csv's and other types of data dumps
 
@@ -22,9 +21,9 @@ for zips/unzips/txt files and such) ... a separate space so we can separate it
 from the real code directory; i've been using sym-links for some of these
 things to point to stuff I have in data directory, etc
 
-./sql - just sql files
+./examples - code snippets, reference examples
 
-./data - csv's, zips, etc 
+./sql - just sql files
 
 ./versions - old versions
 
