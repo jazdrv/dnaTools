@@ -150,7 +150,7 @@ class DB(object):
     def sort_data(self):
 
         print("===")
-        print("PROCESS: FILTER, STEP: A ")
+        print("FILTER, step: A ")
         print("===")
         sql = "select distinct variant_loc from s_calls;"
         self.dc.execute(sql)
@@ -162,7 +162,7 @@ class DB(object):
         print(len(A)) #numA - num distinct variants
 
         print("===")
-        print("FILTER - STEP: B")
+        print("FILTER - step: B")
         print("===")
         sql = "select distinct variant_loc from s_calls where assigned = 0;"
         self.dc.execute(sql)
@@ -175,16 +175,16 @@ class DB(object):
         print(B1) #B1 - variants that have negs 
 
         print("===")
-        print("FILTER - STEP: C")
+        print("FILTER - step: C")
         print("===")
-        sql_2 = "select variant_loc,count(*) as cnt from s_calls where assigned = 1 group by variant_loc;"
-        self.dc.execute(sql_2)
-        f2 = self.dc.fetchall()
-        f2a = list(filter(lambda x: x[1]==(len(f2)-1), f2))
-        C1 = list(set(B1) & set(f2a)) #intersection
+        sql = "select variant_loc,count(*) as cnt from s_calls where assigned = 1 group by variant_loc;"
+        self.dc.execute(sql)
+        F = self.dc.fetchall()
+        Fa = list(filter(lambda x: x[1]==(len(A)-1), F))
+        C1 = list(set(B1) & set(Fa)) #intersection
         C0 = list(set(B1)-set(C1))
         print("list of *all* one person +ve's")
-        print(f2a)
+        print(Fa)
         print("---")
         print("not singletons")
         print(C0) #C0 - not singletons
@@ -193,15 +193,15 @@ class DB(object):
         print(C1)
 
         print("===")
-        print("FILTER - STEP: D")
+        print("FILTER - step: D")
         print("===")
-        sql_3 = "select distinct variant_loc from s_calls where assigned is null group by variant_loc;"
-        self.dc.execute(sql_3)
-        f3 = self.dc.fetchall()
-        D0 = list(set(C1)-set(f3))
-        D1 = list(set(f3)-set(D0))
+        sql = "select distinct variant_loc from s_calls where assigned is null group by variant_loc;"
+        self.dc.execute(sql)
+        F = self.dc.fetchall()
+        D0 = list(set(C1)-set(F))
+        D1 = list(set(F)-set(D0))
         print("list of variants that are sometimes not called")
-        print(f3)
+        print(F)
         print("---")
         print("imperfect variants")
         print(D0) #D0 - imperfect variants
@@ -209,15 +209,10 @@ class DB(object):
         print("calls of perfect share variants - these go through the next PROCESS, SORT")
         print(D1) #D1 - perfect share variants
 
-        print("===")
-        print("PROCESS: SORT")
-        print("===")
-        sql_3 = "select kit_id,variant_loc from s_calls where ;"
+        #NOTE: a type study {{{
+        #------------------------------
 
-        #------------------------------
-        #note: I think the latter (byK) sort of construct might be what we're looking
-        #to work with (and sort)
-        #------------------------------
+        #I'm thinking byK is what we're looking to work with
 
         #byV = [
         #    { v1:
@@ -249,8 +244,13 @@ class DB(object):
         #        }
         #    ]
             
-        #------------------------------
+        #------------------------------ }}}
 
+        print("===")
+        print("SORT")
+        print("===")
+        sql = "select kit_id,variant_loc from s_calls order by kit_id, variant_loc;"
+        
         sys.exit()
 
         #sql_2b = "select variant_loc,count(*) as pos_v_cnt from s_calls where assigned = 0 group by variant_loc order by count(*) desc;"
