@@ -3,10 +3,10 @@
 cd $REDUX_ENV
 
 if [ "$1" == "clades" ]; then
-    cd clades
+    cd ../clades
     DB="clades"
 else
-    cd redux2
+    #cd redux2
     DB="variant"
 fi
 
