@@ -1,0 +1,91 @@
+============
+change log
+============
+
+current:
+ 
+VERSION: x.0
+VERSION: 2.0.0.20180108.ALPHA
+
+----
+
+prior:
+
+x.0             - prototype python version                 
+1.0.1.20170802a - Added duplicate kit check
+1.0.0.20170716a - Ratification of successful run on P312, allowing the expansion of code to R-L11
+                  Added haplogroup prefixes to clade names
+                  Changes to HTML output to allow file splitting
+                  Added (commented) code to allow file splitting of CSV and HTML reports
+0.7.0.20170605a - Incorporates various additions from Jef Treece to allow P312 to work effectively
+					Bug fix arising in 0.6 regarding reference positives
+					Expanded age.bed file and substantially revised mutation rate
+					Fixed bug when more than 10 sub-clades were present
+0.6.9.20170524a - EARLY RELEASE 1014
+					Fixed bug with sorting identical indels - thanks: Jef Treece
+0.6.8.20170515a - EARLY RELEASE 991
+                  Added support for extended ASCII characters - thanks: Jef Treece
+                  Allowed selected SNPs to be removed from the merge list
+0.6.7.20170404a - EARLY RELEASE 963
+                  Fixed bug with extra column generated - thanks: Jef Treece
+					Fixed bug with missing escaped characters in regex (?+) and (R) - thanks: Jef Treece
+					Fixed bug with commas in VCF files - thanks: Jef Treece
+					Fixed bug with returns in some VCF files - thanks: Jef Treece
+					Fixed bug in stats generation - thanks: Alex Williamson
+					Improved memory efficieny in sorting
+					Fixed BED counting bug - thanks: Alex Williamson
+					Standardised age.bed to conform to FTDNA standard
+0.6.6.20170203a - Provided correct placement of recurrent SNPs
+0.6.5.20170126a - EARLY RELEASE 871
+					Allowed combined "if (A+ & B+) then C+" implications
+0.6.4.20170120a - EARLY RELEASE 861
+					Added header to SVG tree, swapped horizontal/vertical
+0.6.3.20170110a - EARLY RELEAESE 844
+					Fixed bug with labelling column headers U106 regardless of $TOPSNP
+					Encoded basic SVG tree
+					Improved memory performance in horizontal sort
+0.6.2.20161220a - Efficiency savings: option for only updating unzipped files
+					Efficiency savings: preliminary statistics generation
+0.6.1.20161216a - Added test "newness" colour coding to HTML report
+0.6.0.20161213b - Creating a basic working HTML report
+0.5.4.20161213a - Fixed bug with merging identical insertions
+					Made data checking routines optional (CHECKDATA)
+0.5.3.20161124a - EARLY RELEASE 783
+					Fixed bug with ref. seq. positive replacement
+0.5.2.20161113a - Encoded test to check whether branches can be merged up
+					Encoded test to check and list forced positives
+0.5.1.20161107a - Allowed correction of positives in reference sequence
+0.5.0.20161102a - EARLY RELEASE 755
+					Fixed bug: added extra rows to Poisson tables
+					Improved efficiency of clade naming process
+					Included support for missing clades due to limited BigY coverage
+					Re-wrote setup instructions and restructured pre-amble
+0.4.3.20161027a - EARLY RELEASE 748
+					Encoded clade naming preferences.
+0.4.2.20161025b - Completed final ("top-down") age analysis with uncertainties
+0.4.1.20161025a - Completed "bottom-up" age analysis with uncertainties
+0.4.0.20161002a - Began setup for uncertainty analysis in age calculations
+0.3.1.20160929a - EARLY RELEASE 733
+					Replaced BED file scanning with python script from Harald A.: dramatic speed improvement
+                  Introduced date information to header
+					Introduced calculation for age analysis coverage, reported in header
+					Introduced coverage restriction for age calculation
+					Introduced full age analysis (no uncertainty ranges yet)
+					Introduced key at top-left
+					Introduced clade listings at top of tree (not currently part of output)
+0.3.0.20160909a - EARLY RELEASE 728: Added second auto-backup for fresh runs of the script
+					Introduced number of unique SNPs into age calculation
+					Introduced "top-down" age normalisation to account for causality
+0.2.2.20160905a - EARLY RELEASE 723: Fixed bug in shared SNP counting involving presumed positives being counted twice
+0.2.1.20160901a - BETA RELEASE (716): Introduced short report format
+					Introduced basic age calculation (based solely on SNP counts)
+					Fixed bug involving the NFILES parameter not being set on an initial run
+                  Moved backup location to be more intuitive
+0.2.0.20160831a - Private release to Harald A.
+					Introduced SNP counts
+                  Encoded MAKE* flags to begin age analysis
+                  Encoded clade identification, tree formation and basic SNP counting
+					Fixed bug for multiple SNP names
+					Discontinued use of forced SNP names in favour of the single YBrowse output file
+0.1.1.20160822a - BETA RELEASE (710): allowed basic compilation of report.csv
+
