@@ -1,0 +1,16 @@
+These are not directly used as tools or programs, but they are useful
+for development purpose.
+
+annotated-awk             # awk scripts from v1 with some commentary
+
+clades.py
+   clades.py create -v    # creates a database from files in "unzip"
+   clades.py -kibs z4303  # queries a SNP and kits from the database
+   clades.py buildarray   # for experimenting with data structures
+
+sqlite.properties         # example of setting up jdbc for SQLite
+                          # useful for using schemaspy
+
+update-metadata.py        # example of pulling kit info from data warehouse
+
+
