@@ -86,7 +86,7 @@ class DB(object):
     #clades db schema ddl+dml
 
     def clades_schema(self):
-        self.run_sql_file('clades_schema.sql')
+        self.run_sql_file('clades-schema.sql')
 
     #tree sort prototype ddl+dml
     

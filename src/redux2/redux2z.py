@@ -15,7 +15,7 @@
 import sys,argparse,yaml,os,glob,shutil,re,time,csv,zipfile
 from collections import defaultdict
 from lib import *
-from db import *
+#from db import *
 from clades import *
 
 # }}}
@@ -172,7 +172,7 @@ if listbed:
 if updatesnps:
     c_updatesnps()
 if querysnp:
-    c_querysnp()
+    c_querysnp(namespace)
 if mergeup: #incomplete
     c_mergeup()
 

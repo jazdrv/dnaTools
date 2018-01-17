@@ -51,7 +51,7 @@ create table c_files(
 --    maxaddr int,
 -- );
 
-create table c_bed
+create table c_bed(
     ID INTEGER REFERENCES c_files(ID), 
     minaddr INTEGER,  -- not in v2
     maxaddr INTEGER   -- not in v2

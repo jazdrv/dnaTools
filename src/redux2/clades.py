@@ -2,8 +2,11 @@
 
 #NOTE: this is library version of Jef's original clades.py script
 
+import locale,time
 #import sqlite3,os,time,sys,random,argparse,locale,csv,subprocess
 #from collections import defaultdict
+from db import *
+from lib import *
 
 def c_create():
 
@@ -27,12 +30,13 @@ def c_create():
             accum2 += maxa-mina
         return accum2, accum1
 
+    t0 = time.time()
     updatesnps = True
 
     # nranges, coverage1 (total r1), coverage2 (gated by r2)
 
     dbo = DB()
-    dbo.db = dbo.dbo_init()
+    dbo.db = dbo.db_init()
     dbo.dc = dbo.cursor()
     dbo.clades_schema()
 
@@ -98,10 +102,10 @@ def c_create():
     for nf,fname in enumerate(files):
         if fname.endswith('.bed'):
             dbo.dc.execute('insert into c_files(name,kit,seq) VALUES(?,1,?)', (os.path.splitext(fname)[0],nf))
-            myid = dbo.lastrowid
+            myid = dbo.dc.lastrowid
             ranges = []
             try:
-                for line in open(os.path.join(config['unzip_dir'], fname)):
+                for line in open(os.path.join(UNZIP_DIR, fname)):
                     ychr, minr, maxr = line.split()
                     ranges.append((myid, int(minr), int(maxr)))
             except:
@@ -119,13 +123,15 @@ def c_create():
     #INS BEDSTATS
 
     dbo.dc.executemany('insert into c_bedstats values(?,?,?,?)', stat_list)
+    dbo.commit()
 
     #INS FILES
 
     dbo.dc.execute('insert into c_files(name) VALUES("implications")')
-    myid = dbo.lastrowid
+    myid = dbo.dc.lastrowid
     ll = {}
     vl = []
+    dbo.commit()
 
     #OPEN IMPLICATIONS
 
@@ -138,10 +144,12 @@ def c_create():
                 alt = toks[4]
                 vl.append((addr, ref, alt))
                 ll[(addr, ref, alt)] = toks[0]
+    dbo.commit()
 
     #INS VARIANTS
 
-    dbo.dc.executemany('insert or ignore into variants(pos,ref,alt) values (?,?,?)', ll)
+    dbo.dc.executemany('insert or ignore into c_variants(pos,ref,alt) values (?,?,?)', ll)
+    dbo.commit()
     cl = []
 
     for tup in vl:
@@ -171,8 +179,8 @@ def c_create():
             ny = nv = ns = ni = nr = 0
             myid = dbo.dc.execute('select id from c_files where name = ?', (os.path.splitext(fname)[0],)).fetchone()[0]
             trace(3, 'reading file {} from {}'.format(fname,
-                config['unzip_dir']))
-            with open(os.path.join(config['unzip_dir'], fname)) as lines:
+                UNZIP_DIR))
+            with open(os.path.join(UNZIP_DIR, fname)) as lines:
                 for line in lines:
                     try:
                         chrom,pos,iid,ref,alt,qual,filt,inf,fmt,ii = line.split()
@@ -200,6 +208,7 @@ def c_create():
     #INS VCFSTATS
 
     dbo.dc.executemany('insert into c_vcfstats(id,ny,nv,ns,ni,nr) VALUES(?,?,?,?,?,?)', stats)
+    dbo.commit()
     vl = []
 
     for iid, pos, ref, alt in rejects:
@@ -209,7 +218,7 @@ def c_create():
         except:
             #INS VARIANTS
             dbo.dc.execute('insert into c_variants(pos,ref,alt) values (?,?,?)', (pos,ref,alt))
-            vid = dbo.lastrowid
+            vid = dbo.dc.lastrowid
         vl.append((iid,vid))
 
     #INS VCFREJ
@@ -516,7 +525,7 @@ def c_listbed():
     dbo.c1 = dbo.cursor()
     c = dbo.c1.execute('select name,seq from c_files where kit=1 order by 2')
     for row in c:
-        print(os.path.join(config['unzip_dir'],row[0])+'.bed')
+        print(os.path.join(UNZIP_DIR,row[0])+'.bed')
     
 def c_updatesnps():
     # update the snp defs and names from hg19
@@ -537,11 +546,19 @@ def c_updatesnps():
                 #INS SNPNAMES
                 dbo.c1.execute('insert into c_snpnames values(?,?)', (vid, n))
     
-def c_querysnp():
+def c_querysnp(namespace):
+
+    if namespace.snp:
+        querysnp = vars(namespace)['snp'][0]
+    else:
+        querysnp = False
 
     # print info about a snp by name or addr
     trace(2, 'looking for details about {}...'.format(querysnp))
+    dbo = DB()
+    dbo.db = dbo.db_init()
     dbo.c1 = dbo.cursor()
+
     ids = set()
     #SEL VARIANTS
     c1r = dbo.c1.execute('select * from c_variants where pos=?', (querysnp,))
@@ -717,7 +734,7 @@ def c_mergeup():
                 trace(2, 'pos = {} added'.format(row[0]))
                 #INS VARIANTS
                 dbo.c2.execute('insert into c_variants(pos) values(?)', (rowsnp,))
-                rowsnpid = c2.lastrowid
+                rowsnpid = dbo.c2.lastrowid
             for col in range(17,len(row)):
                 if row[col]:
                     tups.append((rowsnpid, col+1))
