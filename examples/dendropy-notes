@@ -1,0 +1,26 @@
+dendropy, a python module that handles phylogenetic data structures,
+including trees and dna sets. Some notes from experiments.
+
+1. modify clades.py to produce some strings of DNA characters
+   sample code in clades.py
+2. insert those strings into a dictionary ("dd" for these notes)
+3. use the dictionary to build a dendropy character array
+   dna = dendropy.DnaCharacterMatrix.from_dict(dd)
+4. get paup executable from http://www.paup.sc.fsu.edu/unix/index.html
+   use it to produce a tree in dendropy
+   from dendropy.interop import paup
+   tree = paup.estimate_tree(dna,tree_est_criterion='nj')
+   this has worked for me with some data sets but crashes on others
+5. write the tree out in newick standard
+   print (tree.as_string(schema="newick"))
+6. display the tree as a graph
+   https://www.ncbi.nlm.nih.gov/projects/treeview/tv.html
+   copy/paste the newick file
+   display the tree using various options for layout
+   delete a few chars "[R]" at the beginning of newick string
+
+Success with the above with 700-1000 people and character strings of
+up to 16000 length, but it's not obvious the trees are meaningful
+
+step 2 for example
+dd[fname] = dnastring[:10000]
