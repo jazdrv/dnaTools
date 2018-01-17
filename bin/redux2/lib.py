@@ -47,6 +47,8 @@ def trace (level, msg):
     print(msg)
     #if level <= config['verbosity']:
     #    print(msg)
+    #TODO: below line in clades.py
+    #sys.stderr(flush)
     
 
 # routines - file/dir - Zak
@@ -288,10 +290,12 @@ def skip_to(dbo):
         
         #variant_dict
 
+        print(REDUX_ENV)
         variant_dict = {}
         for file in vcffiles:
             vcf_calls = readVcf(REDUX_ENV+'/'+config['unzip_dir']+'/'+ file)
             variant_dict.update(vcf_calls)
+
         trace (10, "   %i variants found" % len(variant_dict))
         t = float((time.clock() - start_time))
         trace(10, '   ...complete after %.3f seconds' % t)
