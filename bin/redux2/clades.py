@@ -31,15 +31,19 @@ def c_create():
 
     # nranges, coverage1 (total r1), coverage2 (gated by r2)
 
+    dbo = DB()
+    dbo.cursor()
+    dbo.clades_schema()
+
     #CREATE TBLS
 
-    for table in tabledefs:
-        dbcurs.execute('CREATE TABLE %s' % table)
+    #for table in tabledefs:
+    #    dbcurs.execute('CREATE TABLE %s' % table)
 
     #CREATE INDEXES
 
-    for idx in indexdefs:
-        dbcurs.execute('CREATE INDEX %s' % idx)
+    #for idx in indexdefs:
+    #    dbcurs.execute('CREATE INDEX %s' % idx)
 
     # match order to the default output of ls
     # ls depends on such things as locale setting, aliases, etc
@@ -62,27 +66,25 @@ def c_create():
 
     #INS META
 
-    dbcurs.executemany('insert into meta values(?,?)', meta)
+    dbcurs.executemany('insert into c_meta values(?,?)', meta)
 
     ranges = []
 
     #INS FILES
 
-    dbcurs.execute('INSERT INTO files(name) VALUES("age.bed")')
+    dbcurs.execute('INSERT INTO c_files(name) VALUES("age.bed")')
     myid = dbcurs.lastrowid
 
     #OPEN AGE.BED
 
     lines = open('age.bed').readlines()
-
-
     for line in lines:
         chromo, minr, maxr = line.split()
         ranges.append((myid, int(minr), int(maxr)))
 
     #INS BED
 
-    dbcurs.executemany('insert into bed values(?,?,?)', ranges)
+    dbcurs.executemany('insert into c_bed values(?,?,?)', ranges)
 
     cover_ranges = ranges
     trace(1, 'enter at {:.2f} seconds'.format(time.time() - t0))

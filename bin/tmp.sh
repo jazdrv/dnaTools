@@ -5,7 +5,7 @@
 export TIMEFORMAT="time:%R"
 echo;echo "step 0 - new.0 - iain's script, gets the variant data from new file"
 echo "$ ./getVCFvariants.sh (iain's awk)> new.0"
-time ./getVCFvariants.sh foo > $REDUX_ENV/tmp/new.0
+time $REDUX_ENV/getVCFvariants.sh foo > $REDUX_ENV/tmp/new.0
 
 cd $REDUX_ENV
 

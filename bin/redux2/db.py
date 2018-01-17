@@ -81,6 +81,11 @@ class DB(object):
     def v2_schema(self):
         self.run_sql_file('schema-v2.sql')
 
+    #clades db schema ddl+dml
+
+    def clades_schema(self):
+        self.run_sql_file('clades_schema.sql')
+
     #tree sort prototype ddl+dml
     
     def sort_schema(self):
