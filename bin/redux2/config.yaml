@@ -181,12 +181,14 @@ check_data: True
 zip_update_only: True
 test_for_ref_pos: False
 
-zip_dir: zips
-unzip_dir: unzips
-zip2_dir: zips2
-unzip2_dir: unzips2
+zip_dir: zips #hg19 stuff
+unzip_dir: unzips #hg19 - currently for redux2.py (redux2z.py)
+unzip_dir_clades: unzips.clades #hg19 - keeping this apart for now
 
-zip_set: -s 6:1,2,3,4,5,6
+zip2_dir: zips2 #hg38 stuff
+unzip2_dir: unzips2 #hg38 stuff
+
+zip_set: -s 6:1,2,3,4,5,6 
 
 bash_only: True
 recreate_db: True

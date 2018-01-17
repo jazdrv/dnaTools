@@ -55,11 +55,12 @@ def c_create():
 
     #GET THE UNZIPS
 
-    files = sorted(os.listdir(config['unzip_dir']), key=locale.strxfrm)
+    UNZIP_DIR = config['unzip_dir_clades']
+    files = sorted(os.listdir(UNZIP_DIR), key=locale.strxfrm)
 
     # DB METADATA
 
-    meta = [('datadir', config['unzip_dir']),
+    meta = [('datadir', UNZIP_DIR),
                 ('date', ' '.join((time.asctime(), time.tzname[time.daylight]))),
                 ('locale', 'LC_ALL'),
                 ('directory', os.getcwd()),
