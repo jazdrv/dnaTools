@@ -31,10 +31,12 @@ class DB(object):
         db = None
         dc = None
         
-    def cursor(self):
+    def db_init(self):
         #trace (1, "Initialising database...")
-        self.db = sqlite3.connect('variant.db')
-        self.dc = self.db.cursor()
+        return sqlite3.connect('variant.db')
+        
+    def cursor(self):
+        return self.db.cursor()
         
     def run_sql_file(self,FILE):
         fh = open(REDUX_SQL+'/'+FILE,'r');

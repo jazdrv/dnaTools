@@ -32,18 +32,19 @@ def c_create():
     # nranges, coverage1 (total r1), coverage2 (gated by r2)
 
     dbo = DB()
-    dbo.cursor()
+    dbo.db = dbo.dbo_init()
+    dbo.dc = dbo.cursor()
     dbo.clades_schema()
 
     #CREATE TBLS
 
     #for table in tabledefs:
-    #    dbcurs.execute('CREATE TABLE %s' % table)
+    #    dbo.dc.execute('CREATE TABLE %s' % table)
 
     #CREATE INDEXES
 
     #for idx in indexdefs:
-    #    dbcurs.execute('CREATE INDEX %s' % idx)
+    #    dbo.dc.execute('CREATE INDEX %s' % idx)
 
     # match order to the default output of ls
     # ls depends on such things as locale setting, aliases, etc
@@ -66,14 +67,14 @@ def c_create():
 
     #INS META
 
-    dbcurs.executemany('insert into c_meta values(?,?)', meta)
+    dbo.dc.executemany('insert into c_meta values(?,?)', meta)
 
     ranges = []
 
     #INS FILES
 
-    dbcurs.execute('INSERT INTO c_files(name) VALUES("age.bed")')
-    myid = dbcurs.lastrowid
+    dbo.dc.execute('insert into c_files(name) VALUES("age.bed")')
+    myid = dbo.dc.lastrowid
 
     #OPEN AGE.BED
 
@@ -84,7 +85,7 @@ def c_create():
 
     #INS BED
 
-    dbcurs.executemany('insert into c_bed values(?,?,?)', ranges)
+    dbo.dc.executemany('insert into c_bed values(?,?,?)', ranges)
 
     cover_ranges = ranges
     trace(1, 'enter at {:.2f} seconds'.format(time.time() - t0))
@@ -95,8 +96,8 @@ def c_create():
 
     for nf,fname in enumerate(files):
         if fname.endswith('.bed'):
-            dbcurs.execute('INSERT INTO files(name,kit,seq) VALUES(?,1,?)', (os.path.splitext(fname)[0],nf))
-            myid = dbcurs.lastrowid
+            dbo.dc.execute('insert into c_files(name,kit,seq) VALUES(?,1,?)', (os.path.splitext(fname)[0],nf))
+            myid = dbo.lastrowid
             ranges = []
             try:
                 for line in open(os.path.join(config['unzip_dir'], fname)):
@@ -108,7 +109,7 @@ def c_create():
 
             #INS BED
 
-            dbcurs.executemany('insert into bed values(?,?,?)', ranges)
+            dbo.dc.executemany('insert into c_bed values(?,?,?)', ranges)
             tcover, pcover = get_coverage(ranges, cover_ranges)
             stat_list.append((myid, tcover, pcover, len(ranges)))
 
@@ -116,12 +117,12 @@ def c_create():
 
     #INS BEDSTATS
 
-    dbcurs.executemany('insert into bedstats values(?,?,?,?)', stat_list)
+    dbo.dc.executemany('insert into c_bedstats values(?,?,?,?)', stat_list)
 
     #INS FILES
 
-    dbcurs.execute('INSERT INTO files(name) VALUES("implications")')
-    myid = dbcurs.lastrowid
+    dbo.dc.execute('insert into c_files(name) VALUES("implications")')
+    myid = dbo.lastrowid
     ll = {}
     vl = []
 
@@ -139,23 +140,23 @@ def c_create():
 
     #INS VARIANTS
 
-    dbcurs.executemany('insert or ignore into variants(pos,ref,alt) values (?,?,?)', ll)
+    dbo.dc.executemany('insert or ignore into variants(pos,ref,alt) values (?,?,?)', ll)
     cl = []
 
     for tup in vl:
-        tid = dbcurs.execute('select id from variants where pos=? and ref=? and alt=?', tup).fetchone()[0]
+        tid = dbo.dc.execute('select id from c_variants where pos=? and ref=? and alt=?', tup).fetchone()[0]
         cl.append((myid, tid, ll[tup]))
 
     #DEL VCFCALLS
 
-    dbcurs.execute ('delete from vcfcalls where id=?', (myid,))
+    dbo.dc.execute ('delete from c_vcfcalls where id=?', (myid,))
     trace(3, 'inserting to vcfcalls {}'.format(cl))
 
     #INS VCFCALLS
 
-    dbcurs.executemany('insert into vcfcalls(id, vid, origin) values(?,?,?)', cl)
+    dbo.dc.executemany('insert into c_vcfcalls(id, vid, origin) values(?,?,?)', cl)
 
-    dbconn.commit()
+    dbo.commit()
 
     calls = []
     rejects = []
@@ -167,7 +168,7 @@ def c_create():
     for fname in files:
         if fname.endswith('.vcf'):
             ny = nv = ns = ni = nr = 0
-            myid = dbcurs.execute('select id from files where name = ?', (os.path.splitext(fname)[0],)).fetchone()[0]
+            myid = dbo.dc.execute('select id from c_files where name = ?', (os.path.splitext(fname)[0],)).fetchone()[0]
             trace(3, 'reading file {} from {}'.format(fname,
                 config['unzip_dir']))
             with open(os.path.join(config['unzip_dir'], fname)) as lines:
@@ -197,40 +198,40 @@ def c_create():
 
     #INS VCFSTATS
 
-    dbcurs.executemany('INSERT INTO vcfstats(id,ny,nv,ns,ni,nr) VALUES(?,?,?,?,?,?)', stats)
+    dbo.dc.executemany('insert into c_vcfstats(id,ny,nv,ns,ni,nr) VALUES(?,?,?,?,?,?)', stats)
     vl = []
 
     for iid, pos, ref, alt in rejects:
         try:
             #SEL VARIANTS
-            vid = dbcurs.execute('select id from variants where pos=? and ref=? and alt=?', (pos,ref,alt)).fetchone()[0]
+            vid = dbo.dc.execute('select id from c_variants where pos=? and ref=? and alt=?', (pos,ref,alt)).fetchone()[0]
         except:
             #INS VARIANTS
-            dbcurs.execute('insert into variants(pos,ref,alt) values (?,?,?)', (pos,ref,alt))
-            vid = dbcurs.lastrowid
+            dbo.dc.execute('insert into c_variants(pos,ref,alt) values (?,?,?)', (pos,ref,alt))
+            vid = dbo.lastrowid
         vl.append((iid,vid))
 
     #INS VCFREJ
 
-    dbcurs.executemany('INSERT INTO vcfrej(id,vid) VALUES(?,?)', vl)
+    dbo.dc.executemany('insert into c_vcfrej(id,vid) VALUES(?,?)', vl)
     vl = []
 
     for iid, pos, ref, alt in calls:
         try:
             #SEL VARIANTS
-            vid = dbcurs.execute('select id from variants where pos=? and ref=? and alt=?', (pos,ref,alt)).fetchone()[0]
+            vid = dbo.dc.execute('select id from c_variants where pos=? and ref=? and alt=?', (pos,ref,alt)).fetchone()[0]
         except:
             #INS VARIANTS
-            dbcurs.execute('insert into variants(pos,ref,alt) values (?,?,?)', (pos,ref,alt))
-            vid = dbcurs.lastrowid
+            dbo.dc.execute('insert into c_variants(pos,ref,alt) values (?,?,?)', (pos,ref,alt))
+            vid = dbo.dc.lastrowid
         vl.append((iid,vid))
 
     #INS VCFCALLS
 
-    dbcurs.executemany('INSERT INTO vcfcalls(id,vid) VALUES(?,?)', vl)
+    dbo.dc.executemany('insert into c_vcfcalls(id,vid) VALUES(?,?)', vl)
     rejects = calls = stats = vl = None
     trace(1, 'vcf done at {:.2f} seconds'.format(time.time() - t0))
-    dbconn.commit()
+    dbo.commit()
     trace(1, 'commit done at {:.2f} seconds'.format(time.time() - t0))
     
 def c_docalls():
@@ -256,8 +257,8 @@ def c_docalls():
             raise ValueError
         return c_vect
 
-    c1 = dbconn.cursor()
-    c2 = dbconn.cursor()
+    dbo.c1 = dbo.cursor()
+    dbo.c2 = dbo.cursor()
 
     # wishlist: redo the refpos swapping from implications
     # caution if adding new variants, might not capture all of the rejects
@@ -273,13 +274,13 @@ def c_docalls():
     # corrected when we write at the end
 
     ref_swaps = {}
-    swaps = c1.execute('select v.id,v.pos,v.ref,v.alt from variants v, vcfcalls c where c.vid=v.id and c.origin="<"')
+    swaps = dbo.dbo.c1.execute('select v.id,v.pos,v.ref,v.alt from c_variants v, c_vcfcalls c where c.vid=v.id and c.origin="<"')
 
     for vid,pos,ref,alt in swaps:
         # ref_swaps[vid] = (ref,alt) # as specified in implications
         trace(2,'swappos id={}:{}.{}.{}'.format(vid,pos,ref,alt))
         #SEL VARIANTS
-        vc =c2.execute('select id from variants where pos=? and ref=? and alt=?', (pos,alt,ref)) # swapped version versus what's in implications
+        vc =c2.dc.execute('select id from c_variants where pos=? and ref=? and alt=?', (pos,alt,ref)) # swapped version versus what's in implications
         for (vid,) in vc: # swapped version appears in variants
             trace(2,'swappos id={}:{}.{}.{}'.format(vid,pos,alt,ref))
             ref_swaps[vid] = (ref,alt)
@@ -287,7 +288,7 @@ def c_docalls():
     inserted = {}
 
     #SEL VCFCALLS
-    ins = c1.execute('select c.vid from vcfcalls c where c.origin="^"')
+    ins = dbo.dbo.c1.execute('select c.vid from c_vcfcalls c where c.origin="^"')
 
     for (vid,) in ins:
         trace(2,'inserted:variant id {}'.format(vid))
@@ -296,13 +297,13 @@ def c_docalls():
     # list and count variants from the kits and uncount the inserted ones
     vcounts = {}
     #SEL VCFCALLS
-    vl = c1.execute('select count(id), vid from vcfcalls group by vid')
+    vl = dbo.dbo.c1.execute('select count(id), vid from c_vcfcalls group by vid')
 
     for count, vid in vl:
         trace(3,'{}: {}'.format(vid,count))
         vcounts[vid] = count
     #SEL VCFCALLS
-    vl = c1.execute('select vid from vcfcalls where origin in ("^","<")')
+    vl = dbo.dbo.c1.execute('select vid from c_vcfcalls where origin in ("^","<")')
 
     for (vid,) in vl:
         vcounts[vid] -= 1
@@ -310,7 +311,7 @@ def c_docalls():
     # which variants are SNPS
     snps = {}
     #SEL VARIANTS
-    vl = c1.execute('select id from variants where length(ref)=1 and length(alt)=1')
+    vl = dbo.dbo.c1.execute('select id from c_variants where length(ref)=1 and length(alt)=1')
 
     for (vid,) in vl:
         snps[vid] = True
@@ -318,7 +319,7 @@ def c_docalls():
     # which variants are indels
     indels = {}
     #SEL VARIANTS
-    vl = c1.execute('select id from variants where (length(ref)>1 or length(alt)>1)')
+    vl = dbo.dbo.c1.execute('select id from c_variants where (length(ref)>1 or length(alt)>1)')
 
     for (vid,) in vl:
         indels[vid] = True
@@ -338,31 +339,31 @@ def c_docalls():
     calls = defaultdict(dict)
 
     #CREATE TMP TBL TPOS
-    c1.execute('create temporary table tpos (pos int)')
+    dbo.dbo.c1.execute('create temporary table tpos (pos int)')
     #INS TPOS
-    c1.execute('insert into tpos select distinct pos from variants')
+    dbo.dbo.c1.execute('insert into c_tpos select distinct pos from c_variants')
 
     # these run fast - gather cbu,cbl,cblu all at once, and they do not depend
     # on REF,POS
 
     #SEL TPOS
-    cbu = 'select id,maxaddr from bed where maxaddr in (select * from tpos)'
+    cbu = 'select id,maxaddr from c_bed where maxaddr in (select * from c_tpos)'
     #SEL TPOS
-    cbl = 'select id,minaddr from bed where minaddr in (select * from tpos)'
+    cbl = 'select id,minaddr from c_bed where minaddr in (select * from c_tpos)'
     #SEL TPOS
-    cblu = 'select id,maxaddr from bed where maxaddr=minaddr and maxaddr in (select * from tpos)'
+    cblu = 'select id,maxaddr from c_bed where maxaddr=minaddr and maxaddr in (select * from c_tpos)'
 
     call_strings = ['', ';cblu', ';cbu', ';cbl', ';nc']
 
-    for ii,pos in c1.execute(cblu):
+    for ii,pos in dbo.dbo.c1.execute(cblu):
         calls[ii][pos] = 1
     trace(1, 'cblu found at {:.2f} seconds'.format(time.time() - t0))
 
-    for ii,pos in c1.execute(cbu):
+    for ii,pos in dbo.dbo.c1.execute(cbu):
         calls[ii][pos] = 2
     trace(1, 'cbu found at {:.2f} seconds'.format(time.time() - t0))
 
-    for ii,pos in c1.execute(cbl):
+    for ii,pos in dbo.c1.execute(cbl):
         calls[ii][pos] = 3
     trace(1, 'cbl found at {:.2f} seconds'.format(time.time() - t0))
 
@@ -370,7 +371,7 @@ def c_docalls():
 
     iids = []
     #SEL FILES
-    files = c1.execute('select id,name,seq from files where kit=1 order by 3')
+    files = dbo.c1.execute('select id,name,seq from c_files where kit=1 order by 3')
 
     for ii,fname,seq in files:
         iids.append(ii)
@@ -382,7 +383,7 @@ def c_docalls():
 
     for vid in vcounts:
         #SEL VARIANTS
-        c1 = c1.execute('select pos,ref,alt from variants where id=?', (vid,))
+        c1 = dbo.c1.execute('select pos,ref,alt from c_variants where id=?', (vid,))
         pos,ref,alt = next(c1)
         vrai_vector.append((pos,ref,alt,vid))
         trace(3,'{}'.format(vrai_vector[-1]))
@@ -396,7 +397,7 @@ def c_docalls():
 
     kit_calls = defaultdict(dict)
     #SEL VCFCALLS
-    kcalls = c1.execute('select id,vid from vcfcalls')
+    kcalls = dbo.c1.execute('select id,vid from c_vcfcalls')
 
     for ID,vid in kcalls:
         kit_calls[ID][vid] = None
@@ -409,7 +410,7 @@ def c_docalls():
 
         ist += 1
         #SEL BED
-        ranges = c1.execute('select minaddr,maxaddr from bed where id=? order by minaddr', (ii,))
+        ranges = dbo.c1.execute('select minaddr,maxaddr from c_bed where id=? order by minaddr', (ii,))
         kit_ranges = []
 
         for minaddr,maxaddr in ranges:
@@ -432,7 +433,7 @@ def c_docalls():
 
     rejects = defaultdict(dict)
     #SEL VCFREJ
-    rej = dbcurs.execute('select id,vid from vcfrej')
+    rej = dbo.execute('select id,vid from c_vcfrej')
     for iid,vid in rej:
         rejects[iid][vid] = None
 
@@ -490,36 +491,36 @@ def c_docalls():
     
 def c_stats1():
     # STATS1 in redux.bash
-    c1 = dbconn.cursor()
-    c = c1.execute('select id, coverage1, coverage2, nranges from bedstats')
+    dbo.c1 = dbo.cursor()
+    c = dbo.c1.execute('select id, coverage1, coverage2, nranges from c_bedstats')
     for row in c:
         print(row[1], row[2], row[3])
     
 def c_stats2():
     # STATS2 in redux.bash
-    c1 = dbconn.cursor()
-    c = c1.execute('select id, ny, nv, ns, ni from vcfstats')
+    dbo.c1 = dbo.cursor()
+    c = dbo.c1.execute('select id, ny, nv, ns, ni from c_vcfstats')
     for row in c:
         print(row[1], row[2], row[3], 0,0,0, row[4], 0,0)
     
 def c_listfiles():
     # list out which files are stored, in sort order
-    c1 = dbconn.cursor()
-    c = c1.execute('select name,seq from files where kit=1 order by 2')
+    dbo.c1 = dbo.cursor()
+    c = dbo.c1.execute('select name,seq from c_files where kit=1 order by 2')
     for row in c:
         print(row[0])
     
 def c_listbed():
     # list out full path bed files, in sort order
-    c1 = dbconn.cursor()
-    c = c1.execute('select name,seq from files where kit=1 order by 2')
+    dbo.c1 = dbo.cursor()
+    c = dbo.c1.execute('select name,seq from c_files where kit=1 order by 2')
     for row in c:
         print(os.path.join(config['unzip_dir'],row[0])+'.bed')
     
 def c_updatesnps():
     # update the snp defs and names from hg19
     with open('snps_hg19.csv') as snpfile:
-        c1 = dbconn.cursor()
+        dbo.c1 = dbo.cursor()
         reader = csv.DictReader(snpfile)
         snps = defaultdict(list)
         for row in reader:
@@ -527,52 +528,58 @@ def c_updatesnps():
             snps[snpdef].append(row['Name'])
         for snp in snps:
             #INS VARIANTS
-            c1.execute('insert or ignore into variants(pos,ref,alt) values(?,?,?)', snp)
+            dbo.c1.execute('insert or ignore into variants(pos,ref,alt) values(?,?,?)', snp)
             #SEL VARIANTS
-            c1 = c1.execute('select id from variants where pos=? and ref=? and alt=?', snp)
+            c1 = dbo.c1.execute('select id from c_variants where pos=? and ref=? and alt=?', snp)
             vid = c1.fetchone()[0]
             for n in snps[snp]:
                 #INS SNPNAMES
-                c1.execute('insert into snpnames values(?,?)', (vid, n))
+                dbo.c1.execute('insert into c_snpnames values(?,?)', (vid, n))
     
 def c_querysnp():
 
     # print info about a snp by name or addr
     trace(2, 'looking for details about {}...'.format(querysnp))
-    c1 = dbconn.cursor()
+    dbo.c1 = dbo.cursor()
     ids = set()
     #SEL VARIANTS
-    c1 = c1.execute('select * from variants where pos=?', (querysnp,))
+    c1r = dbo.c1.execute('select * from c_variants where pos=?', (querysnp,))
 
-    for row in c1:
+    for row in c1r:
         ids.add(row[0])
 
     # wildcard version - usually not useful
-    #c1 = c1.execute('select * from snpnames where name like ?', (querysnp+'%',))
+    #c1 = dbo.c1.execute('select * from c_snpnames where name like ?', (querysnp+'%',))
 
     #SEL SNPNAMES
 
-    c1 = c1.execute('select id from snpnames where name=?', (querysnp.upper(),))
-    for row in c1:
+    c1r = dbo.c1.execute('select id from c_snpnames where name=?', (querysnp.upper(),))
+    for row in c1r:
         ids.add(row[0])
 
     poss = set()
     nams = set()
 
     for id in ids:
+
         #SEL VARIANTS
-        c1 = c1.execute('select distinct pos from variants where id=?', (id,))
-        for row in c1:
+
+        c1r = dbo.c1.execute('select distinct pos from c_variants where id=?', (id,))
+        for row in c1r:
             poss.add('{}'.format(row[0]))
+
         #SEL SNPNAMES
-        c1 = c1.execute('select distinct name from snpnames where id=?', (id,))
-        for row in c1:
+
+        c1r = dbo.c1.execute('select distinct name from c_snpnames where id=?', (id,))
+        for row in c1r:
             nams.add(row[0])
 
     for pos in poss:
+
         #SEL VARIANTS
-        c1 = c1.execute('select pos,ref,alt,id from variants where pos=?', (pos,))
-        for row in c1:
+
+        c1r = dbo.c1.execute('select pos,ref,alt,id from c_variants where pos=?', (pos,))
+        for row in c1r:
             print('{:>8}.{}.{} - {} (id={})'.format(row[0], row[1], row[2], '/'.join(nams),row[3]))
 
     if not ids:
@@ -581,17 +588,19 @@ def c_querysnp():
     kitids = set()
 
     if vars(namespace)['kits']:
+
         kitids = set()
         for iid in ids:
             #SEL VCFCALLS
-            c1 = c1.execute('select distinct id from vcfcalls where vid=?', (iid,))
-            for row in c1:
+            c1r = dbo.c1.execute('select distinct id from c_vcfcalls where vid=?', (iid,))
+            for row in c1r:
                 kitids.add(row[0])
         print('Found in', len(kitids), 'kits')
+
         for iid in kitids:
             #SEL FILES
-            c1 = c1.execute('select name from files where id=?', (iid,))
-            print(c1.fetchone()[0])
+            c1r = dbo.c1.execute('select name from c_files where id=?', (iid,))
+            print(c1r.fetchone()[0])
 
     if vars(namespace)['implications']:
         if poss:
@@ -627,20 +636,20 @@ def c_mergeup():
 
     #incomplete
 
-    c1 = dbconn.cursor()
-    c2 = dbconn.cursor()
-    c3 = dbconn.cursor()
+    dbo.c1 = dbo.cursor()
+    dbo.c2 = dbo.cursor()
+    dbo.c3 = dbo.cursor()
 
     # populate tree from the rows in tree csv
     # store the variants associated with the row (column 5, semicolon sep'd)
 
     #CREATE TMP TBL TREE
 
-    c1.execute('CREATE TEMPORARY TABLE tree(e INTEGER PRIMARY KEY, a INTEGER, b INTEGER, c INTEGER, d INTEGER, f INTEGER, g TEXT, h TEXT, i INTEGER)')
+    dbo.c1.execute('CREATE TEMPORARY TABLE tree(e INTEGER PRIMARY KEY, a INTEGER, b INTEGER, c INTEGER, d INTEGER, f INTEGER, g TEXT, h TEXT, i INTEGER)')
 
     #CREATE TMP TBL TREEVARS
 
-    c1.execute('CREATE TEMPORARY TABLE treevars(ID INTEGER REFERENCES tree(e), snpid INTEGER REFERENCES variants(id), unique(id,snpid))')
+    dbo.c1.execute('CREATE TEMPORARY TABLE treevars(ID INTEGER REFERENCES tree(e), snpid INTEGER REFERENCES variants(id), unique(id,snpid))')
 
     with open('tree.csv') as csvfile:
         fieldnames=['a','b','c','d','e','f','g','h','i']
@@ -648,8 +657,8 @@ def c_mergeup():
         for row in reader:
             tup=(row['a'],row['b'],row['c'],row['d'],
                      row['f'],row['g'],row['h'],row['i'])
-            c1.execute('insert into tree(a,b,c,d,f,g,h,i) values (?,?,?,?,?,?,?,?)', tup)
-            treeid=c1.lastrowid
+            dbo.c1.execute('insert into c_tree(a,b,c,d,f,g,h,i) values (?,?,?,?,?,?,?,?)', tup)
+            treeid=dbo.c1.lastrowid
             snplist = row['e'].split(';')
 
             for snp in snplist:
@@ -657,22 +666,22 @@ def c_mergeup():
                     poss = set()
                     for sname in snp.split('/'):
                         #SEL SNPNAMES
-                        c1 = c1.execute('select id from snpnames where name=?', (sname,))
+                        c1 = dbo.c1.execute('select id from c_snpnames where name=?', (sname,))
                         r1 = next(c1)
                         if r1:
                             #INS TREEVARS
-                            c1.execute('insert or ignore into treevars values(?,?)', (treeid,snpid))
+                            dbo.c1.execute('insert or ignore into treevars values(?,?)', (treeid,snpid))
                 else:
                     #SEL VARIANTS
-                    s = c1.execute('select id from variants where pos=?', (snp,))
+                    s = dbo.c1.execute('select id from c_variants where pos=?', (snp,))
                     try:
                         snpid = s.fetchone()[0]
                     except:
                         #INS VARIANTS
-                        c1.execute('insert into variants(pos) values(?)', (snp,))
-                        snpid = c1.lastrowid
+                        dbo.c1.execute('insert into c_variants(pos) values(?)', (snp,))
+                        snpid = dbo.c1.lastrowid
                     #INS TREEVARS
-                    c1.execute('insert or ignore into treevars values(?,?)', (treeid,snpid))
+                    dbo.c1.execute('insert or ignore into treevars values(?,?)', (treeid,snpid))
 
     # Each row in the tree carries a range [minkit, maxkit] (col3 & col4)
     # Those are the column indices in the variant-not-shared.txt array.
@@ -692,7 +701,7 @@ def c_mergeup():
 
     #CREATE TMP TBL VARS
 
-    c1.execute('CREATE TEMPORARY TABLE vars(snp INTEGER REFERENCES variants(id), pid INTEGER)')
+    dbo.c1.execute('CREATE TEMPORARY TABLE vars(snp INTEGER REFERENCES variants(id), pid INTEGER)')
     tups = []
 
     with open('variant-not-shared.txt') as varfile:
@@ -701,12 +710,12 @@ def c_mergeup():
             rowsnp = row[0]
             try:
                 #SEL VARIANTS
-                rowsnpid = c2.execute('select id from variants where pos=?', (rowsnp,)).fetchone()[0]
+                rowsnpid = dbo.c2.execute('select id from c_variants where pos=?', (rowsnp,)).fetchone()[0]
             except:
                 # insert variant since we don't have it yet
                 trace(2, 'pos = {} added'.format(row[0]))
                 #INS VARIANTS
-                c2.execute('insert into variants(pos) values(?)', (rowsnp,))
+                dbo.c2.execute('insert into c_variants(pos) values(?)', (rowsnp,))
                 rowsnpid = c2.lastrowid
             for col in range(17,len(row)):
                 if row[col]:
@@ -714,27 +723,27 @@ def c_mergeup():
 
     #INS VARS
 
-    c1.executemany('insert into vars values(?,?)', tups) 
+    dbo.c1.executemany('insert into c_vars values(?,?)', tups) 
     # tables populated
 
     #SEL TREE
 
-    c1 = c1.execute('select * from tree where g!="0"')
+    c1r = dbo.c1.execute('select * from c_tree where g!="0"')
 
-    for row in c1:
+    for row in c1r:
         par = os.path.splitext(row[6])[0]
         #SEL TREE
-        prow = next(c2.execute('select e,c,d from tree where g=?', (par,)))
+        prow = next(dbo.c2.execute('select e,c,d from c_tree where g=?', (par,)))
         minidx = prow[1]
         maxidx = prow[2]
         trace(3,'id:{}; max/min:{}/{}'.format(prow[0], minidx, maxidx))
         #SEL TREEVARS
-        c2 = c2.execute('select snpid from treevars where id=?', (row[0],))
-        for r1 in c2:
+        c2r = dbo.c2.execute('select snpid from c_treevars where id=?', (row[0],))
+        for r1 in c2r:
             for kit in range(minidx,maxidx+1):
                 trace(3,'checking kit {} for snpid {}'.format(kit,r1[0]))
                 #SEL VCFCALLS
-                hasit = c3.execute('select id from vcfcalls where vid=? and id=(select id from files where seq=?)', (r1[0], kit))
+                hasit = dbo.c3.execute('select id from c_vcfcalls where vid=? and id=(select id from c_files where seq=?)', (r1[0], kit))
                 try:
                     snpid = next(hasit)
                     continue
