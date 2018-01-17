@@ -8,6 +8,8 @@ clades.py
    clades.py -kibs z4303  # queries a SNP and kits from the database
    clades.py buildarray   # for experimenting with data structures
 
+dendropy-notes            # notes from doing experiments with dendropy
+
 sqlite.properties         # example of setting up jdbc for SQLite
                           # useful for using schemaspy
 
