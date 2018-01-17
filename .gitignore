@@ -1,5 +1,3 @@
-autobackup
-notes
 *.sw?
-env
-env2
+_*
+
