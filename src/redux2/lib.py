@@ -705,7 +705,7 @@ def go_db():
     dbo = DB()
     dbo.db = dbo.db_init()
     dbo.dc = dbo.cursor()
-    v2_schema()
+    dbo.v2_schema()
 
 # SNP extraction routines based on original - Harald 
 # extracts the SNP calls from the VCF files and

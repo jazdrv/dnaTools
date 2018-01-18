@@ -225,9 +225,9 @@ if create:
     rejects = []
     stats = []
     ipos = [a for (a,b,c) in vl]
-    print(files)
+    #print(files)
     for fname in files:
-        print("fname:"+fname)
+        #print("fname:"+fname)
         if fname.endswith('.vcf'):
             ny = nv = ns = ni = nr = 0
             myid = dbcurs.execute('select id from files where name = ?', (os.path.splitext(fname)[0],)).fetchone()[0]

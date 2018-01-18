@@ -91,32 +91,37 @@ verbose = vars(namespace)['verbose']
 #TODO: new clades code
 if not verbose:
     verbose = config['DEBUG']
+if namespace.snp or len(namespace.action):
+    cladesO = Clades();
+    cladesO.dbo = DB()
+    cladesO.dbo.db = cladesO.dbo.db_init()
+    cladesO.namespace = namespace
 if namespace.snp:
-    querysnp = vars(namespace)['snp'][0]
-else:
-    querysnp = False
+    cladesO.querysnp = vars(namespace)['snp'][0]
+#else:
+#    cladesO.querysnp = False
 
 #TODO: new clades code
 # create: new database from all of the .bed and vcf files
 # fastest if you remove the old .db file first
-create = stats1 = stats2 = docalls = listfiles = listbed = mergeup = updatesnps = False
+#create = stats1 = stats2 = docalls = listfiles = listbed = mergeup = updatesnps = False
 for a in namespace.action:
     if a == 'create':
-        create = True
+        cladesO.create = True
     elif a == 'stats1':
-        stats1 = True
+        cladesO.stats1 = True
     elif a == 'stats2':
-        stats2 = True
+        cladesO.stats2 = True
     elif a == 'docalls':
-        docalls = True
+        cladesO.docalls = True
     elif a == 'listfiles':
-        listfiles = True
+        cladesO.listfiles = True
     elif a == 'listbed':
-        listbed = True
+        cladesO.listbed = True
     elif a == 'updatesnps':
-        updatesnps = True
+        cladesO.updatesnps = True
     elif a == 'mergeup':
-        mergeup = True
+        cladesO.mergeup = True
     else:
         print('unknown:', action, 'exiting')
 
@@ -124,11 +129,12 @@ for a in namespace.action:
 t0 = time.time()
 
 #TODO: clades stuff
-if create:
-    try:
-        os.unlink(config['DB_FILE'])
-    except:
-        pass
+if namespace.snp or len(namespace.action):
+    if cladesO.create:
+        try:
+            os.unlink(config['DB_FILE'])
+        except:
+            pass
 
 #TODO: clades line
 #dbconn = sqlite3.connect(config['DB_FILE'])
@@ -157,24 +163,25 @@ else:
     if args.new:
         go_db()
 
-if create:
-    c_create()
-if docalls:
-    c_docalls()
-if stats1:
-    c_stats1()
-if stats2:
-    c_ctats2()
-if listfiles:
-    c_listfiles()
-if listbed:
-    c_listbed()
-if updatesnps:
-    c_updatesnps()
-if querysnp:
-    c_querysnp(namespace)
-if mergeup: #incomplete
-    c_mergeup()
+if namespace.snp or len(namespace.action):
+    if cladesO.create:
+        cladesO.c_create()
+    if cladesO.docalls:
+        cladesO.c_docalls()
+    if cladesO.stats1:
+        cladesO.c_stats1()
+    if cladesO.stats2:
+        cladesO.c_ctats2()
+    if cladesO.listfiles:
+        cladesO.c_listfiles()
+    if cladesO.listbed:
+        cladesO.c_listbed()
+    if cladesO.updatesnps:
+        cladesO.c_updatesnps()
+    if cladesO.querysnp:
+        cladesO.c_querysnp()
+    if cladesO.mergeup: #incomplete
+        cladesO.c_mergeup()
 
 trace(0, "** script complete.\n")
 #TODO: clades line

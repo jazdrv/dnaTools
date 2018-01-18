@@ -28,8 +28,8 @@ REDUX_DATA = os.environ['REDUX_DATA']
 class DB(object):
     
     def __init__(self):
-        db = None
-        dc = None
+        self.db = None
+        self.dc = None
         
     def db_init(self):
         #trace (1, "Initialising database...")
