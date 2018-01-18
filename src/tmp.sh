@@ -78,14 +78,16 @@ time comm -12 $REDUX_ENV/tmp/hg38.1 $REDUX_ENV/tmp/new.5 |sed -e 's/$/,/g' |sed 
 #new.5.: 10147234,G,A <-- truly new
 
 echo;echo "step 12 - new.7 - and here's where we get the rest of the data for that new data"
-echo "$ grep -f new.6 hg38.0 > new.7"
-time grep -f $REDUX_ENV/tmp/new.6 $REDUX_ENV/tmp/hg38.0 > $REDUX_ENV/tmp/new.7
+echo "$ grep -f new.6 hg38.0|sed -e '/ins/d' > new.7"
+time grep -f $REDUX_ENV/tmp/new.6 $REDUX_ENV/tmp/hg38.0|sed '/ins/d' > $REDUX_ENV/tmp/new.7
 
 echo;echo "step 13 - get count of unique new variants"
-cntWInsDel=`cat $REDUX_ENV/tmp/new.7 | wc -l`
-cntWOInsDel=`cat $REDUX_ENV/tmp/new.7 | sed '/ins/d' |wc -l`
-echo "count w/ ins+del (bad entries): $cntWInsDel"
-echo "count w/o: $cntWOInsDel"
+#cntWInsDel=`cat $REDUX_ENV/tmp/new.7 | wc -l`
+#cntWOInsDel=`cat $REDUX_ENV/tmp/new.7 | sed '/ins/d' |wc -l`
+cnt=`cat $REDUX_ENV/tmp/new.7|wc -l`
+#echo "count w/ ins+del (bad entries): $cntWInsDel"
+#echo "count w/o: $cntWOInsDel"
+echo "count: $cnt"
 
 
 
