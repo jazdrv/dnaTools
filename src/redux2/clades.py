@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 # note:: class lib of Jef's original clades.py script
 
 import locale,time,subprocess

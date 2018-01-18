@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 # authors/licensing {{{
 
 # @author: Iain McDonald
