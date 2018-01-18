@@ -252,7 +252,7 @@ def unpack():
     trace (40, '   Files unpacked:')
     for ff in fnames:
         trace (40, ff)
-def skip_to(dbo):
+def skip_to_Hg19(dbo):
 
     # skip to <= 1 - unpack zips
 
@@ -288,10 +288,10 @@ def skip_to(dbo):
         
         #variant_dict
 
-        print(REDUX_ENV)
+        #print(REDUX_ENV)
         variant_dict = {}
         for file in vcffiles:
-            vcf_calls = readVcf(REDUX_ENV+'/'+config['unzip_dir']+'/'+ file)
+            vcf_calls = readHg19Vcf(REDUX_ENV+'/'+config['unzip_dir']+'/'+ file)
             variant_dict.update(vcf_calls)
 
         trace (10, "   %i variants found" % len(variant_dict))
@@ -680,7 +680,7 @@ def go_v1_db():
     dbo.db = dbo.db_init()
     dbo.dc = dbo.cursor()
     dbo.redux2_schema()
-    skip_to(dbo)
+    skip_to_Hg19(dbo)
     
 
 # import vcf hg38
@@ -819,7 +819,7 @@ def file_len(fname):
 
 # routines - Iain 
 
-def readVcf(file):
+def readHg19Vcf(file):
 
     #Returns a dict of position -> mutation mappings
     #Modified from Harald's analyzeVCF, this version returns every mutation with
