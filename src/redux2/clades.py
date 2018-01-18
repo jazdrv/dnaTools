@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-#NOTE: this is library version of Jef's original clades.py script
+# note:: class lib of Jef's original clades.py script
 
 import locale,time,subprocess
 #import sqlite3,os,time,sys,random,argparse,locale,csv,subprocess
@@ -49,8 +49,6 @@ class Clades(object):
 
         # nranges, coverage1 (total r1), coverage2 (gated by r2)
 
-        #dbo = DB()
-        #self.dbo.db = self.dbo.db_init()
         self.dbo.dc = self.dbo.cursor()
         self.dbo.clades_schema()
 
@@ -571,6 +569,7 @@ class Clades(object):
         
     def c_querysnp(self):
 
+        # namespace stuff
         if self.namespace.snp:
             self.querysnp = vars(self.namespace)['snp'][0]
         else:
