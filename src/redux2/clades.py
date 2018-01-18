@@ -184,7 +184,7 @@ class Clades(object):
 
         #FOR LOOP FILES
 
-        print(files)
+        #print(files)
         for fname in files:
             if fname.endswith('.vcf'):
                 ny = nv = ns = ni = nr = 0

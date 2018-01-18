@@ -10,7 +10,7 @@
 # }}}
 # libs {{{
 
-import os,yaml,shutil,glob,re,csv,zipfile
+import os,yaml,shutil,glob,re,csv,zipfile,subprocess
 from db import *
 from collections import defaultdict
 
@@ -682,6 +682,18 @@ def go_v1_db():
     dbo.redux2_schema()
     skip_to(dbo)
     
+
+# import vcf hg38
+
+#note: it looks like clades.py is doing something like this for hg19
+def getH38references():
+    foo = 1
+
+#note: sample code for calling this awk script
+def getVCFvariants(FILE):
+    cmd = REDUX_ENV+"/getVCFvariants.sh"
+    p = subprocess.Popen(cmd, FILE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    stdout, stderr = p.communicate()
 
 #routines - "arghandler" (sort prototype) - Zak
 
