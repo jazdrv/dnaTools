@@ -140,10 +140,10 @@ else:
         go_prep()
     # redux2.py stuff (v1 schema)
     if args.redux2:
-        go_v1_db()
+        go_db()
     # sort prototype
     if args.sort:
-        go_sort_db()
+        go_db()
     # (v2 schema)
     if args.new:
         go_db()
@@ -152,23 +152,23 @@ else:
 
 if namespace.snp or len(namespace.action):
     if cladesO.create:
-        cladesO.c_create()
+        cladesO.create()
     if cladesO.docalls:
-        cladesO.c_docalls()
+        cladesO.docalls()
     if cladesO.stats1:
-        cladesO.c_stats1()
+        cladesO.stats1()
     if cladesO.stats2:
-        cladesO.c_ctats2()
+        cladesO.ctats2()
     if cladesO.listfiles:
-        cladesO.c_listfiles()
+        cladesO.listfiles()
     if cladesO.listbed:
-        cladesO.c_listbed()
+        cladesO.listbed()
     if cladesO.updatesnps:
-        cladesO.c_updatesnps()
+        cladesO.updatesnps()
     if cladesO.querysnp:
-        cladesO.c_querysnp()
+        cladesO.querysnp()
     if cladesO.mergeup: #incomplete
-        cladesO.c_mergeup()
+        cladesO.mergeup()
 
 trace(0, "** script complete.\n")
 # TODO: clades line

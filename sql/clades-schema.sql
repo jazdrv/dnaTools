@@ -2,6 +2,7 @@
 
 -- DROPS
 
+/* replace with schema.sql
 drop index if exists c_rangeidx;
 drop index if exists c_rangeidx2;
 drop index if exists c_fileidx;
@@ -19,7 +20,8 @@ drop table if exists c_vcfrej;
 drop table if exists c_meta;
 drop table if exists c_variants;
 drop table if exists c_snpnames;
- 
+*/
+
 -- Note: these are new ones in the v2 schema
 -- builds
 -- bedranges
@@ -27,6 +29,7 @@ drop table if exists c_snpnames;
 
 -- CREATES
 
+/* replace with datasets
 create table c_files(
     ID INTEGER PRIMARY KEY, 
     name TEXT,  -- v2 kitname
@@ -36,6 +39,7 @@ create table c_files(
     kit INTEGER DEFAULT 0 -- not in v2
     -- v2 buildId int (ref builds(id))
 );
+*/
 
 -- v2 tbl
 -- create table c_origins(
@@ -51,21 +55,27 @@ create table c_files(
 --    maxaddr int,
 -- );
 
+/* replace with bedranges
 create table c_bed(
     ID INTEGER REFERENCES c_files(ID), 
     minaddr INTEGER,  -- not in v2
     maxaddr INTEGER   -- not in v2
     -- v2 bId int (ref bedranges(ID))
 );
+*/
 
 -- vcfcalls mostly comes from the .vcf files, so origin is "k"
 -- there are some tweaks from implications.txt, and origin is set to "^" or "<"
 
+/* replace with vcfcalls
 create table c_vcfcalls(
     ID INTEGER REFERENCES c_files(ID), 
     vid REFERENCES c_VARIANTS(id), 
     origin TEXT DEFAULT "k" -- not in v2
 );
+*/
+
+/* replace with vcfstats
 create table c_vcfstats(
     ID INTEGER REFERENCES c_files(ID), 
     ny INTEGER, 
@@ -74,23 +84,34 @@ create table c_vcfstats(
     ni INTEGER, 
     nr INTEGER
 );
+*/
 
+/* replace with bedstats
 create table c_bedstats(
     ID INTEGER REFERENCES c_files(ID), 
     coverage1 INTEGER, 
     coverage2 INTEGER, 
     nranges INTEGER
 );
+*/
+
+/* replace with vcfrej
 create table c_vcfrej(
     ID INTEGER REFERENCES c_files(ID), 
     vid INTEGER REFERENCES c_variants(id), 
     origin TEXT DEFAULT "k" -- not in v2
 );
+*/
+
+/* replace with meta
 create table c_meta(
     key TEXT,  -- not in v2
     -- v2 descr text    
     val TEXT 
 );
+*/
+
+/* replace with variants
 create table c_variants(
     ID INTEGER PRIMARY KEY, 
     -- v2 buildId (ref builds(id))
@@ -99,10 +120,14 @@ create table c_variants(
     alt TEXT, 
     UNIQUE(pos,ref,alt) -- v2 also includes buildId
 );
+*/
+
+/* replace with snpnames
 create table c_snpnames(
     ID INTEGER REFERENCES c_variants(ID), 
     name TEXT -- v2 snpname text
 );
+*/
 
 -- v2 tbl
 -- create table c_builds (
@@ -110,6 +135,7 @@ create table c_snpnames(
 --    buildname text
 -- );
 
+/* replace with schema.sql
 create index c_rangeidx on c_bed(id, minaddr, maxaddr);
 create index c_rangeidx2 on c_bed(id, minaddr);
 create index c_fileidx on c_files(name); -- v2 kitname
@@ -117,6 +143,7 @@ create index c_vcfidx on c_vcfcalls(id, vid);
 create index c_vcfidx2 on c_vcfcalls(id);
 create index c_vcfridx on c_vcfrej(id,vid); -- v2 only vid
 create index c_varidx on c_variants(pos); -- v2 no buildId
+*/
 
 -- v2 index
 -- create index rangeidx on c_bedranges(minaddr);

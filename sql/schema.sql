@@ -108,6 +108,20 @@ create table meta(
     val TEXT
     );
 
+/* table for STR definitions */
+drop table if exists strs;
+create table strs(
+    ID INTEGER PRIMARY KEY,
+    strname TEXT,
+    ordering INTEGER           -- can be used to put STRs in particular order
+    );
+
+/* STR values for testers */
+drop table if exists strcalls(
+    pID INTEGER REFERENCES datasets(ID), -- or maybe people?
+    val INTEGER
+    );
+
 /* list of all variants known for this computation */
 drop table if exists variants;
 create table variants(
@@ -142,3 +156,41 @@ create table builds(
     buildname TEXT
     );
 
+/* tree data structure may still need work */
+drop table if exists tree;
+CREATE TABLE tree(
+    id INTEGER PRIMARY KEY,
+    parendid INTEGER,
+    clade CHARACTER(16),
+    variants BLOB,
+    qualities BLOB,
+    ageflags BLOB,
+    children BLOB,
+    ancestralstrs BLOB,
+    originlat REAL,
+    originlong REAL,
+    coverage INTEGER,
+    agecoverage INTEGER,
+    poznikcoverage INTEGER,
+    combbedcoverage INTEGER,
+    olderthan SMALLINT,
+    olderthanunc SMALLINT,
+    olderthankit INTEGER,
+    youngerthan SMALLINT,
+    yongerthanunc SMALLINT,
+    youngerthankit1 INTEGER,
+    youngerthankit2 INTEGER,
+    snpage SMALLINT,
+    snpagelo SMALLINT,
+    snpagehi SMALLINT,
+    snpagepdf BLOB,
+    snpparentpdf BLOB,
+    strage SMALLINT,
+    stragelo SMALLINT,
+    stragehi SMALLINT,
+    stragepdf BLOB,
+    strparentpdf BLOB,
+    combage SMALLINT,
+    combagelo SMALLINT,
+    combagehi SMALLINT,
+    combagepdf BLOB);

@@ -2,6 +2,7 @@
 
 -- DROPS
 
+/* replace with schema.sql
 drop table if exists s_variants;
 drop table if exists s_calls;
 -- drop table if exists s_call_passes;
@@ -9,9 +10,11 @@ drop table if exists s_calls;
 -- drop table if exists s_sort_variants;
 drop table if exists s_kits;
 -- drop table if exists s_sort_kits;
+*/
 
 -- CREATES
 
+/* replace with variants
 create table s_variants (
  -- variant_id int, -- not needed for prototype
  variant_loc int,  -- PK
@@ -19,13 +22,16 @@ create table s_variants (
  -- old_reference varchar(2), -- commenting out right now cuz not part of ian's doc
  sort_order int
 );
+*/
 
+/* replace with vcfcalls
 create table s_calls(
  -- call_id int, -- PK - commenting out for now
  kit_id int, 
  variant_loc int,
  assigned boolean 
 );
+*/
 -- unique index (kit_id,variant_loc) -- commented out for now
 /* (hide this for now){{{
 -- note: I could see calls becoming maybe two tables.
@@ -50,10 +56,12 @@ create table call_fails (
 --  sort_order int
 -- );
 
+/* replace with datasets
 create table s_kits(
  kit_id  int,  -- later this can be person_id
  sort_order int
 );
+*/
 
 -- hide this for now {{{
 

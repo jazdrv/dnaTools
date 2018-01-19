@@ -3,7 +3,7 @@
 cd $REDUX_ENV
 
 DB="variant"
-info="c_variants|pos v1_hg19|grch37 v1_hg38|grch38 variants|pos"
+info="variants|pos hg19|grch37 hg38|grch38 variants|pos"
 
 for I in `echo $info`; do
 tbl=`echo $I|cut -d'|' -f1`

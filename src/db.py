@@ -1,7 +1,7 @@
 # authors/licensing{{{
 
 # @author: Iain McDonald
-# Contributors: Jef Treece, Harald Alvestrand
+# Contributors: Jef Treece, Harald Alvestrand, Zak Jones
 # Purpose: Reduction and comparison script for Y-chromosome NGS test data
 # For free distribution under the terms of the GNU General Public License,
 # version 3 (29 June 2007)
@@ -25,67 +25,51 @@ REDUX_DATA = os.environ['REDUX_DATA']
 
 class DB(object):
     
-    def __init__(self):
-        self.db = None
-        self.dc = None
-        
-    def db_init(self):
-        #trace (1, "Initialising database...")
-        return sqlite3.connect('variant.db')
-        
+    def __init__(self, dbfname='variant.db'):
+        self.dbfname = dbfname
+        self.db = sqlite3.connect(self.dbfname)
+        self.dc = self.cursor()
+
     def cursor(self):
         return self.db.cursor()
-        
+
     def run_sql_file(self,FILE):
-        fh = open(REDUX_SQL+'/'+FILE,'r');
-        try:
-            #print(fh.read())
+        with open(REDUX_SQL+'/'+FILE,'r') as fh:
             self.dc.executescript(fh.read())
-        finally:
-            fh.close()
+
     def commit(self):
         self.db.commit()
 
-    #redux2 ddl+dml
-
-    def redux2_schema(self):
-        self.run_sql_file('redux2-schema.sql')
+    def create_schema(self):
+        self.run_sql_file('schema.sql')
         
-    def insert_v1_variants(self,variant_array):
-        self.dc.executemany('''INSERT INTO v1_variants(id,ref,alt) VALUES (?,?,?)''', variant_array)
-        self.commit()
-        
-    def insert_v1_calls(self):
-        self.dc.execute('''INSERT INTO v1_calls(variant,person)
-            SELECT id, person
-            FROM v1_variants CROSS JOIN v1_people''')
-        self.commit()
-        
-    def insert_v1_hg19(self,snp_reference):
-        self.dc.executemany("INSERT INTO v1_hg19(grch37,grch37end,name,anc,der) VALUES (?,?,?,?,?)",
-            ((rec[3], rec[4], rec[8], rec[10], rec[11]) for rec in snp_reference))
-        self.commit()
-            
-    def insert_v1_hg38(self,snp_reference):
-        self.dc.executemany("INSERT INTO v1_hg38(grch38,grch38end,name,anc,der) VALUES (?,?,?,?,?)",
-            ((rec[3], rec[4], rec[8], rec[10], rec[11]) for rec in snp_reference))
-        self.commit()
+    # get build identifier by its name; creates new entry if needed
+    def get_build_by_name(self, buildname='hg38'):
+        dc = self.dc.execute('select id from builds where buildname=?', (buildname,))
+        bid, = dc.fetchone()
+        if not bid:
+            self.dc.execute('insert into builds(buildname) values (?)', (buildname,))
+            bid = self.dc.lastrowid
+        return bid
 
-    #v2 db schema ddl+dml
+    # insert an array of variants
+    # fixme - handle dedupe
+    def insert_variants(self, variant_array, buildname='hg38'):
+        bid = self.get_build_byname(buildname)
+        self.dc.executemany('INSERT INTO variants(buildID,pos,ref,alt) VALUES (?,?,?,?)', [(bid,)+v for v in variant_array])
 
-    def v2_schema(self):
-        self.run_sql_file('schema-v2.sql')
+    # insert a vector of variant ids to insert for a given person specified by pid
+    def insert_calls(self, pid, calls):
+        self.dc.executemany('INSERT INTO vcfcalls(pID,vID) values (?,?)', [(pid,v) for v in calls])
 
-    #clades db schema ddl+dml
+    # update snp definitions from a csv DictReader instance
+    # fixme - update snpnames
+    def updatesnps(self,snp_reference, buildname='hg38'):
+        bid = self.get_build_byname(buildname)
+        self.dc.executemany('INSERT INTO variants(buildID,pos,ref,alt) VALUES (?,?,?,?)',
+            ((bid, rec['start'], rec['allele_anc'], rec['allele_der']) for rec in snp_reference))
 
-    def clades_schema(self):
-        self.run_sql_file('clades-schema.sql')
-
-    #tree sort prototype ddl+dml
-    
-    def sort_schema(self):
-        self.run_sql_file('sort-schema.sql')
-        
+    # fixme: migrate to schema
     def insert_sample_sort_data(self):
 
         #sample data: 3019783,M343,1,1,Null,1,1,1,1,1,1,1
@@ -111,19 +95,22 @@ class DB(object):
 
         cols=10
         for k in range(1,cols+1):
-            self.dc.execute("insert into s_kits (kit_id) values ("+str(k)+");")
+            self.dc.execute("insert into datasets (kitname) values ("+str(k)+");")
 
+        # fixme - kitid != kitname
         with open(REDUX_DATA+'/sample-sort-data.csv','r') as FILE:
             for row in csv.DictReader(FILE,'v n k1 k2 k3 k4 k5 k6 k7 k8 k9 k10'.split()):
                 row = json.loads(json.dumps(row).replace('\\ufeff','')) #hack: remove byte order mark
-                self.dc.execute("insert into s_variants (variant_loc,name) values ("+row['v']+",'"+row['n']+"');")
+                # fixme - duplicate locations
+                self.dc.execute("insert into variants (variant_loc,name) values ("+row['v']+",'"+row['n']+"');")
                 #print(' - inserting sample variant data: '+str(row['v']))
                 for k in range(1,cols+1):
                     kv = str(row['k'+str(k)])
                     #'null' if kv == "None" else kv
                     vv = str(row['v'])
                     #print (kv)
-                    self.dc.execute("insert into s_calls (kit_id,variant_loc,assigned) values ("+str(k)+","+vv+","+kv+");")
+                    # fixme assigned, get proper person ID, variant ID
+                    self.dc.execute("insert into vcfcalls (pID,vID) values ("+str(k)+","+vv+","+kv+");")
                     #self.commit()
                     #print (kv+":"+vv)
                 #break;
@@ -132,18 +119,19 @@ class DB(object):
                 #print(row.encode('utf-8-sig'))
             #for (l,n,v1,v2,v3,v4,v5,v6,v7,v8,v9,v10,v11,v12) in dr]
             #    print (n)
-            #self.dc.executemany("insert into s_kits (col1, col2) VALUES (?, ?);", to_db)
+            #self.dc.executemany("insert into kits (col1, col2) VALUES (?, ?);", to_db)
             #(variant_loc,name,) = t_db
             #con.commit()
             #con.close()
         self.commit()
         
+    # fixme - migrate to schema
     def sort_data(self):
 
         print("===")
         print("FILTER, step: A ")
         print("===")
-        sql = "select distinct variant_loc from s_calls;"
+        sql = "select distinct variant_loc from vcfcalls;"
         self.dc.execute(sql)
         A = self.dc.fetchall()
         print("A - distinct variants")
@@ -155,7 +143,7 @@ class DB(object):
         print("===")
         print("FILTER - step: B")
         print("===")
-        sql = "select distinct variant_loc from s_calls where assigned = 0;"
+        sql = "select distinct variant_loc from vcfcalls where assigned = 0;"
         self.dc.execute(sql)
         B1 = self.dc.fetchall()
         B0 = list(set(A)-set(B1))
@@ -168,7 +156,7 @@ class DB(object):
         print("===")
         print("FILTER - step: C")
         print("===")
-        sql = "select variant_loc,count(*) as cnt from s_calls where assigned = 1 group by variant_loc;"
+        sql = "select variant_loc,count(*) as cnt from vcfcalls where assigned = 1 group by variant_loc;"
         self.dc.execute(sql)
         F = self.dc.fetchall()
         Fa = list(filter(lambda x: x[1]==(len(A)-1), F))
@@ -187,7 +175,7 @@ class DB(object):
         print("===")
         print("FILTER - step: D")
         print("===")
-        sql = "select distinct variant_loc from s_calls where assigned is null group by variant_loc;"
+        sql = "select distinct variant_loc from vcfcalls where assigned is null group by variant_loc;"
         self.dc.execute(sql)
         F = self.dc.fetchall()
         D0 = list(set(C1)-set(F))
@@ -241,7 +229,7 @@ class DB(object):
         print("===")
         print("SORT")
         print("===")
-        sql = "select kit_id,variant_loc from s_calls order by kit_id, variant_loc;"
+        sql = "select kit_id,variant_loc from vcfcalls order by kit_id, variant_loc;"
         self.dc.execute(sql)
         F = self.dc.fetchall()
         print("all kits + variants")
@@ -255,15 +243,15 @@ class DB(object):
         
         sys.exit()
 
-        #sql_2b = "select variant_loc,count(*) as pos_v_cnt from s_calls where assigned = 0 group by variant_loc order by count(*) desc;"
+        #sql_2b = "select variant_loc,count(*) as pos_v_cnt from calls where assigned = 0 group by variant_loc order by count(*) desc;"
         #self.dc.execute(sql_2b)
         #varAn = self.dc.fetchall()
         #print("---")
         #print("variant negative check")
         #print(varAn)
 
-        sql_2b = "select variant_loc,count(*) as pos_v_cnt from s_calls where assigned = 0 group by variant_loc order by count(*) desc;"
-        sql_2c = "select variant_loc,count(*) as pos_v_cnt from s_calls where assigned is not null group by variant_loc order by count(*) desc;"
+        sql_2b = "select variant_loc,count(*) as pos_v_cnt from vcfcalls where assigned = 0 group by variant_loc order by count(*) desc;"
+        sql_2c = "select variant_loc,count(*) as pos_v_cnt from vcfcalls where assigned is not null group by variant_loc order by count(*) desc;"
         self.dc.execute(sql_2c)
         varAa = self.dc.fetchall()
         print("---")
@@ -272,7 +260,7 @@ class DB(object):
         #(3) 9 perfectly called variants - execute sort on these
         #(4) 6 imperfectly called variants - do Step A
 
-        sql_3 = "select * from s_calls order by kit_id,assigned;"
+        sql_3 = "select * from vcfcalls order by kit_id,assigned;"
         self.dc.execute(sql_3)
         callsA = self.dc.fetchall()
         print("---")
@@ -287,6 +275,141 @@ class DB(object):
         #   for K in kits:
         #    ...
         #   sort_positive_variants(kit_id)
+
+    # populate a table of STR definitions
+    def populate_STRs(self, ordering=None):
+        strdefs = (
+            'DYS393', 'DYS390', 'DYS19', 'DYS391', 'DYS385a', 'DYS385b',
+            'DYS426', 'DYS388', 'DYS439', 'DYS389i', 'DYS392', 'DYS389ii',
+            'DYS458', 'DYS459a', 'DYS459b', 'DYS455', 'DYS454', 'DYS447',
+            'DYS437', 'DYS448', 'DYS449', 'DYS464a', 'DYS464b', 'DYS464c',
+            'DYS464d', 'DYS460', 'YH4', 'YCAIIa', 'YCAIIb', 'DYS456', 'DYS607',
+            'DYS576', 'DYS570', 'CDYa', 'CDYb', 'DYS442', 'DYS438', 'DYS531',
+            'DYS578', 'DYF395S1a', 'DYF395S1b', 'DYS590', 'DYS537', 'DYS641',
+            'DYS472', 'DYF406S1', 'DYS511', 'DYS425', 'DYS413a', 'DYS413b',
+            'DYS557', 'DYS594', 'DYS436', 'DYS490', 'DYS534', 'DYS450',
+            'DYS444', 'DYS481', 'DYS520', 'DYS446', 'DYS617', 'DYS568',
+            'DYS487', 'DYS572', 'DYS640', 'DYS492', 'DYS565', 'DYS710',
+            'DYS485', 'DYS632', 'DYS495', 'DYS540', 'DYS714', 'DYS716',
+            'DYS717', 'DYS505', 'DYS556', 'DYS549', 'DYS589', 'DYS522',
+            'DYS494', 'DYS533', 'DYS636', 'DYS575', 'DYS638', 'DYS462',
+            'DYS452', 'DYS445', 'YA10', 'DYS463', 'DYS441', 'Y1B07', 'DYS525',
+            'DYS712', 'DYS593', 'DYS650', 'DYS532', 'DYS715', 'DYS504',
+            'DYS513', 'DYS561', 'DYS552', 'DYS726', 'DYS635', 'DYS587',
+            'DYS643', 'DYS497', 'DYS510', 'DYS434', 'DYS461', 'DYS435')
+        if ordering and (len(ordering)==len(strdefs)):
+            for tup in zip(ordering,strdefs):
+                self.dc.execute('insert into str(ordering,strname) values(?,?)', tup)
+        else:
+            for tup in enumerate(strdefs):
+                self.dc.execute('insert into str(ordering,strname) values(?,?)', tup)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

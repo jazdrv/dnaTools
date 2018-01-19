@@ -2,6 +2,7 @@
 
 -- DROPS
 
+/* replace by schema.sql
 drop table if exists v1_variants;
 drop table if exists v1_hg19;
 drop table if exists v1_hg38;
@@ -10,11 +11,13 @@ drop table if exists v1_people;
 drop table if exists v1_calls;
 drop table if exists v1_strs;
 drop table if exists v1_tree;
+*/
 
 -- CREATES
 
 -- variants
 
+/* replace by variants
 CREATE TABLE IF NOT EXISTS v1_variants (
     id INTEGER PRIMARY KEY,
     grch37 INTEGER,
@@ -23,9 +26,11 @@ CREATE TABLE IF NOT EXISTS v1_variants (
     alt TEXT,
     inage BOOLEAN
 );
+*/
 
 -- hg19
 
+/* replace by variants
 CREATE TABLE IF NOT EXISTS v1_hg19 (
     id INTEGER PRIMARY KEY,
     snp BOOLEAN,
@@ -35,9 +40,11 @@ CREATE TABLE IF NOT EXISTS v1_hg19 (
     anc CHARACTER(64),
     der CHARACTER(64)
 );
+*/
 
 -- hg38
 
+/* replace by variants
 CREATE TABLE IF NOT EXISTS v1_hg38 (
     id INTEGER PRIMARY KEY,
     snp BOOLEAN,
@@ -47,7 +54,9 @@ CREATE TABLE IF NOT EXISTS v1_hg38 (
     anc CHARACTER(64),
     der CHARACTER(64)
 );
+*/
 
+/* replace by datasets
 CREATE TABLE IF NOT EXISTS v1_kits (
     id INTEGER PRIMARY KEY,
     vcffile CHARACTER(256),
@@ -59,9 +68,11 @@ CREATE TABLE IF NOT EXISTS v1_kits (
     uploaddate INTEGER,
     personid INTEGER
 );
+*/
 
 -- people
 
+/* replace by datasets
 CREATE TABLE IF NOT EXISTS v1_people (
     person INTEGER PRIMARY KEY,
     ngstest BOOLEAN,
@@ -89,9 +100,11 @@ CREATE TABLE IF NOT EXISTS v1_people (
     qsingletons SMALLINT,
     agesingletons SMALLINT
 );
+*/
 
 -- calls
 
+/* replace by vcfcalls
 CREATE TABLE IF NOT EXISTS v1_calls
     (id LONGINT PRIMARY KEY,
     person INTEGER REFERENCES people(person),
@@ -104,6 +117,7 @@ CREATE TABLE IF NOT EXISTS v1_calls
     nder TINYINT,
     nanc TINYINT
 );
+*/
 
 -- tree
 /* (commented out for now) {{{

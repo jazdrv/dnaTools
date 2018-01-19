@@ -1,7 +1,7 @@
 # authors/licensing {{{
 
 # @author: Iain McDonald
-# Contributors: Jef Treece, Harald Alvestrand
+# Contributors: Jef Treece, Harald Alvestrand, Zak Jones
 # Purpose: Reduction and comparison script for Y-chromosome NGS test data
 # For free distribution under the terms of the GNU General Public License,
 # version 3 (29 June 2007)
@@ -11,7 +11,7 @@
 # libs {{{
 
 import os,yaml,shutil,glob,re,csv,zipfile,subprocess
-from db import *
+from db import DB
 from collections import defaultdict
 
 # }}}
@@ -40,14 +40,14 @@ for row in csv.reader(names.splitlines()):
 # ==
 
 # routines - debug
-
+# fixme - there are too many levels of verbosity - probably should be a bitmap/flags
 def trace (level, msg):
     print(msg)
     #if level <= config['verbosity']:
     #    print(msg)
     #TODO: below line in clades.py
     #sys.stderr(flush)
-    
+
 
 # routines - file/dir - Zak
 
@@ -71,7 +71,7 @@ def touch_file(FILE):
     FILE = REDUX_ENV+'/'+FILE
     if not os.path.exists('merge-ignore.txt'):
         open('merge-ignore.txt','w').close()
-    
+
 def cmd_exists(CMD):
     return any(os.access(os.path.join(path, CMD), os.X_OK) for path in os.environ["PATH"].split(os.pathsep))
 
@@ -81,6 +81,7 @@ def setup_dirs():
     shutil.rmtree(config['unzip_dir'],ignore_errors=True)
     os.makedirs(config['unzip_dir'])
     
+# it may make sense to pull this out into a separate file, import (unpack-zip-files)
 def extract_zips():
 
     if not os.path.isdir(REDUX_ENV+'/'+config['zip_dir']):
@@ -240,18 +241,17 @@ def extract_zips():
     return files
     
 def unpack():
-
-    # messy problem - messy solution - kit names not consistent - Harald/Jef
     # collect run time statistics
 
     trace(10,'   Running the unpack-zip script...')
-    #setup_dirs()
     refresh_dir(config['unzip_dir'],cleanFlag=False)
+    # fixme - interop with API from DW
     fnames = extract_zips()
     trace (10, '   Number of files: {0}'.format(len(fnames)))
     trace (40, '   Files unpacked:')
     for ff in fnames:
         trace (40, ff)
+
 def skip_to_Hg19(dbo):
 
     # skip to <= 1 - unpack zips
@@ -283,6 +283,7 @@ def skip_to_Hg19(dbo):
         #vcffiles
 
         trace (2, "Generating database of all variants...")
+        # fixme - populate datasets
         vcffiles = [f for f in os.listdir(REDUX_ENV+'/'+config['unzip_dir']) if f.endswith('.vcf')]
         trace (10, "   %i files detected" % len(vcffiles))
         
@@ -291,6 +292,7 @@ def skip_to_Hg19(dbo):
         #print(REDUX_ENV)
         variant_dict = {}
         for file in vcffiles:
+            # fixme - this should come from walking through datasets
             vcf_calls = readHg19Vcf(REDUX_ENV+'/'+config['unzip_dir']+'/'+ file)
             variant_dict.update(vcf_calls)
 
@@ -313,7 +315,7 @@ def skip_to_Hg19(dbo):
         #db calls
 
         trace (20, "   Inserting data into variant array database...")
-        dbo.insert_v1_variants(variant_array)
+        dbo.insert_variants(variant_array, 'hg38')
         t = float((time.clock() - start_time))
         trace(10, '   ...complete after %.3f seconds' % t)
         
@@ -325,7 +327,7 @@ def skip_to_Hg19(dbo):
         trace (2, "Generating database of calls...")
         vcffiles = [f for f in os.listdir(REDUX_ENV+'/'+config['unzip_dir']) if f.endswith('.vcf')]
         trace (10, "   %i files detected" % len(vcffiles))
-        dbo.insert_v1_calls()
+        # dbo.insert_calls()
 
     # skip to <= 13 - name variants and derive ancestral values
 
@@ -339,14 +341,15 @@ def skip_to_Hg19(dbo):
         # Read in SNPs from reference lists
         trace (2, "Getting names of variants...")
         trace (10, "   Importing SNP reference lists...")
-            
-        snp_reference = csv.reader(open(REDUX_ENV+'/'+config['b37_snp_file']))
-        #for rec in snp_reference:
-        #   print "INSERT INTO v1_hg19(grch37,grch37end,name,anc,der) VALUES (?,?,?,?,?)", (rec[3], rec[4], rec[8], rec[10], rec[11])
-        dbo.insert_v1_hg19(snp_reference)
-            
-        snp_reference = csv.reader(open(REDUX_ENV+'/'+config['b38_snp_file']))
-        dbo.insert_v1_hg38(snp_reference)
+
+        # update known snps for hg19 and hg38
+        with open(REDUX_ENV+'/'+config['b37_snp_file']) as snpfile:
+            snp_reference = csv.DictReader(snpfile)
+            dbo.updatesnps(snp_reference, 'hg19')
+        with open(REDUX_ENV+'/'+config['b38_snp_file']) as snpfile:
+            snp_reference = csv.DictReader(snpfile)
+            dbo.updatesnps(snp_reference, 'hg38')
+
 
         # db work - how we doing? {{{
 
@@ -674,14 +677,15 @@ def go_prep():
 
 # routines - arghandler (redux2) - Zak
 
-def go_v1_db():
+def go_db():
     trace(1, "Initialising database...")
     dbo = DB()
-    dbo.db = dbo.db_init()
-    dbo.dc = dbo.cursor()
-    dbo.redux2_schema()
-    skip_to_Hg19(dbo)
-    
+    dbo.create_schema()
+    return dbo
+
+
+#    skip_to_Hg19(dbo)
+
 
 # import vcf hg38
 
@@ -699,23 +703,13 @@ def getVCFvariants(FILE):
 
 def go_sort_db():
     #trace(0,"** process SNP data.")
-    dbo = DB()
-    dbo.db = dbo.db_init()
-    dbo.dc = dbo.cursor()
-    dbo.sort_schema()
+    dbo = go_db()
     dbo.insert_sample_sort_data()
     #dbo.commit()
     dbo.sort_data()
     #trace(0,"** + SNP processing done.")
 
 #routines - "arghandler" (new v2 schema)- Jef/Zak
-
-def go_db():
-    trace(1, "Initialising database...")
-    dbo = DB()
-    dbo.db = dbo.db_init()
-    dbo.dc = dbo.cursor()
-    dbo.v2_schema()
 
 # SNP extraction routines based on original - Harald 
 # extracts the SNP calls from the VCF files and
