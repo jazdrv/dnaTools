@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 # authors/licensing {{{
 
 # @author: Iain McDonald
@@ -12,7 +10,7 @@
 # }}}
 # libs {{{
 
-import os,yaml,shutil,glob,re,csv,zipfile
+import os,yaml,shutil,glob,re,csv,zipfile,subprocess
 from db import *
 from collections import defaultdict
 
@@ -254,7 +252,7 @@ def unpack():
     trace (40, '   Files unpacked:')
     for ff in fnames:
         trace (40, ff)
-def skip_to(dbo):
+def skip_to_Hg19(dbo):
 
     # skip to <= 1 - unpack zips
 
@@ -290,10 +288,10 @@ def skip_to(dbo):
         
         #variant_dict
 
-        print(REDUX_ENV)
+        #print(REDUX_ENV)
         variant_dict = {}
         for file in vcffiles:
-            vcf_calls = readVcf(REDUX_ENV+'/'+config['unzip_dir']+'/'+ file)
+            vcf_calls = readHg19Vcf(REDUX_ENV+'/'+config['unzip_dir']+'/'+ file)
             variant_dict.update(vcf_calls)
 
         trace (10, "   %i variants found" % len(variant_dict))
@@ -682,8 +680,20 @@ def go_v1_db():
     dbo.db = dbo.db_init()
     dbo.dc = dbo.cursor()
     dbo.redux2_schema()
-    skip_to(dbo)
+    skip_to_Hg19(dbo)
     
+
+# import vcf hg38
+
+#note: it looks like clades.py is doing something like this for hg19
+def getH38references():
+    foo = 1
+
+#note: sample code for calling this awk script
+def getVCFvariants(FILE):
+    cmd = REDUX_ENV+"/getVCFvariants.sh"
+    p = subprocess.Popen(cmd, FILE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    stdout, stderr = p.communicate()
 
 #routines - "arghandler" (sort prototype) - Zak
 
@@ -705,7 +715,7 @@ def go_db():
     dbo = DB()
     dbo.db = dbo.db_init()
     dbo.dc = dbo.cursor()
-    v2_schema()
+    dbo.v2_schema()
 
 # SNP extraction routines based on original - Harald 
 # extracts the SNP calls from the VCF files and
@@ -809,7 +819,7 @@ def file_len(fname):
 
 # routines - Iain 
 
-def readVcf(file):
+def readHg19Vcf(file):
 
     #Returns a dict of position -> mutation mappings
     #Modified from Harald's analyzeVCF, this version returns every mutation with

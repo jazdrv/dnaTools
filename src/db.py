@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 # authors/licensing{{{
 
 # @author: Iain McDonald
@@ -28,8 +26,8 @@ REDUX_DATA = os.environ['REDUX_DATA']
 class DB(object):
     
     def __init__(self):
-        db = None
-        dc = None
+        self.db = None
+        self.dc = None
         
     def db_init(self):
         #trace (1, "Initialising database...")
@@ -55,28 +53,23 @@ class DB(object):
         
     def insert_v1_variants(self,variant_array):
         self.dc.executemany('''INSERT INTO v1_variants(id,ref,alt) VALUES (?,?,?)''', variant_array)
-        # db-debug variants insertion
-        #dc.execute('SELECT * FROM v1_variants LIMIT 5')
-        #print (dc.fetchone())
+        self.commit()
         
     def insert_v1_calls(self):
         self.dc.execute('''INSERT INTO v1_calls(variant,person)
             SELECT id, person
             FROM v1_variants CROSS JOIN v1_people''')
-        # db-debug calls insertion
-        # dc.execute('SELECT * FROM v1_calls LIMIT 5')
-        # print (dc.fetchone())
+        self.commit()
         
     def insert_v1_hg19(self,snp_reference):
         self.dc.executemany("INSERT INTO v1_hg19(grch37,grch37end,name,anc,der) VALUES (?,?,?,?,?)",
             ((rec[3], rec[4], rec[8], rec[10], rec[11]) for rec in snp_reference))
+        self.commit()
             
     def insert_v1_hg38(self,snp_reference):
         self.dc.executemany("INSERT INTO v1_hg38(grch38,grch38end,name,anc,der) VALUES (?,?,?,?,?)",
             ((rec[3], rec[4], rec[8], rec[10], rec[11]) for rec in snp_reference))
-        # db-debug hg38 insertion
-        #self.dc.execute('SELECT * FROM v1_hg38 LIMIT 5')
-        #print (dc.fetchone())
+        self.commit()
 
     #v2 db schema ddl+dml
 
@@ -86,7 +79,7 @@ class DB(object):
     #clades db schema ddl+dml
 
     def clades_schema(self):
-        self.run_sql_file('clades_schema.sql')
+        self.run_sql_file('clades-schema.sql')
 
     #tree sort prototype ddl+dml
     
