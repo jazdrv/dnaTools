@@ -8,14 +8,13 @@ create table datasets(
     ID INTEGER PRIMARY KEY,
     kitname TEXT,              -- text name, can be easy-read alias
     seq INTEGER DEFAULT 0,     -- number can be used to order files arbitrarily
-    buildID INTEGER REFERENCES builds(ID),
     -- the following fields are as presented from the DW API
     kitId TEXT,                -- previously dnaID, the ID assigned by the lab
     uploaded TEXT,             -- date the file was uploaded
     dataFile TEXT,             -- normalized file/path name
     surname TEXT,              -- ancestral surname associated with the kit
-    country INTEGER references countries(ID), -- ancestral country
-    normalOrig TEXT,           -- normalized ancestral origin
+    country INTEGER references countries(ID),  -- ancestral country
+    normalOrig INTEGER references origins(ID), -- normalized ancestral origin
     long TEXT,                 -- ancestral location longitude
     lat TEXT,                  -- ancestral location latitude
     otherInfo TEXT,            -- freeform text entered by user
@@ -34,15 +33,29 @@ create index fileidx on datasets(kitname);
 drop table if exists testtypes;
 create table testtypes(
     ID INTEGER PRIMARY KEY,
-    originname TEXT,
+    testname TEXT,
     description TEXT
     );
 
-/* ancestral origins country names */
+/* ancestral country names */
 drop table if exists countries;
 create table countries(
     ID INTEGER PRIMARY KEY,
     countryname TEXT           -- full text of country name
+    );
+
+/* ancestral origin normalized names */
+drop table if exists origins;
+create table origins(
+    ID INTEGER PRIMARY KEY,
+    originname TEXT           -- normalized ancestral origin name
+    );
+
+/* ancestral origin normalized names */
+drop table if exists labs;
+create table labs(
+    ID INTEGER PRIMARY KEY,
+    labname TEXT           -- name of the testing lab
     );
 
 /* the ranges (min,max) as reported in BED files */

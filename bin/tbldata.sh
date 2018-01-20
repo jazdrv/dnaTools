@@ -17,7 +17,6 @@ fi
 echo ""
 sqlite3 $DB.db <<!
 .header on
-.mode column
 select count(*) from $TB;
 select * from $TB limit $LIM;
 !

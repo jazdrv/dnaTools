@@ -691,7 +691,7 @@ def getH38references():
 
 #note: sample code for calling this awk script
 def getVCFvariants(FILE):
-    cmd = "/getVCFvariants.sh"
+    cmd = "getVCFvariants.sh"
     p = subprocess.Popen(cmd, FILE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     stdout, stderr = p.communicate()
 
@@ -863,13 +863,77 @@ def populate_SNPs(dbo):
         dbo.updatesnps(snp_reference, 'hg38')
 
 
+# pull information about the kits from the web api
+def get_kits (API='http://haplogroup-r.org/api/v1/uploads.php', qry='format=json'):
+    import requests, json
+    url = '?'.join([API, qry])
+    try:
+        res = requests.get(url)
+        js = json.loads(res.content)
+    except:
+        print('Failed to pull kit metadata from {}'.format(API))
+        raise # fixme - what to do on error
+    return js
+
+# update the information about the kits
+def update_metadata(db, js):
+    rows = [(
+        # go into datasets table directly
+        jr['kitId'], jr['uploaded'], jr['dataFile'], jr['surname'], jr['long'],
+        jr['lat'], jr['otherInfo'], jr['origFileName'], jr['birthYear'],
+        jr['approxHg'], jr['isNGS'],
+        # need inserting into their own tables
+        jr['country'], jr['normalOrig'], jr['lab'], jr['build'], jr['testType'])
+        for jr in js
+        ]
+    trace(0, 'first row of {}:{}'.format(len(rows),rows[0]))
+    # populate the dependency tables
+    for tbl,val,idx in (('countries','countryname',-5), ('origins', 'originname',-4),
+                        ('labs', 'labname',-3), ('builds', 'buildname',-2),
+                        ('testtypes', 'testname',-1)):
+        tups = [(y,) for y in set([v[idx] for v in rows])]
+        trace(1, 'first tuple to insert into {}: {}'.format(tbl, tups[0]))
+        db.dc.executemany('insert into {}({}) values(?)'.format(tbl,val), tups)
+    # create temporary table, where columns correspond to values above
+    db.dc.execute('''create temporary table tmpt(
+           a TEXT, b TEXT, c TEXT, d TEXT, e TEXT,
+           f TEXT, g TEXT, h TEXT, i TEXT,
+           j TEXT, k TEXT,
+           l TEXT, m TEXT, n TEXT, o TEXT, p TEXT)''')
+    db.dc.executemany('''INSERT INTO tmpt(a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''', rows)
+    db.dc.execute('''
+        INSERT INTO datasets(kitId, uploaded, dataFile, surname, long,
+            lat, otherInfo, origFileName, birthYear,
+            approxHg, isNGS,
+            country, normalOrig, lab, build, testType)
+        SELECT a, b, c, d, e,
+            f, g, h, i,
+            j, k,
+            cn.id, oc.id, ln.id, bn.id, tt.id
+        FROM tmpt
+        INNER JOIN countries cn ON tmpt.l = cn.countryname
+        INNER JOIN origins oc ON tmpt.m = oc.originname
+        INNER JOIN labs ln ON tmpt.n = ln.labname
+        INNER JOIN builds bn ON tmpt.o = bn.buildname
+        INNER JOIN testtypes tt ON tmpt.p = tt.testname''')
+    trace(1, '{} rows inserted into datasets'.format(db.dc.execute('select count(*) from datasets').fetchone()[0]))
+    db.dc.execute('drop table tmpt')
+
+
+# populate datasets information from Haplogroup-R data warehouse API
+def populate_fileinfo(dbo):
+    js = get_kits()
+    update_metadata(dbo, js)
+
 
 # test framework
 if __name__ == '__main__':
     print (config)
-    db = DB()
+    db = DB(drop=True)
     db.create_schema()
     populate_STRs(db)
     populate_SNPs(db)
+    populate_fileinfo(db)
     db.commit()
     db.close()

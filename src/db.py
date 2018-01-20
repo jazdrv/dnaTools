@@ -23,10 +23,13 @@ start_time = 0 # need to fix this
 
 
 class DB(object):
-    
-    def __init__(self, dbfname='variant.db'):
+
+    def __init__(self, dbfname='variant.db', drop=True):
         self.dbfname = dbfname
-        self.db = sqlite3.connect(self.dbfname)
+        # just remove the file, which is often faster than dropping big tables
+        if drop:
+            os.unlink(dbfname)
+        self.db = sqlite3.connect(dbfname)
         self.dc = self.cursor()
 
     def cursor(self):
