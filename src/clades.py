@@ -1,14 +1,17 @@
+#!/usr/bin/env python3
+# coding: utf-8
 # note:: class lib of Jef's original clades.py script
 
 import locale,time,subprocess
 #import sqlite3,os,time,sys,random,argparse,locale,csv,subprocess
 #from collections import defaultdict
-from db import *
+from db import DB
 from lib import *
 
-class Clades(object):
+class Clades(DB):
 
     def __init__(self):
+        DB.__init__(self)
         self.namespace = None
         self.create = False
         self.stats1 = False
@@ -19,8 +22,8 @@ class Clades(object):
         self.mergeup = False
         self.querysnp = False
         self.updatesnps = False
-        
-    def create(self):
+
+    def do_create(self):
 
         def get_coverage(r1, r2):
             ids = {r1[0][0]:0, r2[0][0]:1}
@@ -47,8 +50,7 @@ class Clades(object):
 
         # nranges, coverage1 (total r1), coverage2 (gated by r2)
 
-        self.dbo.dc = self.dbo.cursor()
-        self.dbo.create_schema()
+        self.create_schema()
 
         # should probably go into database initialization dbo
         locale.setlocale(locale.LC_ALL, '')
@@ -68,14 +70,14 @@ class Clades(object):
 
         #INS META
 
-        self.dbo.dc.executemany('insert into meta values(?,?)', meta)
+        self.dc.executemany('insert into meta values(?,?)', meta)
 
         ranges = []
 
         #INS FILES
 
-        self.dbo.dc.execute('insert into datasets(name) VALUES("age.bed")')
-        myid = self.dbo.dc.lastrowid
+        self.dc.execute('insert into datasets(name) VALUES("age.bed")')
+        myid = self.dc.lastrowid
 
         #OPEN AGE.BED
 
@@ -86,7 +88,7 @@ class Clades(object):
 
         #INS BED
 
-        self.dbo.dc.executemany('insert into bed values(?,?,?)', ranges)
+        self.dc.executemany('insert into bed values(?,?,?)', ranges)
 
         cover_ranges = ranges
         trace(1, 'enter at {:.2f} seconds'.format(time.time() - t0))
@@ -97,8 +99,8 @@ class Clades(object):
 
         for nf,fname in enumerate(files):
             if fname.endswith('.bed'):
-                self.dbo.dc.execute('insert into datasets(name,kit,seq) VALUES(?,1,?)', (os.path.splitext(fname)[0],nf))
-                myid = self.dbo.dc.lastrowid
+                self.dc.execute('insert into datasets(name,kit,seq) VALUES(?,1,?)', (os.path.splitext(fname)[0],nf))
+                myid = self.dc.lastrowid
                 ranges = []
                 try:
                     for line in open(os.path.join(UNZIP_DIR, fname)):
@@ -110,7 +112,7 @@ class Clades(object):
 
                 #INS BED
 
-                self.dbo.dc.executemany('insert into bed values(?,?,?)', ranges)
+                self.dc.executemany('insert into bed values(?,?,?)', ranges)
                 tcover, pcover = get_coverage(ranges, cover_ranges)
                 stat_list.append((myid, tcover, pcover, len(ranges)))
 
@@ -118,16 +120,16 @@ class Clades(object):
 
         #INS BEDSTATS
 
-        self.dbo.dc.executemany('insert into bedstats values(?,?,?,?)', stat_list)
-        self.dbo.commit()
+        self.dc.executemany('insert into bedstats values(?,?,?,?)', stat_list)
+        self.commit()
 
         #INS FILES
 
-        self.dbo.dc.execute('insert into datasets(name) VALUES("implications")')
-        myid = self.dbo.dc.lastrowid
+        self.dc.execute('insert into datasets(name) VALUES("implications")')
+        myid = self.dc.lastrowid
         ll = {}
         vl = []
-        self.dbo.commit()
+        self.commit()
 
         #OPEN IMPLICATIONS
 
@@ -140,28 +142,28 @@ class Clades(object):
                     alt = toks[4]
                     vl.append((addr, ref, alt))
                     ll[(addr, ref, alt)] = toks[0]
-        self.dbo.commit()
+        self.commit()
 
         #INS VARIANTS
 
-        self.dbo.dc.executemany('insert or ignore into variants(pos,ref,alt) values (?,?,?)', ll)
-        self.dbo.commit()
+        self.dc.executemany('insert or ignore into variants(pos,ref,alt) values (?,?,?)', ll)
+        self.commit()
         cl = []
 
         for tup in vl:
-            tid = self.dbo.dc.execute('select id from variants where pos=? and ref=? and alt=?', tup).fetchone()[0]
+            tid = self.dc.execute('select id from variants where pos=? and ref=? and alt=?', tup).fetchone()[0]
             cl.append((myid, tid, ll[tup]))
 
         #DEL VCFCALLS
 
-        self.dbo.dc.execute ('delete from vcfcalls where id=?', (myid,))
+        self.dc.execute ('delete from vcfcalls where id=?', (myid,))
         trace(3, 'inserting to vcfcalls {}'.format(cl))
 
         #INS VCFCALLS
 
-        self.dbo.dc.executemany('insert into vcfcalls(id, vid, origin) values(?,?,?)', cl)
+        self.dc.executemany('insert into vcfcalls(id, vid, origin) values(?,?,?)', cl)
 
-        self.dbo.commit()
+        self.commit()
 
         calls = []
         rejects = []
@@ -174,7 +176,7 @@ class Clades(object):
         for fname in files:
             if fname.endswith('.vcf'):
                 ny = nv = ns = ni = nr = 0
-                myid = self.dbo.dc.execute('select id from datasets where name = ?', (os.path.splitext(fname)[0],)).fetchone()[0]
+                myid = self.dc.execute('select id from datasets where name = ?', (os.path.splitext(fname)[0],)).fetchone()[0]
                 trace(3, 'reading file {} from {}'.format(fname,
                     UNZIP_DIR))
                 with open(os.path.join(UNZIP_DIR, fname)) as lines:
@@ -204,43 +206,43 @@ class Clades(object):
 
         #INS VCFSTATS
 
-        self.dbo.dc.executemany('insert into vcfstats(id,ny,nv,ns,ni,nr) VALUES(?,?,?,?,?,?)', stats)
-        self.dbo.commit()
+        self.dc.executemany('insert into vcfstats(id,ny,nv,ns,ni,nr) VALUES(?,?,?,?,?,?)', stats)
+        self.commit()
         vl = []
 
         for iid, pos, ref, alt in rejects:
             try:
                 #SEL VARIANTS
-                vid = self.dbo.dc.execute('select id from variants where pos=? and ref=? and alt=?', (pos,ref,alt)).fetchone()[0]
+                vid = self.dc.execute('select id from variants where pos=? and ref=? and alt=?', (pos,ref,alt)).fetchone()[0]
             except:
                 #INS VARIANTS
-                self.dbo.dc.execute('insert into variants(pos,ref,alt) values (?,?,?)', (pos,ref,alt))
-                vid = self.dbo.dc.lastrowid
+                self.dc.execute('insert into variants(pos,ref,alt) values (?,?,?)', (pos,ref,alt))
+                vid = self.dc.lastrowid
             vl.append((iid,vid))
 
         #INS VCFREJ
 
-        self.dbo.dc.executemany('insert into vcfrej(id,vid) VALUES(?,?)', vl)
+        self.dc.executemany('insert into vcfrej(id,vid) VALUES(?,?)', vl)
         vl = []
 
         for iid, pos, ref, alt in calls:
             try:
                 #SEL VARIANTS
-                vid = self.dbo.dc.execute('select id from variants where pos=? and ref=? and alt=?', (pos,ref,alt)).fetchone()[0]
+                vid = self.dc.execute('select id from variants where pos=? and ref=? and alt=?', (pos,ref,alt)).fetchone()[0]
             except:
                 #INS VARIANTS
-                self.dbo.dc.execute('insert into variants(pos,ref,alt) values (?,?,?)', (pos,ref,alt))
-                vid = self.dbo.dc.lastrowid
+                self.dc.execute('insert into variants(pos,ref,alt) values (?,?,?)', (pos,ref,alt))
+                vid = self.dc.lastrowid
             vl.append((iid,vid))
 
         #INS VCFCALLS
 
-        self.dbo.dc.executemany('insert into vcfcalls(id,vid) VALUES(?,?)', vl)
+        self.dc.executemany('insert into vcfcalls(id,vid) VALUES(?,?)', vl)
         rejects = calls = stats = vl = None
         trace(1, 'vcf done at {:.2f} seconds'.format(time.time() - t0))
-        self.dbo.commit()
+        self.commit()
         trace(1, 'commit done at {:.2f} seconds'.format(time.time() - t0))
-        self.dbo.commit()
+        self.commit()
         
     def docalls(self):
         
@@ -265,8 +267,8 @@ class Clades(object):
                 raise ValueError
             return c_vect
 
-        self.dbo.c1 = self.dbo.cursor()
-        self.dbo.c2 = self.dbo.cursor()
+        c1 = self.db.cursor()
+        c2 = self.db.cursor()
 
         # wishlist: redo the refpos swapping from implications
         # caution if adding new variants, might not capture all of the rejects
@@ -282,7 +284,7 @@ class Clades(object):
         # corrected when we write at the end
 
         ref_swaps = {}
-        swaps = self.dbo.self.dbo.c1.execute('select v.id,v.pos,v.ref,v.alt from variants v, vcfcalls c where c.vid=v.id and c.origin="<"')
+        swaps = c1.execute('select v.id,v.pos,v.ref,v.alt from variants v, vcfcalls c where c.vid=v.id and c.origin="<"')
 
         for vid,pos,ref,alt in swaps:
             # ref_swaps[vid] = (ref,alt) # as specified in implications
@@ -296,7 +298,7 @@ class Clades(object):
         inserted = {}
 
         #SEL VCFCALLS
-        ins = self.dbo.self.dbo.c1.execute('select c.vid from vcfcalls c where c.origin="^"')
+        ins = c1.execute('select c.vid from vcfcalls c where c.origin="^"')
 
         for (vid,) in ins:
             trace(2,'inserted:variant id {}'.format(vid))
@@ -305,13 +307,13 @@ class Clades(object):
         # list and count variants from the kits and uncount the inserted ones
         vcounts = {}
         #SEL VCFCALLS
-        vl = self.dbo.self.dbo.c1.execute('select count(id), vid from vcfcalls group by vid')
+        vl = c1.execute('select count(id), vid from vcfcalls group by vid')
 
         for count, vid in vl:
             trace(3,'{}: {}'.format(vid,count))
             vcounts[vid] = count
         #SEL VCFCALLS
-        vl = self.dbo.self.dbo.c1.execute('select vid from vcfcalls where origin in ("^","<")')
+        vl = c1.execute('select vid from vcfcalls where origin in ("^","<")')
 
         for (vid,) in vl:
             vcounts[vid] -= 1
@@ -319,7 +321,7 @@ class Clades(object):
         # which variants are SNPS
         snps = {}
         #SEL VARIANTS
-        vl = self.dbo.self.dbo.c1.execute('select id from variants where length(ref)=1 and length(alt)=1')
+        vl = c1.execute('select id from variants where length(ref)=1 and length(alt)=1')
 
         for (vid,) in vl:
             snps[vid] = True
@@ -327,7 +329,7 @@ class Clades(object):
         # which variants are indels
         indels = {}
         #SEL VARIANTS
-        vl = self.dbo.self.dbo.c1.execute('select id from variants where (length(ref)>1 or length(alt)>1)')
+        vl = c1.execute('select id from variants where (length(ref)>1 or length(alt)>1)')
 
         for (vid,) in vl:
             indels[vid] = True
@@ -347,9 +349,9 @@ class Clades(object):
         calls = defaultdict(dict)
 
         #CREATE TMP TBL TPOS
-        self.dbo.self.dbo.c1.execute('create temporary table tpos (pos int)')
+        c1.execute('create temporary table tpos (pos int)')
         #INS TPOS
-        self.dbo.self.dbo.c1.execute('insert into tpos select distinct pos from variants')
+        c1.execute('insert into tpos select distinct pos from variants')
 
         # these run fast - gather cbu,cbl,cblu all at once, and they do not depend
         # on REF,POS
@@ -363,15 +365,15 @@ class Clades(object):
 
         call_strings = ['', ';cblu', ';cbu', ';cbl', ';nc']
 
-        for ii,pos in self.dbo.c1.execute(cblu):
+        for ii,pos in c1.execute(cblu):
             calls[ii][pos] = 1
         trace(1, 'cblu found at {:.2f} seconds'.format(time.time() - t0))
 
-        for ii,pos in self.dbo.c1.execute(cbu):
+        for ii,pos in c1.execute(cbu):
             calls[ii][pos] = 2
         trace(1, 'cbu found at {:.2f} seconds'.format(time.time() - t0))
 
-        for ii,pos in self.dbo.c1.execute(cbl):
+        for ii,pos in c1.execute(cbl):
             calls[ii][pos] = 3
         trace(1, 'cbl found at {:.2f} seconds'.format(time.time() - t0))
 
@@ -379,7 +381,7 @@ class Clades(object):
 
         iids = []
         #SEL FILES
-        files = self.dbo.c1.execute('select id,name,seq from files where kit=1 order by 3')
+        files = c1.execute('select id,name,seq from files where kit=1 order by 3')
 
         for ii,fname,seq in files:
             iids.append(ii)
@@ -391,7 +393,7 @@ class Clades(object):
 
         for vid in vcounts:
             #SEL VARIANTS
-            c1 = self.dbo.c1.execute('select pos,ref,alt from variants where id=?', (vid,))
+            c1 = c1.execute('select pos,ref,alt from variants where id=?', (vid,))
             pos,ref,alt = next(c1)
             vrai_vector.append((pos,ref,alt,vid))
             trace(3,'{}'.format(vrai_vector[-1]))
@@ -405,7 +407,7 @@ class Clades(object):
 
         kit_calls = defaultdict(dict)
         #SEL VCFCALLS
-        kcalls = self.dbo.c1.execute('select id,vid from vcfcalls')
+        kcalls = c1.execute('select id,vid from vcfcalls')
 
         for ID,vid in kcalls:
             kit_calls[ID][vid] = None
@@ -418,7 +420,7 @@ class Clades(object):
 
             ist += 1
             #SEL BED
-            ranges = self.dbo.c1.execute('select minaddr,maxaddr from bed where id=? order by minaddr', (ii,))
+            ranges = c1.execute('select minaddr,maxaddr from bed where id=? order by minaddr', (ii,))
             kit_ranges = []
 
             for minaddr,maxaddr in ranges:
@@ -441,7 +443,7 @@ class Clades(object):
 
         rejects = defaultdict(dict)
         #SEL VCFREJ
-        rej = self.dbo.execute('select id,vid from vcfrej')
+        rej = self.dc.execute('select id,vid from vcfrej')
         for iid,vid in rej:
             rejects[iid][vid] = None
 
@@ -500,40 +502,32 @@ class Clades(object):
         
     def stats1(self):
         # STATS1 in redux.bash
-        self.dbo.c1 = self.dbo.cursor()
-        c = self.dbo.c1.execute('select id, coverage1, coverage2, nranges from bedstats')
+        c = self.dc.execute('select id, coverage1, coverage2, nranges from bedstats')
         for row in c:
             print(row[1], row[2], row[3])
-        self.dbo.commit()
         
     def stats2(self):
         # STATS2 in redux.bash
-        self.dbo.c1 = self.dbo.cursor()
-        c = self.dbo.c1.execute('select id, ny, nv, ns, ni from vcfstats')
+        c = self.dc.execute('select id, ny, nv, ns, ni from vcfstats')
         for row in c:
             print(row[1], row[2], row[3], 0,0,0, row[4], 0,0)
-        self.dbo.commit()
         
     def listfiles(self):
         # list out which files are stored, in sort order
-        self.dbo.c1 = self.dbo.cursor()
-        c = self.dbo.c1.execute('select name,seq from datasets where kit=1 order by 2')
+        c = self.dc.execute('select name,seq from datasets where kit=1 order by 2')
         for row in c:
             print(row[0])
-        self.dbo.commit()
         
     def listbed(self):
         # list out full path bed files, in sort order
-        self.dbo.c1 = self.dbo.cursor()
-        c = self.dbo.c1.execute('select name,seq from datasets where kit=1 order by 2')
+        c = self.dc.execute('select name,seq from datasets where kit=1 order by 2')
         for row in c:
             print(os.path.join(UNZIP_DIR,row[0])+'.bed')
         self.dbo.commit()
-        
+
     def updatesnps(self):
         # update the snp defs and names from hg19
         with open('snps_hg19.csv') as snpfile:
-            self.dbo.c1 = self.dbo.cursor()
             reader = csv.DictReader(snpfile)
             snps = defaultdict(list)
             for row in reader:
@@ -541,15 +535,14 @@ class Clades(object):
                 snps[snpdef].append(row['Name'])
             for snp in snps:
                 #INS VARIANTS
-                self.dbo.c1.execute('insert or ignore into variants(pos,ref,alt) values(?,?,?)', snp)
+                self.dc.execute('insert or ignore into variants(pos,ref,alt) values(?,?,?)', snp)
                 #SEL VARIANTS
-                c1 = self.dbo.c1.execute('select id from variants where pos=? and ref=? and alt=?', snp)
+                c1 = self.dc.execute('select id from variants where pos=? and ref=? and alt=?', snp)
                 vid = c1.fetchone()[0]
                 for n in snps[snp]:
                     #INS SNPNAMES
                     #print('insert into snpnames values(?,?)', (vid, n))
-                    self.dbo.c1.execute('insert into snpnames values(?,?)', (vid, n))
-        self.dbo.commit()
+                    self.dc.execute('insert into snpnames values(?,?)', (vid, n))
         
     def querysnp(self):
 
@@ -561,13 +554,10 @@ class Clades(object):
 
         # print info about a snp by name or addr
         trace(2, 'looking for details about {}...'.format(self.querysnp))
-        dbo = DB()
-        self.dbo.db = self.dbo.db_init()
-        self.dbo.c1 = self.dbo.cursor()
 
         ids = set()
         #SEL VARIANTS
-        c1r = self.dbo.c1.execute('select * from variants where pos=?', (self.querysnp,))
+        c1r = self.dc.execute('select * from variants where pos=?', (self.querysnp,))
 
         for row in c1r:
             ids.add(row[0])
@@ -577,7 +567,7 @@ class Clades(object):
 
         #SEL SNPNAMES
 
-        c1r = self.dbo.c1.execute('select id from snpnames where name=?', (self.querysnp.upper(),))
+        c1r = self.dc.execute('select id from snpnames where name=?', (self.querysnp.upper(),))
         for row in c1r:
             ids.add(row[0])
 
@@ -588,13 +578,13 @@ class Clades(object):
 
             #SEL VARIANTS
 
-            c1r = self.dbo.c1.execute('select distinct pos from variants where id=?', (id,))
+            c1r = self.dc.execute('select distinct pos from variants where id=?', (id,))
             for row in c1r:
                 poss.add('{}'.format(row[0]))
 
             #SEL SNPNAMES
 
-            c1r = self.dbo.c1.execute('select distinct name from snpnames where id=?', (id,))
+            c1r = self.dc.execute('select distinct name from snpnames where id=?', (id,))
             for row in c1r:
                 nams.add(row[0])
 
@@ -602,7 +592,7 @@ class Clades(object):
 
             #SEL VARIANTS
 
-            c1r = self.dbo.c1.execute('select pos,ref,alt,id from variants where pos=?', (pos,))
+            c1r = self.dc.execute('select pos,ref,alt,id from variants where pos=?', (pos,))
             for row in c1r:
                 print('{:>8}.{}.{} - {} (id={})'.format(row[0], row[1], row[2], '/'.join(nams),row[3]))
 
@@ -616,14 +606,14 @@ class Clades(object):
             kitids = set()
             for iid in ids:
                 #SEL VCFCALLS
-                c1r = self.dbo.c1.execute('select distinct id from vcfcalls where vid=?', (iid,))
+                c1r = self.dc.execute('select distinct id from vcfcalls where vid=?', (iid,))
                 for row in c1r:
                     kitids.add(row[0])
             print('Found in', len(kitids), 'kits')
 
             for iid in kitids:
                 #SEL FILES
-                c1r = self.dbo.c1.execute('select name from datasets where id=?', (iid,))
+                c1r = self.dc.execute('select name from datasets where id=?', (iid,))
                 print(c1r.fetchone()[0])
 
         if vars(self.namespace)['implications']:
@@ -656,26 +646,25 @@ class Clades(object):
                                     stdout=subprocess.PIPE)
                 print(io.stdout.decode('utf-8'))
 
-        self.dbo.commit()
         
     def mergeup(self):
 
         #incomplete
 
-        self.dbo.c1 = self.dbo.cursor()
-        self.dbo.c2 = self.dbo.cursor()
-        self.dbo.c3 = self.dbo.cursor()
+        c1 = self.db.cursor()
+        c2 = self.db.cursor()
+        c3 = self.db.cursor()
 
         # populate tree from the rows in tree csv
         # store the variants associated with the row (column 5, semicolon sep'd)
 
         #CREATE TMP TBL TREE
 
-        self.dbo.c1.execute('CREATE TEMPORARY TABLE tree(e INTEGER PRIMARY KEY, a INTEGER, b INTEGER, c INTEGER, d INTEGER, f INTEGER, g TEXT, h TEXT, i INTEGER)')
+        c1.execute('CREATE TEMPORARY TABLE tree(e INTEGER PRIMARY KEY, a INTEGER, b INTEGER, c INTEGER, d INTEGER, f INTEGER, g TEXT, h TEXT, i INTEGER)')
 
         #CREATE TMP TBL TREEVARS
 
-        self.dbo.c1.execute('CREATE TEMPORARY TABLE treevars(ID INTEGER REFERENCES tree(e), snpid INTEGER REFERENCES variants(id), unique(id,snpid))')
+        c1.execute('CREATE TEMPORARY TABLE treevars(ID INTEGER REFERENCES tree(e), snpid INTEGER REFERENCES variants(id), unique(id,snpid))')
 
         with open('tree.csv') as csvfile:
             fieldnames=['a','b','c','d','e','f','g','h','i']
@@ -683,8 +672,8 @@ class Clades(object):
             for row in reader:
                 tup=(row['a'],row['b'],row['c'],row['d'],
                          row['f'],row['g'],row['h'],row['i'])
-                self.dbo.c1.execute('insert into tree(a,b,c,d,f,g,h,i) values (?,?,?,?,?,?,?,?)', tup)
-                treeid=self.dbo.c1.lastrowid
+                c1.execute('insert into tree(a,b,c,d,f,g,h,i) values (?,?,?,?,?,?,?,?)', tup)
+                treeid = c1.lastrowid
                 snplist = row['e'].split(';')
 
                 for snp in snplist:
@@ -692,22 +681,22 @@ class Clades(object):
                         poss = set()
                         for sname in snp.split('/'):
                             #SEL SNPNAMES
-                            c1 = self.dbo.c1.execute('select id from snpnames where name=?', (sname,))
+                            c1 = c1.execute('select id from snpnames where name=?', (sname,))
                             r1 = next(c1)
                             if r1:
                                 #INS TREEVARS
-                                self.dbo.c1.execute('insert or ignore into treevars values(?,?)', (treeid,snpid))
+                                c1.execute('insert or ignore into treevars values(?,?)', (treeid,snpid))
                     else:
                         #SEL VARIANTS
-                        s = self.dbo.c1.execute('select id from variants where pos=?', (snp,))
+                        s = c1.execute('select id from variants where pos=?', (snp,))
                         try:
                             snpid = s.fetchone()[0]
                         except:
                             #INS VARIANTS
-                            self.dbo.c1.execute('insert into variants(pos) values(?)', (snp,))
-                            snpid = self.dbo.c1.lastrowid
+                            c1.execute('insert into variants(pos) values(?)', (snp,))
+                            snpid = c1.lastrowid
                         #INS TREEVARS
-                        self.dbo.c1.execute('insert or ignore into treevars values(?,?)', (treeid,snpid))
+                        c1.execute('insert or ignore into treevars values(?,?)', (treeid,snpid))
 
         # Each row in the tree carries a range [minkit, maxkit] (col3 & col4)
         # Those are the column indices in the variant-not-shared.txt array.
@@ -727,7 +716,7 @@ class Clades(object):
 
         #CREATE TMP TBL VARS
 
-        self.dbo.c1.execute('CREATE TEMPORARY TABLE vars(snp INTEGER REFERENCES variants(id), pid INTEGER)')
+        c1.execute('CREATE TEMPORARY TABLE vars(snp INTEGER REFERENCES variants(id), pid INTEGER)')
         tups = []
 
         with open('variant-not-shared.txt') as varfile:
@@ -736,40 +725,40 @@ class Clades(object):
                 rowsnp = row[0]
                 try:
                     #SEL VARIANTS
-                    rowsnpid = self.dbo.c2.execute('select id from variants where pos=?', (rowsnp,)).fetchone()[0]
+                    rowsnpid = c2.execute('select id from variants where pos=?', (rowsnp,)).fetchone()[0]
                 except:
                     # insert variant since we don't have it yet
                     trace(2, 'pos = {} added'.format(row[0]))
                     #INS VARIANTS
-                    self.dbo.c2.execute('insert into variants(pos) values(?)', (rowsnp,))
-                    rowsnpid = self.dbo.c2.lastrowid
+                    c2.execute('insert into variants(pos) values(?)', (rowsnp,))
+                    rowsnpid = c2.lastrowid
                 for col in range(17,len(row)):
                     if row[col]:
                         tups.append((rowsnpid, col+1))
 
         #INS VARS
 
-        self.dbo.c1.executemany('insert into vars values(?,?)', tups) 
+        c1.executemany('insert into vars values(?,?)', tups) 
         # tables populated
 
         #SEL TREE
 
-        c1r = self.dbo.c1.execute('select * from tree where g!="0"')
+        c1r = c1.execute('select * from tree where g!="0"')
 
         for row in c1r:
             par = os.path.splitext(row[6])[0]
             #SEL TREE
-            prow = next(self.dbo.c2.execute('select e,c,d from tree where g=?', (par,)))
+            prow = next(c2.execute('select e,c,d from tree where g=?', (par,)))
             minidx = prow[1]
             maxidx = prow[2]
             trace(3,'id:{}; max/min:{}/{}'.format(prow[0], minidx, maxidx))
             #SEL TREEVARS
-            c2r = self.dbo.c2.execute('select snpid from treevars where id=?', (row[0],))
+            c2r = c2.execute('select snpid from treevars where id=?', (row[0],))
             for r1 in c2r:
                 for kit in range(minidx,maxidx+1):
                     trace(3,'checking kit {} for snpid {}'.format(kit,r1[0]))
                     #SEL VCFCALLS
-                    hasit = self.dbo.c3.execute('select id from vcfcalls where vid=? and id=(select id from datasets where seq=?)', (r1[0], kit))
+                    hasit = c3.execute('select id from vcfcalls where vid=? and id=(select id from datasets where seq=?)', (r1[0], kit))
                     try:
                         snpid = next(hasit)
                         continue
@@ -782,5 +771,7 @@ class Clades(object):
                 print(row[6], 'into its parent')
                 continue # on to the next row
 
-        self.dbo.commit()
         
+if __name__ == '__main__':
+    c = Clades()
+    c.do_create()

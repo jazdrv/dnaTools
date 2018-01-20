@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+# coding: utf-8
 # authors/licensing{{{
 
 # @author: Iain McDonald
@@ -14,14 +16,11 @@ import sys,os,sqlite3,yaml,time,csv,json,numpy as np
 
 # }}}
 
-REDUX_CONF = os.environ['REDUX_CONF']
+REDUX_CONF = 'config.yaml'
 config = yaml.load(open(REDUX_CONF))
+
 start_time = 0 # need to fix this
 
-#TODO: need to put this info properly into yaml file (for now, I'm hacking bashrc)
-REDUX_ENV = os.environ['REDUX_ENV']
-REDUX_SQL = os.environ['REDUX_SQL']
-REDUX_DATA = os.environ['REDUX_DATA']
 
 class DB(object):
     
@@ -34,19 +33,24 @@ class DB(object):
         return self.db.cursor()
 
     def run_sql_file(self,FILE):
-        with open(REDUX_SQL+'/'+FILE,'r') as fh:
+        with open(FILE,'r') as fh:
             self.dc.executescript(fh.read())
 
     def commit(self):
         self.db.commit()
 
-    def create_schema(self):
-        self.run_sql_file('schema.sql')
-        
+    def close(self):
+        self.dc.close()
+
+    def create_schema(self, schemafile='schema.sql'):
+        self.run_sql_file(os.path.join(config['REDUX_SQL'],schemafile))
+
     # get build identifier by its name; creates new entry if needed
-    def get_build_by_name(self, buildname='hg38'):
+    def get_build_byname(self, buildname='hg38'):
         dc = self.dc.execute('select id from builds where buildname=?', (buildname,))
-        bid, = dc.fetchone()
+        bid = None
+        for bid, in dc:
+            continue
         if not bid:
             self.dc.execute('insert into builds(buildname) values (?)', (buildname,))
             bid = self.dc.lastrowid
@@ -54,6 +58,7 @@ class DB(object):
 
     # insert an array of variants
     # fixme - handle dedupe
+    # fixme - pos and ref ids
     def insert_variants(self, variant_array, buildname='hg38'):
         bid = self.get_build_byname(buildname)
         self.dc.executemany('INSERT INTO variants(buildID,pos,ref,alt) VALUES (?,?,?,?)', [(bid,)+v for v in variant_array])
@@ -276,140 +281,10 @@ class DB(object):
         #    ...
         #   sort_positive_variants(kit_id)
 
-    # populate a table of STR definitions
-    def populate_STRs(self, ordering=None):
-        strdefs = (
-            'DYS393', 'DYS390', 'DYS19', 'DYS391', 'DYS385a', 'DYS385b',
-            'DYS426', 'DYS388', 'DYS439', 'DYS389i', 'DYS392', 'DYS389ii',
-            'DYS458', 'DYS459a', 'DYS459b', 'DYS455', 'DYS454', 'DYS447',
-            'DYS437', 'DYS448', 'DYS449', 'DYS464a', 'DYS464b', 'DYS464c',
-            'DYS464d', 'DYS460', 'YH4', 'YCAIIa', 'YCAIIb', 'DYS456', 'DYS607',
-            'DYS576', 'DYS570', 'CDYa', 'CDYb', 'DYS442', 'DYS438', 'DYS531',
-            'DYS578', 'DYF395S1a', 'DYF395S1b', 'DYS590', 'DYS537', 'DYS641',
-            'DYS472', 'DYF406S1', 'DYS511', 'DYS425', 'DYS413a', 'DYS413b',
-            'DYS557', 'DYS594', 'DYS436', 'DYS490', 'DYS534', 'DYS450',
-            'DYS444', 'DYS481', 'DYS520', 'DYS446', 'DYS617', 'DYS568',
-            'DYS487', 'DYS572', 'DYS640', 'DYS492', 'DYS565', 'DYS710',
-            'DYS485', 'DYS632', 'DYS495', 'DYS540', 'DYS714', 'DYS716',
-            'DYS717', 'DYS505', 'DYS556', 'DYS549', 'DYS589', 'DYS522',
-            'DYS494', 'DYS533', 'DYS636', 'DYS575', 'DYS638', 'DYS462',
-            'DYS452', 'DYS445', 'YA10', 'DYS463', 'DYS441', 'Y1B07', 'DYS525',
-            'DYS712', 'DYS593', 'DYS650', 'DYS532', 'DYS715', 'DYS504',
-            'DYS513', 'DYS561', 'DYS552', 'DYS726', 'DYS635', 'DYS587',
-            'DYS643', 'DYS497', 'DYS510', 'DYS434', 'DYS461', 'DYS435')
-        if ordering and (len(ordering)==len(strdefs)):
-            for tup in zip(ordering,strdefs):
-                self.dc.execute('insert into str(ordering,strname) values(?,?)', tup)
-        else:
-            for tup in enumerate(strdefs):
-                self.dc.execute('insert into str(ordering,strname) values(?,?)', tup)
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+# test framework
+if __name__=='__main__':
+    db = DB()
+    db.create_schema()
+    db.commit()

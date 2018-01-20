@@ -117,7 +117,8 @@ create table strs(
     );
 
 /* STR values for testers */
-drop table if exists strcalls(
+drop table if exists strcalls;
+create table strcalls(
     pID INTEGER REFERENCES datasets(ID), -- or maybe people?
     val INTEGER
     );
@@ -129,8 +130,8 @@ create table variants(
     buildID INTEGER references builds(ID),
     pos INTEGER,
     ref INTEGER references alleles(ID),
-    alt INTEGER references alleles(ID),
-    UNIQUE(buildID, pos, ref, alt)
+    alt INTEGER references alleles(ID) --, fixme
+    -- fixme UNIQUE(buildID, pos, ref, alt)
     );
 
 create index varidx on variants(buildID, pos);

@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+# coding: utf-8
 # authors/licensing {{{
 
 # @author: Iain McDonald
@@ -16,9 +18,11 @@ from collections import defaultdict
 
 # }}}
 
-REDUX_CONF = os.environ['REDUX_CONF']
-REDUX_ENV = os.environ['REDUX_ENV']
+REDUX_CONF = 'config.yaml'
 config = yaml.load(open(REDUX_CONF))
+
+import sys
+sys.path.insert(0, config['REDUX_ENV'])
 
 # ==
 # USER DEFINED FILE MAPPING
@@ -52,7 +56,7 @@ def trace (level, msg):
 # routines - file/dir - Zak
 
 def refresh_dir(DIR,cleanFlag=False):
-    DIR = REDUX_ENV+'/'+DIR
+    DIR = os.path.join(config['REDUX_ENV'], DIR)
     #print DIR
     if (os.path.isdir(DIR)):
         files = glob.glob(DIR+'/*')
@@ -63,14 +67,14 @@ def refresh_dir(DIR,cleanFlag=False):
         os.makedirs(DIR)
     
 def delete_file(FILE):
-    FILE = REDUX_ENV+'/'+FILE
+    FILE = os.path.join(config['REDUX_ENV'], FILE)
     if os.path.exists(FILE):
         os.remove(FILE)
     
 def touch_file(FILE):
-    FILE = REDUX_ENV+'/'+FILE
-    if not os.path.exists('merge-ignore.txt'):
-        open('merge-ignore.txt','w').close()
+    FILE = os.path.join(config['REDUX_ENV'], FILE)
+    if not os.path.exists(FILE):
+        open(FILE,'w').close()
 
 def cmd_exists(CMD):
     return any(os.access(os.path.join(path, CMD), os.X_OK) for path in os.environ["PATH"].split(os.pathsep))
@@ -84,11 +88,11 @@ def setup_dirs():
 # it may make sense to pull this out into a separate file, import (unpack-zip-files)
 def extract_zips():
 
-    if not os.path.isdir(REDUX_ENV+'/'+config['zip_dir']):
+    if not os.path.isdir(os.path.join(config['REDUX_ENV'], config['zip_dir'])):
         trace (0, '   Warn: no directory with zip files: %s' % config['zip_dir'])
         return []
 
-    FILES = os.listdir(REDUX_ENV+'/'+config['zip_dir'])
+    FILES = os.listdir(os.path.join(config['REDUX_ENV'], config['zip_dir']))
 
     # try to parse out at least the kit number by trying a series of regular expressions
     # adding regular expressions at the end of this list is safer than at the beginning
@@ -187,9 +191,7 @@ def extract_zips():
     for fname in fname_dict:
         kitnumber, kitname = fname_dict[fname]
         try:
-            zf = zipfile.ZipFile(REDUX_ENV+'/'+config['zip_dir']+'/'+fname)
-            #zf = zipfile.ZipFile(os.path.join(config['zip_dir'],fname))
-
+            zf = zipfile.ZipFile(os.path.join(config['REDUX_ENV'], 'zip_dir', fname))
         except:
             trace (1, '   ERROR: file %s is not a zip' % fname)
             sys.exit()
@@ -237,7 +239,7 @@ def extract_zips():
 
     # list of file names we unzipped
 
-    files = os.listdir(REDUX_ENV+'/'+config['unzip_dir'])
+    files = os.listdir(os.path.join(config['REDUX_ENV'], config['unzip_dir']))
     return files
     
 def unpack():
@@ -284,7 +286,7 @@ def skip_to_Hg19(dbo):
 
         trace (2, "Generating database of all variants...")
         # fixme - populate datasets
-        vcffiles = [f for f in os.listdir(REDUX_ENV+'/'+config['unzip_dir']) if f.endswith('.vcf')]
+        vcffiles = [f for f in os.listdir(os.path.join(config['REDUX_ENV'], config['unzip_dir'])) if f.endswith('.vcf')]
         trace (10, "   %i files detected" % len(vcffiles))
         
         #variant_dict
@@ -293,7 +295,8 @@ def skip_to_Hg19(dbo):
         variant_dict = {}
         for file in vcffiles:
             # fixme - this should come from walking through datasets
-            vcf_calls = readHg19Vcf(REDUX_ENV+'/'+config['unzip_dir']+'/'+ file)
+            vcf_calls = readHg19Vcf(os.path.join(config['REDUX_ENV'], config['unzip_dir'], file))
+            # fixme .update is probably a slow way
             variant_dict.update(vcf_calls)
 
         trace (10, "   %i variants found" % len(variant_dict))
@@ -325,7 +328,7 @@ def skip_to_Hg19(dbo):
     
     if (config['skip_to'] <= 12):
         trace (2, "Generating database of calls...")
-        vcffiles = [f for f in os.listdir(REDUX_ENV+'/'+config['unzip_dir']) if f.endswith('.vcf')]
+        vcffiles = [f for f in os.listdir(os.path.join(config['REDUX_ENV'], config['unzip_dir'])) if f.endswith('.vcf')]
         trace (10, "   %i files detected" % len(vcffiles))
         # dbo.insert_calls()
 
@@ -342,13 +345,6 @@ def skip_to_Hg19(dbo):
         trace (2, "Getting names of variants...")
         trace (10, "   Importing SNP reference lists...")
 
-        # update known snps for hg19 and hg38
-        with open(REDUX_ENV+'/'+config['b37_snp_file']) as snpfile:
-            snp_reference = csv.DictReader(snpfile)
-            dbo.updatesnps(snp_reference, 'hg19')
-        with open(REDUX_ENV+'/'+config['b38_snp_file']) as snpfile:
-            snp_reference = csv.DictReader(snpfile)
-            dbo.updatesnps(snp_reference, 'hg38')
 
 
         # db work - how we doing? {{{
@@ -448,7 +444,7 @@ def go_prep():
         # }}}
         # Get the list of input files {{{
 
-        FILES = glob.glob(REDUX_ENV+'/zips/bigy-*.zip')
+        FILES = glob.glob(os.path.join(config['REDUX_ENV'], 'zips', 'bigy-*.zip'))
 
         if len(FILES) == 0:
             trace(0,"No input files detected in zip folder. Aborting.")
@@ -695,7 +691,7 @@ def getH38references():
 
 #note: sample code for calling this awk script
 def getVCFvariants(FILE):
-    cmd = REDUX_ENV+"/getVCFvariants.sh"
+    cmd = "/getVCFvariants.sh"
     p = subprocess.Popen(cmd, FILE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     stdout, stderr = p.communicate()
 
@@ -828,3 +824,52 @@ def readHg19Vcf(file):
                 result[fields[1]] = [int(fields[1]), str(fields[3]), str(fields[4])]
         return result
 
+# populate a table of STR definitions
+def populate_STRs(dbo, ordering=None):
+    strdefs = (
+        'DYS393', 'DYS390', 'DYS19', 'DYS391', 'DYS385a', 'DYS385b',
+        'DYS426', 'DYS388', 'DYS439', 'DYS389i', 'DYS392', 'DYS389ii',
+        'DYS458', 'DYS459a', 'DYS459b', 'DYS455', 'DYS454', 'DYS447',
+        'DYS437', 'DYS448', 'DYS449', 'DYS464a', 'DYS464b', 'DYS464c',
+        'DYS464d', 'DYS460', 'YH4', 'YCAIIa', 'YCAIIb', 'DYS456', 'DYS607',
+        'DYS576', 'DYS570', 'CDYa', 'CDYb', 'DYS442', 'DYS438', 'DYS531',
+        'DYS578', 'DYF395S1a', 'DYF395S1b', 'DYS590', 'DYS537', 'DYS641',
+        'DYS472', 'DYF406S1', 'DYS511', 'DYS425', 'DYS413a', 'DYS413b',
+        'DYS557', 'DYS594', 'DYS436', 'DYS490', 'DYS534', 'DYS450',
+        'DYS444', 'DYS481', 'DYS520', 'DYS446', 'DYS617', 'DYS568',
+        'DYS487', 'DYS572', 'DYS640', 'DYS492', 'DYS565', 'DYS710',
+        'DYS485', 'DYS632', 'DYS495', 'DYS540', 'DYS714', 'DYS716',
+        'DYS717', 'DYS505', 'DYS556', 'DYS549', 'DYS589', 'DYS522',
+        'DYS494', 'DYS533', 'DYS636', 'DYS575', 'DYS638', 'DYS462',
+        'DYS452', 'DYS445', 'YA10', 'DYS463', 'DYS441', 'Y1B07', 'DYS525',
+        'DYS712', 'DYS593', 'DYS650', 'DYS532', 'DYS715', 'DYS504',
+        'DYS513', 'DYS561', 'DYS552', 'DYS726', 'DYS635', 'DYS587',
+        'DYS643', 'DYS497', 'DYS510', 'DYS434', 'DYS461', 'DYS435')
+    if ordering and (len(ordering)==len(strdefs)):
+        for tup in zip(ordering,strdefs):
+            dbo.dc.execute('insert into strs(ordering,strname) values(?,?)', tup)
+    else:
+        for tup in enumerate(strdefs):
+            dbo.dc.execute('insert into strs(ordering,strname) values(?,?)', tup)
+
+# populate SNP definitions
+def populate_SNPs(dbo):
+    # update known snps for hg19 and hg38
+    with open(os.path.join(config['REDUX_DATA'], config['b37_snp_file'])) as snpfile:
+        snp_reference = csv.DictReader(snpfile)
+        dbo.updatesnps(snp_reference, 'hg19')
+    with open(os.path.join(config['REDUX_DATA'], config['b38_snp_file'])) as snpfile:
+        snp_reference = csv.DictReader(snpfile)
+        dbo.updatesnps(snp_reference, 'hg38')
+
+
+
+# test framework
+if __name__ == '__main__':
+    print (config)
+    db = DB()
+    db.create_schema()
+    populate_STRs(db)
+    populate_SNPs(db)
+    db.commit()
+    db.close()

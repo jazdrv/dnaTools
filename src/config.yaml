@@ -1,5 +1,15 @@
 ---
+
+# REDUX_ENV = os.environ['REDUX_ENV']
+REDUX_ENV: '.'
+# REDUX_SQL = os.environ['REDUX_SQL']
+REDUX_SQL: '../sql'
+# REDUX_DATA = os.environ['REDUX_DATA']
+REDUX_DATA: '../data'
+
 # redux2 stuff {{{
+
+
 
 # top_snp: defines what your top-level SNP is called out of the (usually
 # large number of) possible shared SNP's
