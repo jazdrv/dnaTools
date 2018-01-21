@@ -1,11 +1,83 @@
 ---
 
-# REDUX_ENV = os.environ['REDUX_ENV']
+# configuration variables for redux
+
+# Source code version
+VERSION: 2.0.0.20180108.ALPHA
+
+# Where the source code lives. Some shell scripts depend on this as an
+# environment variable, so this configuration item may need some more
+# thought. For now, there's a .env file you can source as
+# ". ./redux.env" to set the environment variable
+# You may need to change this to a full pathname where your working directory is.
 REDUX_ENV: '.'
-# REDUX_SQL = os.environ['REDUX_SQL']
+
+# The path to the directory where SQL files live (e.g. the schema file)
 REDUX_SQL: '../sql'
-# REDUX_DATA = os.environ['REDUX_DATA']
+
+# The path to the directory for the data files (e.g. the .zip files)
 REDUX_DATA: '../data'
+
+# Notes on SKIPZIP
+# Set SKIPZIP to >0 skip the labour-intensive parts of the
+# script. Requires MAKEREPORT=TRUE This should only be done if you have
+# run the script before on the same dataset!
+# If set to 1, unzipping and VCF/BED file scanning will be ignored
+#    Statistics generation, sorting of already-identified variants into
+#    good/bad/shared lists and clade sorting will still take place This
+#    requires a successful (but not necessarily sorted) previous run.
+# If set to 2, statistics generation is skipped. The statistics
+#    INCLUDING KIT NAMES will be taken from the header of the previous
+#    run.  It also uses the ORDER of the previous run, taken from
+#    order.txt This requires a complete successful previous run
+# If set to 3, SNP names aren't updated either. The previous SNP names are used.
+skip_zip: False
+
+# CHECKDATA = display warnings and create lists if inconsistencies
+# detected in report (0 = no; >0 = yes)
+check_data: True
+
+# ZIPUPDATEONLY = don't re-extract that already exist # There's a bug here somewhere!
+zip_update_only: True
+
+# Notes on TESTFORREFPOS
+# This should be set for clades where the reference sequence contains
+# positives For BigY, this includes clades in R1b-U152 and G2.  Clades
+# which include ancestral SNPs of these regions (e.g. R, R1, R1b-M343,
+# R1b-M269, R1b-L11, R1b-P312, ...)  should have this set. However,
+# self-contained branches of these clades do not (e.g. R1b-U106) as test
+# results should be all positive or all negative for the group.
+test_for_ref_pos: False
+
+zip_dir: zips #hg19 stuff
+unzip_dir: unzips #hg19 - currently for redux2.py (redux2z.py)
+unzip_dir_clades: unzips.clades #hg19 - keeping this apart for now
+
+zip2_dir: zips2 #hg38 stuff
+unzip2_dir: unzips2 #hg38 stuff
+
+zip_set: -s 6:1,2,3,4,5,6 
+
+bash_only: True
+recreate_db: True
+
+zero_age: 1950.33
+err_zero_age: 15.02
+
+
+# clades 
+
+DEBUG: 0
+
+verbosity: 30
+
+# the name of the hg19 and hg38 named SNP definitions files
+# these should not need to be changed; they are pulled from the web
+b37_snp_file: "snps_hg19.csv"
+b38_snp_file: "snps_hg38.csv"
+
+drop_tables: 1
+
 
 # redux2 stuff {{{
 
@@ -14,11 +86,6 @@ REDUX_DATA: '../data'
 # top_snp: defines what your top-level SNP is called out of the (usually
 # large number of) possible shared SNP's
 
-# skip_to: this allows you to start the program at a particular point
-#     0 -> run whole programme
-#    10 -> work only with already-unzipped files
-#    20 -> do not re-extract the VCF calls
-#    30 -> do not re-make the tree
 
 # These flags define what actually gets done
 
@@ -27,9 +94,7 @@ REDUX_DATA: '../data'
 # MAKEAGES = perform age analysis
 # MAKESHORTREPORT = make a shorter version of the report, collapsing the singleton section and removing the shared and inconsistent list of SNPs
 # MAKEHTMLTREE = make an HTML version of the tree for easier visualisation
-# CHECKDATA = display warnings and create lists if inconsistencies detected in report (0 = no; >0 = yes)
 # SKIPZIP = skip certain parts of the script: see below
-# ZIPUPDATEONLY = don't re-extract that already exist # There's a bug here somewhere!
 # TESTFORREFPOS = test for positives in the references sequence and swap if needed: see below
 
 # These flags set options for Jef Treece's unpacking script and other options
@@ -52,23 +117,7 @@ REDUX_DATA: '../data'
 # 0/1 - if 1: drop and recreate the database if running with BASHONLY=0 -- takes a few minutes
 # recreate_db: True
 
-# Notes on SKIPZIP
-# Set SKIPZIP to >0 skip the labour-intensive parts of the script. Requires MAKEREPORT=TRUE
-# This should only be done if you have run the script before on the same dataset!
-# If set to 1, unzipping and VCF/BED file scanning will be ignored
-#    Statistics generation, sorting of already-identified variants into good/bad/shared lists and clade sorting will still take place
-#    This requires a successful (but not necessarily sorted) previous run.
-# If set to 2, statistics generation is skipped. The statistics INCLUDING KIT NAMES will be taken from the header of the previous run.
-#    It also uses the ORDER of the previous run, taken from order.txt
-#    This requires a complete successful previous run
-# If set to 3, SNP names aren't updated either. The previous SNP names are used.
 
-# Notes on TESTFORREFPOS
-# This should be set for clades where the reference sequence contains positives
-# For BigY, this includes clades in R1b-U152 and G2.
-# Clades which include ancestral SNPs of these regions (e.g. R, R1, R1b-M343, R1b-M269, R1b-L11, R1b-P312, ...)
-# should have this set. However, self-contained branches of these clades do not (e.g. R1b-U106)
-# as test results should be all positive or all negative for the group.
 
 # The following parameters set the mutation rate for the age analysis.
 # The rate is set in SNP mutations per year per *billion* base pairs.
@@ -169,16 +218,21 @@ REDUX_DATA: '../data'
 
 # redux2
 
+
+# the name of the file on disk for sqlite3
 DB_FILE: variants.db
-snp_csv_19: snps_hg19.csv
-snp_csv_38: snps_hg38.csv
-SNP_CSV: snps_hg19.csv
+
 
 backup_files: variant-*.txt snps_hg19.csv snp-names.csv snp-used.csv report.csv short-report.csv clades.csv tree.txt raw-ages.txt
 
 haplogroup: R
 top_snp: U106
 
+# skip_to: this allows you to start the program at a particular point
+#     0 -> run whole programme
+#    10 -> work only with already-unzipped files
+#    20 -> do not re-extract the VCF calls
+#    30 -> do not re-make the tree
 skip_to: 11
 skip_to: 0
 
@@ -186,36 +240,4 @@ make_report: True
 make_ages: True
 make_short_report: True
 make_html_report: True
-skip_zip: 3
-check_data: True
-zip_update_only: True
-test_for_ref_pos: False
 
-zip_dir: zips #hg19 stuff
-unzip_dir: unzips #hg19 - currently for redux2.py (redux2z.py)
-unzip_dir_clades: unzips.clades #hg19 - keeping this apart for now
-
-zip2_dir: zips2 #hg38 stuff
-unzip2_dir: unzips2 #hg38 stuff
-
-zip_set: -s 6:1,2,3,4,5,6 
-
-bash_only: True
-recreate_db: True
-
-zero_age: 1950.33
-err_zero_age: 15.02
-
-VERSION: x.0
-VERSION: 2.0.0.20180108.ALPHA
-
-# clades 
-
-DEBUG: 0
-
-verbosity: 30
-
-b37_snp_file: "snps_hg19.csv"
-b38_snp_file: "snps_hg38.csv"
-
-drop_tables: 1

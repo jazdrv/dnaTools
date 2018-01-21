@@ -19,15 +19,13 @@ import sys,os,sqlite3,yaml,time,csv,json,numpy as np
 REDUX_CONF = 'config.yaml'
 config = yaml.load(open(REDUX_CONF))
 
-start_time = 0 # need to fix this
-
 
 class DB(object):
 
     def __init__(self, dbfname='variant.db', drop=True):
         self.dbfname = dbfname
         # just remove the file, which is often faster than dropping big tables
-        if drop:
+        if drop and os.path.exists(dbfname):
             os.unlink(dbfname)
         self.db = sqlite3.connect(dbfname)
         self.dc = self.cursor()
@@ -50,12 +48,12 @@ class DB(object):
 
     # get build identifier by its name; creates new entry if needed
     def get_build_byname(self, buildname='hg38'):
-        dc = self.dc.execute('select id from builds where buildname=?', (buildname,))
+        dc = self.dc.execute('select id from build where buildNm=?', (buildname,))
         bid = None
         for bid, in dc:
             continue
         if not bid:
-            self.dc.execute('insert into builds(buildname) values (?)', (buildname,))
+            self.dc.execute('insert into build(buildNm) values (?)', (buildname,))
             bid = self.dc.lastrowid
         return bid
 

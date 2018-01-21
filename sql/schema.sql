@@ -1,61 +1,85 @@
 -- schema
 -- DDL for redux programs and utilities
 
-
-/* data sets, aka kits, aka people */
-drop table if exists datasets;
-create table datasets(
+/* a person who supplied DNA, or if needed, some other person */
+drop table if exists person;
+create table person(
     ID INTEGER PRIMARY KEY,
-    kitname TEXT,              -- text name, can be easy-read alias
-    seq INTEGER DEFAULT 0,     -- number can be used to order files arbitrarily
-    -- the following fields are as presented from the DW API
-    kitId TEXT,                -- previously dnaID, the ID assigned by the lab
-    uploaded TEXT,             -- date the file was uploaded
-    dataFile TEXT,             -- normalized file/path name
-    surname TEXT,              -- ancestral surname associated with the kit
-    country INTEGER references countries(ID),  -- ancestral country
-    normalOrig INTEGER references origins(ID), -- normalized ancestral origin
-    long TEXT,                 -- ancestral location longitude
-    lat TEXT,                  -- ancestral location latitude
-    otherInfo TEXT,            -- freeform text entered by user
-    lab INTEGER references labs(id),            -- name of testing lab
-    origFileName TEXT,         -- the original file name from user
-    birthYear INTEGER,         -- birth year of MDKA
-    approxHg TEXT,             -- approximate haplogroup assigned by DW
-    build INTEGER references builds(ID),        -- name of the reference build
-    isNGS BOOLEAN,             -- T/F is this a NGS test result
-    testType INTEGER REFERENCES testtypes(ID)   -- name of the DNA test
+    firstName TEXT DEFAULT NULL,
+    middleName TEXT DEFAULT NULL,
+    surname TEXT DEFAULT NULL,
+    maidenName TEXT DEFAULT NULL,
+    yHaplogroupId INTEGER DEFAULT NULL,
+    mtHaplogroupId INTEGER DEFAULT NULL
     );
 
-create index fileidx on datasets(kitname);
+/* data sets uploaded to Haplogroup-R */
+drop table if exists uploadlog;
+create table uploadlog(
+    ID INTEGER PRIMARY KEY,
+    seq INTEGER DEFAULT 0,     -- can be used to order files arbitrarily
+    DNAID INTEGER references person(ID), -- whose DNA is this?
+    -- the following fields are directly derived from H-R DW API json
+    contact TEXT,              -- contact info for person who uploaded
+    kitId TEXT NOT NULL,       -- the ID assigned by the lab
+    surnameID INTEGER references surname(ID), -- ancestral surname
+    countryID INTEGER references country(ID), -- ancestral country
+    birthYr INTEGER DEFAULT NULL, -- birth year of MDKA
+    labID INTEGER references lab(id), -- testing lab
+    testTypeID INTEGER REFERENCES testtype(ID), -- type of DNA test
+    buildID INTEGER references build(ID), -- reference build for the test
+    importDt TEXT NOT NULL,    -- when originally imported
+    fileNm TEXT NOT NULL,      -- normalized file/path name
+    origFileNm TEXT,           -- the original file name from user
+    otherInfo TEXT,            -- freeform text entered by user
+    normalOrigID INTEGER references origin(ID), -- normalized ancestral origin
+    lat TEXT,                  -- ancestral location latitude
+    lng TEXT,                  -- ancestral location longitude
+    policyVer TEXT DEFAULT NULL, -- in H-R schema
+    accessToken TEXT DEFAULT NULL, -- in H-R schema
+    updated TEXT,              -- date the file/record was updated
+    approxHg TEXT              -- approximate haplogroup assigned by DW
+    );
+
+create index fileidx on uploadlog(kitId);
+
+/* surname associated with person and/or kit */
+drop table if exists surname;
+create table surname(
+    ID INTEGER PRIMARY KEY,
+    surname TEXT
+    );
 
 /* description of where data comes from; e.g. Big-Y, FGC Elite, pseudo */
-drop table if exists testtypes;
-create table testtypes(
+drop table if exists TestType;
+create table testtype(
     ID INTEGER PRIMARY KEY,
-    testname TEXT,
-    description TEXT
+    testNm TEXT,               -- the name of the test
+    description TEXT,          -- further description if needed
+    isNGS BOOLEAN,             -- is it a nextgen sequencing test?
+    tagNm TEXT,                -- field in H-R schema
+    priority INTEGER           -- field in H-R schema
     );
 
 /* ancestral country names */
-drop table if exists countries;
-create table countries(
+drop table if exists country;
+create table country(
     ID INTEGER PRIMARY KEY,
-    countryname TEXT           -- full text of country name
+    country TEXT               -- full text of country name
     );
 
 /* ancestral origin normalized names */
-drop table if exists origins;
-create table origins(
+drop table if exists origin;
+create table origin(
     ID INTEGER PRIMARY KEY,
-    originname TEXT           -- normalized ancestral origin name
+    origin TEXT                -- normalized ancestral origin name
     );
 
-/* ancestral origin normalized names */
-drop table if exists labs;
-create table labs(
+/* testing lab names */
+drop table if exists lab;
+create table lab(
     ID INTEGER PRIMARY KEY,
-    labname TEXT           -- name of the testing lab
+    labNm TEXT                 -- name of the testing lab
     );
 
 /* the ranges (min,max) as reported in BED files */
@@ -72,14 +96,14 @@ create index rangeidx2 on bedranges(minaddr);
 /* ranges covered by tests as reported in the individual's BED file */
 drop table if exists bed;
 create table bed(
-    pID INTEGER REFERENCES datasets(ID),
+    pID INTEGER REFERENCES uploadlog(ID),
     bID INTEGER REFERENCES bedranges(ID)
     );
 
 /* calls reported by the individual's VCF file */
 drop table if exists vcfcalls;
 create table vcfcalls(
-    pID INTEGER REFERENCES datasets(ID),
+    pID INTEGER REFERENCES uploadlog(ID),
     vID INTEGER REFERENCES variants(ID)
     );
 
@@ -88,7 +112,7 @@ create index vcfidx on vcfcalls(vID);
 /* per-kit call statistics */
 drop table if exists vcfstats;
 create table vcfstats(
-    pID INTEGER REFERENCES datasets(ID),
+    pID INTEGER REFERENCES uploadlog(ID),
     ny INTEGER,
     nv INTEGER,
     ns INTEGER,
@@ -99,7 +123,7 @@ create table vcfstats(
 /* per-kit BED coverage statistics */
 drop table if exists bedstats;
 create table bedstats(
-    pID INTEGER REFERENCES datasets(ID),
+    pID INTEGER REFERENCES uploadlog(ID),
     coverage1 INTEGER,
     coverage2 INTEGER,
     nranges INTEGER
@@ -108,7 +132,7 @@ create table bedstats(
 /* per-kit calls that are classified REJECTs */
 drop table if exists vcfrej;
 create table vcfrej(
-    pID INTEGER REFERENCES datasets(ID),
+    pID INTEGER REFERENCES uploadlog(ID),
     vID INTEGER REFERENCES variants(ID)
     );
 
@@ -132,7 +156,7 @@ create table strs(
 /* STR values for testers */
 drop table if exists strcalls;
 create table strcalls(
-    pID INTEGER REFERENCES datasets(ID), -- or maybe people?
+    pID INTEGER REFERENCES uploadlog(ID), -- or maybe people?
     val INTEGER
     );
 
@@ -140,7 +164,7 @@ create table strcalls(
 drop table if exists variants;
 create table variants(
     ID INTEGER PRIMARY KEY,
-    buildID INTEGER references builds(ID),
+    buildID INTEGER references build(ID),
     pos INTEGER,
     ref INTEGER references alleles(ID),
     alt INTEGER references alleles(ID) --, fixme
@@ -163,11 +187,11 @@ create table snpnames(
     snpname TEXT
     );
 
-/* builds (reference genome assembly) associated with data sets */
-drop table if exists builds;
-create table builds(
+/* build (reference genome assembly) associated with data sets */
+drop table if exists build;
+create table build(
     ID INTEGER PRIMARY KEY,
-    buildname TEXT
+    buildNm TEXT
     );
 
 /* tree data structure may still need work */

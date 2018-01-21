@@ -45,6 +45,8 @@ for row in csv.reader(names.splitlines()):
 
 # routines - debug
 # fixme - there are too many levels of verbosity - probably should be a bitmap/flags
+# fixme - level is ignored
+# fixme - stdout or stderr?
 def trace (level, msg):
     print(msg)
     #if level <= config['verbosity']:
@@ -285,7 +287,7 @@ def skip_to_Hg19(dbo):
         #vcffiles
 
         trace (2, "Generating database of all variants...")
-        # fixme - populate datasets
+        # fixme - populate uploadlog
         vcffiles = [f for f in os.listdir(os.path.join(config['REDUX_ENV'], config['unzip_dir'])) if f.endswith('.vcf')]
         trace (10, "   %i files detected" % len(vcffiles))
         
@@ -294,7 +296,7 @@ def skip_to_Hg19(dbo):
         #print(REDUX_ENV)
         variant_dict = {}
         for file in vcffiles:
-            # fixme - this should come from walking through datasets
+            # fixme - this should come from walking through uploadlog
             vcf_calls = readHg19Vcf(os.path.join(config['REDUX_ENV'], config['unzip_dir'], file))
             # fixme .update is probably a slow way
             variant_dict.update(vcf_calls)
@@ -422,7 +424,6 @@ def go_prep():
 
     # SKIPZIP check (beg)
 
-    config['skip_zip'] = False
     if not config['skip_zip']:
 
         # Check ZIPDIR - contains existing zip files {{{
@@ -463,7 +464,7 @@ def go_prep():
         # }}}
         # Check whether SNP list exists {{{
 
-        csv = config['SNP_CSV']
+        csv = os.path.join(config['REDUX_DATA'], config['b38_snp_file'])
         if not os.path.exists(csv):
             trace(0,"SNP names file does not exist. Try:")
             trace(0,"wget http://ybrowse.org/gbrowse2/gff/"+csv+" -O "+csv+"\n")
@@ -876,52 +877,72 @@ def get_kits (API='http://haplogroup-r.org/api/v1/uploads.php', qry='format=json
     return js
 
 # update the information about the kits
+# the input is js, a json object that comes from the Haplogroup-R DW API
 def update_metadata(db, js):
     rows = [(
-        # go into datasets table directly
-        jr['kitId'], jr['uploaded'], jr['dataFile'], jr['surname'], jr['long'],
+        # fields that go into uploadlog table directly
+        jr['kitId'], jr['uploaded'], jr['dataFile'], jr['long'],
         jr['lat'], jr['otherInfo'], jr['origFileName'], jr['birthYear'],
-        jr['approxHg'], jr['isNGS'],
+        jr['approxHg'],
         # need inserting into their own tables
-        jr['country'], jr['normalOrig'], jr['lab'], jr['build'], jr['testType'])
+        jr['country'], jr['normalOrig'], jr['lab'], jr['build'],
+        jr['surname'], jr['testType'], jr['isNGS'])
         for jr in js
         ]
     trace(0, 'first row of {}:{}'.format(len(rows),rows[0]))
+
     # populate the dependency tables
-    for tbl,val,idx in (('countries','countryname',-5), ('origins', 'originname',-4),
-                        ('labs', 'labname',-3), ('builds', 'buildname',-2),
-                        ('testtypes', 'testname',-1)):
+    # (testtype,isNGS) goes into testtypes
+    tups = [y for y in set([(r[-2],r[-1]) for r in rows])]
+    db.dc.executemany('insert into testtype(testNm,isNGS) values(?,?)', tups)
+
+    # (surname+kitId+build) goes into person
+    # fixme: we need a DNA-to-person mapping. This is a big kludge
+    tups = [y for y in set([(r[-3],r[0],r[-4]) for r in rows])]
+    db.dc.executemany('insert into person(surname,firstname,middlename) values(?,?,?)',
+                          tups)
+
+    for tbl,val,idx in (('country','country',-7),
+                        ('surname', 'surname',-3),
+                        ('origin', 'origin',-6),
+                        ('lab', 'labNm',-5),
+                        ('build', 'buildNm',-4)):
         tups = [(y,) for y in set([v[idx] for v in rows])]
         trace(1, 'first tuple to insert into {}: {}'.format(tbl, tups[0]))
         db.dc.executemany('insert into {}({}) values(?)'.format(tbl,val), tups)
+
     # create temporary table, where columns correspond to values above
     db.dc.execute('''create temporary table tmpt(
-           a TEXT, b TEXT, c TEXT, d TEXT, e TEXT,
-           f TEXT, g TEXT, h TEXT, i TEXT,
-           j TEXT, k TEXT,
-           l TEXT, m TEXT, n TEXT, o TEXT, p TEXT)''')
+           a TEXT, b TEXT, c TEXT, d TEXT,
+           e TEXT, f TEXT, g TEXT, h TEXT,
+           i TEXT,
+           j TEXT, k TEXT, l TEXT, m TEXT,
+           n TEXT, o TEXT, p TEXT)''')
     db.dc.executemany('''INSERT INTO tmpt(a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p)
         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''', rows)
     db.dc.execute('''
-        INSERT INTO datasets(kitId, uploaded, dataFile, surname, long,
-            lat, otherInfo, origFileName, birthYear,
-            approxHg, isNGS,
-            country, normalOrig, lab, build, testType)
-        SELECT a, b, c, d, e,
-            f, g, h, i,
-            j, k,
-            cn.id, oc.id, ln.id, bn.id, tt.id
+        INSERT INTO uploadlog(kitId, importDt, fileNm, lng,
+            lat, otherInfo, origFileNm, birthYr,
+            approxHg,
+            countryID, normalOrigID, labID, buildID, testTypeID, DNAID, surnameID)
+        SELECT a, b, c, d,
+            e, f, g, h,
+            i,
+            cn.id, oc.id, ln.id, bn.id, tt.id, pn.id, sn.id
         FROM tmpt
-        INNER JOIN countries cn ON tmpt.l = cn.countryname
-        INNER JOIN origins oc ON tmpt.m = oc.originname
-        INNER JOIN labs ln ON tmpt.n = ln.labname
-        INNER JOIN builds bn ON tmpt.o = bn.buildname
-        INNER JOIN testtypes tt ON tmpt.p = tt.testname''')
-    trace(1, '{} rows inserted into datasets'.format(db.dc.execute('select count(*) from datasets').fetchone()[0]))
+        INNER JOIN country cn ON tmpt.j = cn.country
+        INNER JOIN origin oc ON tmpt.k = oc.origin
+        INNER JOIN lab ln ON tmpt.l = ln.labNm
+        INNER JOIN build bn ON tmpt.m = bn.buildNm
+        INNER JOIN surname sn ON tmpt.n = sn.surname
+        INNER JOIN person pn on tmpt.n = pn.surname and tmpt.a = pn.firstname
+            and tmpt.m = pn.middlename
+        INNER JOIN testtype tt ON tmpt.o = tt.testNm and tmpt.p = tt.isNGS''')
+    trace(1, '{} rows inserted into uploadlog'.format(db.dc.execute('select count(*) from uploadlog').fetchone()[0]))
     db.dc.execute('drop table tmpt')
 
 
-# populate datasets information from Haplogroup-R data warehouse API
+# populate uploadlog information from Haplogroup-R data warehouse API
 def populate_fileinfo(dbo):
     js = get_kits()
     update_metadata(dbo, js)
