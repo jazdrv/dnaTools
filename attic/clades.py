@@ -2,6 +2,14 @@
 # coding: utf-8
 # note:: class lib of Jef's original clades.py script
 
+# This file in its original form is good for reference, and it's in the
+# examples directory. That version creates its own database and tables, so it's
+# still functional on hg19 data. 
+
+# Some routines here have been updated with respect to the schema, so I'm
+# putting this file into the attic for now. Some parts of the parsing of BED
+# and VCF parsing may be usable, but it's not really useful beyond that.
+
 import locale,time,subprocess
 #import sqlite3,os,time,sys,random,argparse,locale,csv,subprocess
 #from collections import defaultdict
@@ -138,15 +146,18 @@ class Clades(DB):
         #INS BEDSTATS
 
         self.dc.executemany('insert into bedstats values(?,?,?,?)', stat_list)
-        self.commit()
 
         #INS FILES
 
+        ids={}
         self.dc.execute('insert into uploadlog(kitName) VALUES("implications")')
         myid = self.dc.lastrowid
+        self.dc.execute('insert into uploadlog(kitName) VALUES("^")')
+        ids['^'] = self.dc.lastrowid
+        self.dc.execute('insert into uploadlog(kitName) VALUES("<")')
+        ids['<'] = self.dc.lastrowid
         ll = {}
         vl = []
-        self.commit()
 
         #OPEN IMPLICATIONS
 
@@ -158,13 +169,11 @@ class Clades(DB):
                     ref = toks[3]
                     alt = toks[4]
                     vl.append((addr, ref, alt))
-                    ll[(addr, ref, alt)] = toks[0]
-        self.commit()
+                    ll[(addr, ref, alt)] = ids[toks[0]]
 
         #INS VARIANTS
 
         self.dc.executemany('insert or ignore into variants(pos,anc,der) values (?,?,?)', ll)
-        self.commit()
         cl = []
 
         for tup in vl:
@@ -173,14 +182,12 @@ class Clades(DB):
 
         #DEL VCFCALLS
 
-        self.dc.execute ('delete from vcfcalls where id=?', (myid,))
+        self.dc.execute ('delete from vcfcalls where pID=?', (myid,))
         trace(3, 'inserting to vcfcalls {}'.format(cl))
 
         #INS VCFCALLS
 
-        self.dc.executemany('insert into vcfcalls(id, vid, origin) values(?,?,?)', cl)
-
-        self.commit()
+        self.dc.executemany('insert into vcfcalls(pid, vid) values(?,?)', [(v[2],v[1]) for v in cl])
 
         calls = []
         rejects = []
