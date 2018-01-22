@@ -47,7 +47,12 @@ class DB(object):
         self.run_sql_file(os.path.join(config['REDUX_SQL'],schemafile))
 
     # get build identifier by its name; creates new entry if needed
+    # known aliases are reduced to one entry
     def get_build_byname(self, buildname='hg38'):
+        if buildname.lower().strip() in ('hg19', 'grch37', 'b19', 'b37'):
+            buildname = 'hg19'
+        elif buildname.lower().strip() in ('hg38', 'grch38', 'b38'):
+            buildname = 'hg38'
         dc = self.dc.execute('select id from build where buildNm=?', (buildname,))
         bid = None
         for bid, in dc:
@@ -62,18 +67,12 @@ class DB(object):
     # fixme - pos and ref ids
     def insert_variants(self, variant_array, buildname='hg38'):
         bid = self.get_build_byname(buildname)
-        self.dc.executemany('INSERT INTO variants(buildID,pos,ref,alt) VALUES (?,?,?,?)', [(bid,)+v for v in variant_array])
+        self.dc.executemany('INSERT INTO variants(buildID,pos,anc,der) VALUES (?,?,?,?)', [(bid,)+v for v in variant_array])
 
     # insert a vector of variant ids to insert for a given person specified by pid
     def insert_calls(self, pid, calls):
         self.dc.executemany('INSERT INTO vcfcalls(pID,vID) values (?,?)', [(pid,v) for v in calls])
 
-    # update snp definitions from a csv DictReader instance
-    # fixme - update snpnames
-    def updatesnps(self,snp_reference, buildname='hg38'):
-        bid = self.get_build_byname(buildname)
-        self.dc.executemany('INSERT INTO variants(buildID,pos,ref,alt) VALUES (?,?,?,?)',
-            ((bid, rec['start'], rec['allele_anc'], rec['allele_der']) for rec in snp_reference))
 
     # fixme: migrate to schema
     def insert_sample_sort_data(self):

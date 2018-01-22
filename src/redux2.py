@@ -525,7 +525,7 @@ def main():
         trace (30, "      Check variant [%s] position is %s" % (len(variant_dict)-1, variant_array[len(variant_dict)-1][1]))
 
         trace (20, "   Inserting data into variant array database...")
-        dc.executemany('''INSERT INTO variants(id,ref,alt) VALUES (?,?,?)''', variant_array)
+        dc.executemany('''INSERT INTO variants(id,anc,der) VALUES (?,?,?)''', variant_array)
 
 #        Test data has entered database correctly
 #        dc.execute('SELECT * FROM variants LIMIT 5')

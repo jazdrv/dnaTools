@@ -146,12 +146,12 @@ class Clades(DB):
 
         #INS VARIANTS
 
-        self.dc.executemany('insert or ignore into variants(pos,ref,alt) values (?,?,?)', ll)
+        self.dc.executemany('insert or ignore into variants(pos,anc,der) values (?,?,?)', ll)
         self.commit()
         cl = []
 
         for tup in vl:
-            tid = self.dc.execute('select id from variants where pos=? and ref=? and alt=?', tup).fetchone()[0]
+            tid = self.dc.execute('select id from variants where pos=? and anc=? and der=?', tup).fetchone()[0]
             cl.append((myid, tid, ll[tup]))
 
         #DEL VCFCALLS
@@ -213,10 +213,10 @@ class Clades(DB):
         for iid, pos, ref, alt in rejects:
             try:
                 #SEL VARIANTS
-                vid = self.dc.execute('select id from variants where pos=? and ref=? and alt=?', (pos,ref,alt)).fetchone()[0]
+                vid = self.dc.execute('select id from variants where pos=? and anc=? and der=?', (pos,ref,alt)).fetchone()[0]
             except:
                 #INS VARIANTS
-                self.dc.execute('insert into variants(pos,ref,alt) values (?,?,?)', (pos,ref,alt))
+                self.dc.execute('insert into variants(pos,anc,der) values (?,?,?)', (pos,ref,alt))
                 vid = self.dc.lastrowid
             vl.append((iid,vid))
 
@@ -228,10 +228,10 @@ class Clades(DB):
         for iid, pos, ref, alt in calls:
             try:
                 #SEL VARIANTS
-                vid = self.dc.execute('select id from variants where pos=? and ref=? and alt=?', (pos,ref,alt)).fetchone()[0]
+                vid = self.dc.execute('select id from variants where pos=? and anc=? and der=?', (pos,ref,alt)).fetchone()[0]
             except:
                 #INS VARIANTS
-                self.dc.execute('insert into variants(pos,ref,alt) values (?,?,?)', (pos,ref,alt))
+                self.dc.execute('insert into variants(pos,anc,der) values (?,?,?)', (pos,ref,alt))
                 vid = self.dc.lastrowid
             vl.append((iid,vid))
 
@@ -284,13 +284,13 @@ class Clades(DB):
         # corrected when we write at the end
 
         ref_swaps = {}
-        swaps = c1.execute('select v.id,v.pos,v.ref,v.alt from variants v, vcfcalls c where c.vid=v.id and c.origin="<"')
+        swaps = c1.execute('select v.id,v.pos,v.anc,v.der from variants v, vcfcalls c where c.vid=v.id and c.origin="<"')
 
         for vid,pos,ref,alt in swaps:
             # ref_swaps[vid] = (ref,alt) # as specified in implications
             trace(2,'swappos id={}:{}.{}.{}'.format(vid,pos,ref,alt))
             #SEL VARIANTS
-            vc =c2.dc.execute('select id from variants where pos=? and ref=? and alt=?', (pos,alt,ref)) # swapped version versus what's in implications
+            vc =c2.dc.execute('select id from variants where pos=? and anc=? and der=?', (pos,alt,ref)) # swapped version versus what's in implications
             for (vid,) in vc: # swapped version appears in variants
                 trace(2,'swappos id={}:{}.{}.{}'.format(vid,pos,alt,ref))
                 ref_swaps[vid] = (ref,alt)
@@ -321,7 +321,7 @@ class Clades(DB):
         # which variants are SNPS
         snps = {}
         #SEL VARIANTS
-        vl = c1.execute('select id from variants where length(ref)=1 and length(alt)=1')
+        vl = c1.execute('select id from variants where length(anc)=1 and length(der)=1')
 
         for (vid,) in vl:
             snps[vid] = True
@@ -329,7 +329,7 @@ class Clades(DB):
         # which variants are indels
         indels = {}
         #SEL VARIANTS
-        vl = c1.execute('select id from variants where (length(ref)>1 or length(alt)>1)')
+        vl = c1.execute('select id from variants where (length(anc)>1 or length(der)>1)')
 
         for (vid,) in vl:
             indels[vid] = True
@@ -393,7 +393,7 @@ class Clades(DB):
 
         for vid in vcounts:
             #SEL VARIANTS
-            c1 = c1.execute('select pos,ref,alt from variants where id=?', (vid,))
+            c1 = c1.execute('select pos,anc,der from variants where id=?', (vid,))
             pos,ref,alt = next(c1)
             vrai_vector.append((pos,ref,alt,vid))
             trace(3,'{}'.format(vrai_vector[-1]))
@@ -535,9 +535,9 @@ class Clades(DB):
                 snps[snpdef].append(row['Name'])
             for snp in snps:
                 #INS VARIANTS
-                self.dc.execute('insert or ignore into variants(pos,ref,alt) values(?,?,?)', snp)
+                self.dc.execute('insert or ignore into variants(pos,anc,der) values(?,?,?)', snp)
                 #SEL VARIANTS
-                c1 = self.dc.execute('select id from variants where pos=? and ref=? and alt=?', snp)
+                c1 = self.dc.execute('select id from variants where pos=? and anc=? and der=?', snp)
                 vid = c1.fetchone()[0]
                 for n in snps[snp]:
                     #INS SNPNAMES
@@ -592,7 +592,7 @@ class Clades(DB):
 
             #SEL VARIANTS
 
-            c1r = self.dc.execute('select pos,ref,alt,id from variants where pos=?', (pos,))
+            c1r = self.dc.execute('select pos,anc,der,id from variants where pos=?', (pos,))
             for row in c1r:
                 print('{:>8}.{}.{} - {} (id={})'.format(row[0], row[1], row[2], '/'.join(nams),row[3]))
 

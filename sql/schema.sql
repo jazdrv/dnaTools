@@ -39,6 +39,7 @@ create table uploadlog(
     accessToken TEXT DEFAULT NULL, -- in H-R schema
     updated TEXT,              -- date the file/record was updated
     approxHg TEXT              -- approximate haplogroup assigned by DW
+    -- unique(kitId)
     );
 
 create index fileidx on uploadlog(kitId);
@@ -61,18 +62,30 @@ create table testtype(
     priority INTEGER           -- field in H-R schema
     );
 
+/* regions of interest, e.g. chrY, b38, 57000000 */
+drop table if exists Contig;
+CREATE TABLE Contig(
+    id INTEGER PRIMARY KEY,
+    buildID INTEGER references build(ID), -- reference build for the region
+    description TEXT,          -- e.g. chrY
+    length INTEGER
+    );
+
+
 /* ancestral country names */
 drop table if exists country;
 create table country(
     ID INTEGER PRIMARY KEY,
-    country TEXT               -- full text of country name
+    country TEXT,              -- full text of country name
+    unique(country)
     );
 
 /* ancestral origin normalized names */
 drop table if exists origin;
 create table origin(
     ID INTEGER PRIMARY KEY,
-    origin TEXT                -- normalized ancestral origin name
+    origin TEXT,               -- normalized ancestral origin name
+    unique(origin)
     );
 
 /* testing lab names */
@@ -166,9 +179,9 @@ create table variants(
     ID INTEGER PRIMARY KEY,
     buildID INTEGER references build(ID),
     pos INTEGER,
-    ref INTEGER references alleles(ID),
-    alt INTEGER references alleles(ID) --, fixme
-    -- fixme UNIQUE(buildID, pos, ref, alt)
+    anc INTEGER references alleles(ID),
+    der INTEGER references alleles(ID),
+    UNIQUE(buildID, pos, anc, der)
     );
 
 create index varidx on variants(buildID, pos);
@@ -177,7 +190,8 @@ create index varidx on variants(buildID, pos);
 drop table if exists alleles;
 create table alleles(
     ID INTEGER PRIMARY KEY,
-    allele TEXT                   -- the allele value, e.g. "A" or "TTGT"
+    allele TEXT,                  -- the allele value, e.g. "A" or "TTGT"
+    unique(allele)
     );
 
 /* names and aliases associated with variants */
@@ -185,13 +199,15 @@ drop table if exists snpnames;
 create table snpnames(
     vID INTEGER REFERENCES variants(ID),
     snpname TEXT
+    -- unique(snpname,vID)
     );
 
 /* build (reference genome assembly) associated with data sets */
 drop table if exists build;
 create table build(
     ID INTEGER PRIMARY KEY,
-    buildNm TEXT
+    buildNm TEXT,
+    unique(buildNm)
     );
 
 /* tree data structure may still need work */

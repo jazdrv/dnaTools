@@ -9,6 +9,8 @@
 # version 3 (29 June 2007)
 # https://www.gnu.org/licenses/gpl.html
 
+# run this script as a command with no args to execute some tests
+
 # }}}
 # libs {{{
 
@@ -853,43 +855,45 @@ def populate_STRs(dbo, ordering=None):
         for tup in enumerate(strdefs):
             dbo.dc.execute('insert into strs(ordering,strname) values(?,?)', tup)
 
-# populate SNP definitions
-def populate_SNPs(dbo):
-    # update known snps for hg19 and hg38
-    with open(os.path.join(config['REDUX_DATA'], config['b37_snp_file'])) as snpfile:
-        snp_reference = csv.DictReader(snpfile)
-        dbo.updatesnps(snp_reference, 'hg19')
-    with open(os.path.join(config['REDUX_DATA'], config['b38_snp_file'])) as snpfile:
-        snp_reference = csv.DictReader(snpfile)
-        dbo.updatesnps(snp_reference, 'hg38')
-
 
 # pull information about the kits from the web api
+# if API==None, read from
 def get_kits (API='http://haplogroup-r.org/api/v1/uploads.php', qry='format=json'):
     import requests, json
-    url = '?'.join([API, qry])
     try:
-        res = requests.get(url)
-        js = json.loads(res.content)
+        # choose where to pull the kit data
+        if not API:
+            trace(0, 'reading kit info from json.out')
+            js = json.loads(open('json.out').read())
+        else:
+            trace(0, 'reading kit info from the web')
+            url = '?'.join([API, qry])
+            res = requests.get(url)
+            js = json.loads(res.content)
+            open('json.out','w').write(json.dumps(js))
     except:
         print('Failed to pull kit metadata from {}'.format(API))
         raise # fixme - what to do on error
+        
     return js
 
 # update the information about the kits
 # the input is js, a json object that comes from the Haplogroup-R DW API
 def update_metadata(db, js):
+    blds = {'b38': 'hg38', 'b19': 'hg19', 'b37': 'hg19'}
     rows = [(
         # fields that go into uploadlog table directly
-        jr['kitId'], jr['uploaded'], jr['dataFile'], jr['long'],
+        jr['kitId'].strip(), jr['uploaded'], jr['dataFile'], jr['long'],
         jr['lat'], jr['otherInfo'], jr['origFileName'], jr['birthYear'],
         jr['approxHg'],
         # need inserting into their own tables
-        jr['country'], jr['normalOrig'], jr['lab'], jr['build'],
+        jr['country'], jr['normalOrig'], jr['lab'], blds[jr['build']],
         jr['surname'], jr['testType'], jr['isNGS'])
         for jr in js
         ]
-    trace(0, 'first row of {}:{}'.format(len(rows),rows[0]))
+    trace(0, 'first row out of {}:{}'.format(len(rows),rows[0]))
+    trace(0, '{} unique kit ids'.format(len(set([v['kitId'] for v in js]))))
+    trace(0, '{} null surname'.format(len([v['surname'] for v in js if not v['surname']])))
 
     # populate the dependency tables
     # (testtype,isNGS) goes into testtypes
@@ -909,7 +913,8 @@ def update_metadata(db, js):
                         ('build', 'buildNm',-4)):
         tups = [(y,) for y in set([v[idx] for v in rows])]
         trace(1, 'first tuple to insert into {}: {}'.format(tbl, tups[0]))
-        db.dc.executemany('insert into {}({}) values(?)'.format(tbl,val), tups)
+        db.dc.executemany('insert or ignore into {}({}) values(?)'.format(tbl,val),
+                              tups)
 
     # create temporary table, where columns correspond to values above
     db.dc.execute('''create temporary table tmpt(
@@ -930,31 +935,134 @@ def update_metadata(db, js):
             i,
             cn.id, oc.id, ln.id, bn.id, tt.id, pn.id, sn.id
         FROM tmpt
-        INNER JOIN country cn ON tmpt.j = cn.country
-        INNER JOIN origin oc ON tmpt.k = oc.origin
+        INNER JOIN country cn ON
+            tmpt.j = cn.country or (cn.country is NULL and tmpt.j is NULL)
+        INNER JOIN origin oc ON
+            tmpt.k = oc.origin or (oc.origin is NULL and tmpt.k is NULL)
         INNER JOIN lab ln ON tmpt.l = ln.labNm
         INNER JOIN build bn ON tmpt.m = bn.buildNm
-        INNER JOIN surname sn ON tmpt.n = sn.surname
-        INNER JOIN person pn on tmpt.n = pn.surname and tmpt.a = pn.firstname
-            and tmpt.m = pn.middlename
+        INNER JOIN surname sn ON
+            tmpt.n = sn.surname or (sn.surname is NULL and tmpt.n is NULL)
+        INNER JOIN person pn ON
+            (tmpt.n = pn.surname or (tmpt.n is NULL and pn.surname is NULL)) AND
+            (tmpt.a = pn.firstname or (tmpt.a is NULL and pn.firstname is NULL)) AND
+            (tmpt.m = pn.middlename or (tmpt.m is NULL and pn.middlename is NULL))
         INNER JOIN testtype tt ON tmpt.o = tt.testNm and tmpt.p = tt.isNGS''')
     trace(1, '{} rows inserted into uploadlog'.format(db.dc.execute('select count(*) from uploadlog').fetchone()[0]))
     db.dc.execute('drop table tmpt')
 
+# load data into the contig table
+def populate_contigs(db):
+    bid = db.get_build_byname('hg19')
+    db.dc.execute('insert into Contig(buildID,description,length) values(?,?,?)',
+                      (bid, 'chrY', 59373566))
+    bid = db.get_build_byname('hg38')
+    db.dc.execute('insert into Contig(buildID,description,length) values(?,?,?)',
+                      (bid, 'chrY', 57227415))
 
 # populate uploadlog information from Haplogroup-R data warehouse API
-def populate_fileinfo(dbo):
-    js = get_kits()
+def populate_fileinfo(dbo, fromweb=True):
+    if fromweb:
+        js = get_kits()
+    else:
+        js = get_kits(API=None)
     update_metadata(dbo, js)
 
+# update snp definitions from a csv DictReader instance
+# fixme - update snpnames
+def updatesnps(db, snp_reference, buildname='hg38'):
+    bid = db.get_build_byname(buildname)
+    db.dc.execute('create temporary table tmpt(a integer, b integer, c text, d text, e text, unique(a,b,c,d,e))')
+    db.dc.executemany('INSERT OR IGNORE INTO tmpt(a,b,c,d,e) VALUES (?,?,?,?,?)',
+             ((bid, rec['start'],
+                   rec['allele_anc'].strip(), rec['allele_der'].strip(), rec['Name'])
+                     for rec in snp_reference))
+    db.dc.execute('''insert or ignore into alleles(allele) 
+                        select distinct c from tmpt''')
+    db.dc.execute('''insert or ignore into alleles(allele) 
+                        select distinct d from tmpt''')
+    db.dc.execute('''insert or ignore into variants(buildID, pos, anc, der)
+                        select a, b, an.id, dr.id from tmpt
+                        inner join alleles an on an.allele = c
+                        inner join alleles dr on dr.allele = d''')
+    db.dc.execute('''insert or ignore into snpnames(snpname,vID)
+                        select t.e, v.id from tmpt t, variants v, alleles a, alleles d
+                        where t.c=a.allele and v.anc=a.id and
+                              t.d=d.allele and v.der=d.id and
+                              v.pos = t.b and v.buildID=t.a''')
+
+    db.dc.execute('drop table tmpt')
+
+# pull SNP definitions from the web at ybrowse.org
+# this should be called after the build table is populated
+# refresh files if they are older than maxage; do nothing if maxage < 0
+def get_SNPdefs_fromweb(db, maxage, url='http://ybrowse.org/gbrowse2/gff'):
+    import urllib, time
+    if maxage < 0:
+        return
+    for (build,) in db.dc.execute('select buildNm from build'):
+        deltat = maxage + 1
+        fbase = 'snps_{}.csv'.format(build)
+        trace (0, 'refresh: {}'.format(fbase))
+        fget = os.path.join(url, fbase)
+        fname = os.path.join(config['REDUX_DATA'], fbase)
+        try:
+            if os.path.exists(fname):
+                deltat = time.time() - os.path.getmtime(fname)
+            if deltat > maxage:
+                urllib.request.urlretrieve(fget, fname)
+                deltat = time.time() - os.path.getmtime(fname)
+        except:
+            pass
+        if not os.path.exists(fname) or deltat > maxage:
+            trace(0, 'failed to update {} from the web'.format(fname))
+    return
+
+# populate SNP definitions; refresh from web if we have is older than maxage (seconds)
+def populate_SNPs(dbo, maxage=3600*24*5):
+    get_SNPdefs_fromweb(dbo, maxage=maxage)
+    # update known snps for hg19 and hg38
+    with open(os.path.join(config['REDUX_DATA'], config['b37_snp_file'])) as snpfile:
+        snp_reference = csv.DictReader(snpfile)
+        updatesnps(db, snp_reference, 'hg19')
+    with open(os.path.join(config['REDUX_DATA'], config['b38_snp_file'])) as snpfile:
+        snp_reference = csv.DictReader(snpfile)
+        updatesnps(db, snp_reference, 'hg38')
 
 # test framework
 if __name__ == '__main__':
-    print (config)
+    # print (config)
     db = DB(drop=True)
     db.create_schema()
+    populate_fileinfo(db, fromweb=True)
     populate_STRs(db)
     populate_SNPs(db)
-    populate_fileinfo(db)
+    populate_contigs(db)
     db.commit()
     db.close()
+
+sanity_tests='''
+./lib.py
+should produce no errors and produce variants.db after some time
+
+sqlite3 variants.db
+sqlite> .mode tabs
+sqlite> .header on
+
+sqlite> select vid, snpname, der, allele from snpnames inner join variants v on v.id=vid and v.pos=6753258 inner join alleles a on v.der=a.id;
+
+should return nine rows similar to
+vID	snpname	der	allele
+7574	L147.2	3	C
+7574	L147.5	3	C
+7574	L147.3	3	C
+179549	L1283	4	G
+181076	Y8884	2	A
+7574	L147.4	3	C
+7574	PF4883	3	C
+7574	L147.1	3	C
+7574	L147	3	C
+
+sqlite> select count(*) from variants;
+613049
+'''
