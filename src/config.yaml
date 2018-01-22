@@ -49,17 +49,19 @@ zip_update_only: True
 # results should be all positive or all negative for the group.
 test_for_ref_pos: False
 
-zip_dir: zips #hg19 stuff
-unzip_dir: unzips #hg19 - currently for redux2.py (redux2z.py)
-unzip_dir_clades: unzips.clades #hg19 - keeping this apart for now
+# location of the data files, under REDUX_DATA
+# zip_dir contains original zip files; unzip <may> contain extracted files
+zip_dir: zip
+unzip_dir: unzip
 
-zip2_dir: zips2 #hg38 stuff
-unzip2_dir: unzips2 #hg38 stuff
+# special case extra args for the unpack-zip-files command
+unpack_args: -s 6:1,2,3,4,5,6 
+unpack_args:
 
-zip_set: -s 6:1,2,3,4,5,6 
-
-bash_only: True
-recreate_db: True
+# the name of the hg19 and hg38 named SNP definitions files
+# these should not need to be changed; they are pulled from the web
+b37_snp_file: "snps_hg19.csv"
+b38_snp_file: "snps_hg38.csv"
 
 zero_age: 1950.33
 err_zero_age: 15.02
@@ -70,11 +72,6 @@ err_zero_age: 15.02
 DEBUG: 0
 
 verbosity: 30
-
-# the name of the hg19 and hg38 named SNP definitions files
-# these should not need to be changed; they are pulled from the web
-b37_snp_file: "snps_hg19.csv"
-b38_snp_file: "snps_hg38.csv"
 
 drop_tables: 1
 

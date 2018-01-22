@@ -57,7 +57,7 @@ class Clades(DB):
 
         #GET THE UNZIPS
 
-        UNZIP_DIR = config['unzip_dir_clades']
+        UNZIP_DIR = os.path.join(config['REDUX_DATA'], config['unzip_dir'])
         files = sorted(os.listdir(UNZIP_DIR), key=locale.strxfrm)
 
         # DB METADATA
@@ -76,7 +76,7 @@ class Clades(DB):
 
         #INS FILES
 
-        self.dc.execute('insert into datasets(name) VALUES("age.bed")')
+        self.dc.execute('insert into uploadlog(kitName) VALUES("age.bed")')
         myid = self.dc.lastrowid
 
         #OPEN AGE.BED
@@ -87,8 +87,16 @@ class Clades(DB):
             ranges.append((myid, int(minr), int(maxr)))
 
         #INS BED
-
-        self.dc.executemany('insert into bed values(?,?,?)', ranges)
+        self.dc.execute('drop table if exists tmpt')
+        self.dc.execute('create temporary table tmpt(a,b,c)')
+        self.dc.executemany('insert into tmpt values(?,?,?)', ranges)
+        self.dc.execute('''insert or ignore into bedranges(minaddr,maxaddr)
+                           select b,c from tmpt''')
+        self.dc.execute('''insert into bed(pID, bID)
+                           select t.a, br.id from bedranges br
+                           inner join tmpt t on
+                           t.b=br.minaddr and t.c=br.maxaddr''')
+        self.dc.execute('drop table tmpt')
 
         cover_ranges = ranges
         trace(1, 'enter at {:.2f} seconds'.format(time.time() - t0))
@@ -99,7 +107,7 @@ class Clades(DB):
 
         for nf,fname in enumerate(files):
             if fname.endswith('.bed'):
-                self.dc.execute('insert into datasets(name,kit,seq) VALUES(?,1,?)', (os.path.splitext(fname)[0],nf))
+                self.dc.execute('insert into uploadlog(kitName,kitId,seq) VALUES(?,1,?)', (os.path.splitext(fname)[0],nf))
                 myid = self.dc.lastrowid
                 ranges = []
                 try:
@@ -112,7 +120,16 @@ class Clades(DB):
 
                 #INS BED
 
-                self.dc.executemany('insert into bed values(?,?,?)', ranges)
+                self.dc.execute('drop table if exists tmpt')
+                self.dc.execute('create temporary table tmpt(a,b,c)')
+                self.dc.executemany('insert into tmpt values(?,?,?)', ranges)
+                self.dc.execute('''insert or ignore into bedranges(minaddr,maxaddr)
+                                   select b,c from tmpt''')
+                self.dc.execute('''insert into bed(pID, bID)
+                               select t.a, br.id from bedranges br
+                               inner join tmpt t on
+                               t.b=br.minaddr and t.c=br.maxaddr''')
+
                 tcover, pcover = get_coverage(ranges, cover_ranges)
                 stat_list.append((myid, tcover, pcover, len(ranges)))
 
@@ -125,7 +142,7 @@ class Clades(DB):
 
         #INS FILES
 
-        self.dc.execute('insert into datasets(name) VALUES("implications")')
+        self.dc.execute('insert into uploadlog(kitName) VALUES("implications")')
         myid = self.dc.lastrowid
         ll = {}
         vl = []
@@ -176,7 +193,7 @@ class Clades(DB):
         for fname in files:
             if fname.endswith('.vcf'):
                 ny = nv = ns = ni = nr = 0
-                myid = self.dc.execute('select id from datasets where name = ?', (os.path.splitext(fname)[0],)).fetchone()[0]
+                myid = self.dc.execute('select id from uploadlog where kitName = ?', (os.path.splitext(fname)[0],)).fetchone()[0]
                 trace(3, 'reading file {} from {}'.format(fname,
                     UNZIP_DIR))
                 with open(os.path.join(UNZIP_DIR, fname)) as lines:
@@ -514,13 +531,13 @@ class Clades(DB):
         
     def listfiles(self):
         # list out which files are stored, in sort order
-        c = self.dc.execute('select name,seq from datasets where kit=1 order by 2')
+        c = self.dc.execute('select kitName,seq from uploadlog where kit=1 order by 2')
         for row in c:
             print(row[0])
         
     def listbed(self):
         # list out full path bed files, in sort order
-        c = self.dc.execute('select name,seq from datasets where kit=1 order by 2')
+        c = self.dc.execute('select kitName,seq from uploadlog where kit=1 order by 2')
         for row in c:
             print(os.path.join(UNZIP_DIR,row[0])+'.bed')
         self.dbo.commit()
@@ -613,7 +630,7 @@ class Clades(DB):
 
             for iid in kitids:
                 #SEL FILES
-                c1r = self.dc.execute('select name from datasets where id=?', (iid,))
+                c1r = self.dc.execute('select kitName from uploadlog where id=?', (iid,))
                 print(c1r.fetchone()[0])
 
         if vars(self.namespace)['implications']:
@@ -758,7 +775,7 @@ class Clades(DB):
                 for kit in range(minidx,maxidx+1):
                     trace(3,'checking kit {} for snpid {}'.format(kit,r1[0]))
                     #SEL VCFCALLS
-                    hasit = c3.execute('select id from vcfcalls where vid=? and id=(select id from datasets where seq=?)', (r1[0], kit))
+                    hasit = c3.execute('select id from vcfcalls where vid=? and id=(select id from uploadlog where seq=?)', (r1[0], kit))
                     try:
                         snpid = next(hasit)
                         continue

@@ -18,18 +18,19 @@ drop table if exists uploadlog;
 create table uploadlog(
     ID INTEGER PRIMARY KEY,
     seq INTEGER DEFAULT 0,     -- can be used to order files arbitrarily
+    kitName TEXT,              -- can be a simple name for the dataset
     DNAID INTEGER references person(ID), -- whose DNA is this?
     -- the following fields are directly derived from H-R DW API json
     contact TEXT,              -- contact info for person who uploaded
-    kitId TEXT NOT NULL,       -- the ID assigned by the lab
+    kitId TEXT,                -- the ID assigned by the lab
     surnameID INTEGER references surname(ID), -- ancestral surname
     countryID INTEGER references country(ID), -- ancestral country
     birthYr INTEGER DEFAULT NULL, -- birth year of MDKA
     labID INTEGER references lab(id), -- testing lab
     testTypeID INTEGER REFERENCES testtype(ID), -- type of DNA test
     buildID INTEGER references build(ID), -- reference build for the test
-    importDt TEXT NOT NULL,    -- when originally imported
-    fileNm TEXT NOT NULL,      -- normalized file/path name
+    importDt TEXT,             -- when originally imported
+    fileNm TEXT,               -- normalized file/path name
     origFileNm TEXT,           -- the original file name from user
     otherInfo TEXT,            -- freeform text entered by user
     normalOrigID INTEGER references origin(ID), -- normalized ancestral origin
@@ -100,7 +101,8 @@ drop table if exists bedranges;
 create table bedranges(
     ID INTEGER PRIMARY KEY,
     minaddr INTEGER,
-    maxaddr INTEGER
+    maxaddr INTEGER,
+    unique(minaddr, maxaddr)
     );
 
 create index rangeidx on bedranges(minaddr);
