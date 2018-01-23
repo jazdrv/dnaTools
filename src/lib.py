@@ -902,10 +902,71 @@ def populate_SNPs(dbo, maxage=3600*24*5):
         snp_reference = csv.DictReader(snpfile)
         updatesnps(db, snp_reference, 'hg38')
 
+# return a) sum of BED ranges for kit (how many bases are covered by the test)
+# and b) sum of coverage that is in the age BED range. These stats are needed
+# for age calculations
+def get_kit_coverage(dbo, pid):
+    # work in progress Jef
+    br = dbo.dc.execute('''select 1,minaddr from bedranges r
+                           inner join bed b on b.bid=r.id and b.pid=?
+                                union
+                           select 1,maxaddr from bedranges r
+                           inner join bed b on b.bid=r.id and b.pid=?
+                                union
+                           select 2,minaddr from bedranges b, agebed a
+                           where a.bID=b.id
+                                union
+                           select 2,maxaddr from bedranges b, agebed a
+                           where a.bID=b.id
+                           order by 2,1''', (pid,pid))
+    ids = {1:0, 2:1}
+    accum1 = 0
+    toggles = [False, False]
+    post = None
+    for r in br:
+        toggles[ids[r[0]]] ^= True
+        if post and (toggles[0] ^ toggles[1]):
+            accum1 += r[1]-post
+            post = None
+        elif toggles[0] & toggles[1]:
+            post = r[1]
+    if post:
+        accum1 += r[1]-post
+    accum2 = dbo.dc.execute('''select sum(maxaddr-minaddr) from bedranges r
+                           inner join bed b on r.id=b.bid''').fetchone()[0]
+    return accum2, accum1
+
+
+# return a vector of calls for person and a corresponding vector of BED range
+# coverage that represents if the call is a) in a range, b) on the lower edge
+# of a range, c) on the upper edge of a range, or d) not covered by a range
+def get_call_coverage(dbo, pid):
+    # stub work in progress Jef
+    return [], []
+
 # populate regions from a FTDNA BED file
 # fname is an unpacked BED file
 def populate_from_BED_file(dbo, pid, fname):
-    # stub work in progress Jef
+    ranges = []
+    try:
+        with open(os.path.join(data_path(config['unzip_dir']), fname)) as fp:
+            for line in fp:
+                ychr, minr, maxr = line.split()
+                ranges.append((pid, int(minr), int(maxr)))
+    except:
+        trace(0, 'FAILED on file {}'.format(os.path.join(data_path(config['unzip_dir']), fname)))
+        return
+    trace(0, '{} ranges for pID {}'.format(len(ranges), pid))
+
+    dbo.dc.execute('drop table if exists tmpt')
+    dbo.dc.execute('create temporary table tmpt(a,b,c)')
+    dbo.dc.executemany('insert into tmpt values(?,?,?)', ranges)
+    dbo.dc.execute('''insert or ignore into bedranges(minaddr,maxaddr)
+                      select b,c from tmpt''')
+    dbo.dc.execute('''insert into bed(pID, bID)
+                      select t.a, br.id from bedranges br
+                      inner join tmpt t on
+                      t.b=br.minaddr and t.c=br.maxaddr''')
     return
 
 # populate calls, quality, and variants from a VCF file
@@ -921,8 +982,8 @@ def populate_from_zip_file(dbo, fname):
     # stub work in progress Jef
     # unpack bed and vcf to a temporary unzip dir
     # use the surname-kitID of unzip file as the kit name in the dataset table
+    # create dataset entry if needed
     # pid = get_person_id
-    # pid = id from dataset for this entry
     # auto-determine build name for FTDNA to get build id (parsed from first lines)
     # bid = get_build_byname()
     # fname = unpacked vcf from unzip dir
@@ -935,12 +996,16 @@ if __name__ == '__main__':
     # print (config)
     db = DB(drop=True)
     db.create_schema()
-    populate_fileinfo(db, fromweb=True)
+    populate_fileinfo(db, fromweb=False)
     populate_STRs(db)
     populate_SNPs(db)
     populate_contigs(db)
     populate_age(db)
     extract_zipdir()
+    pID = populate_from_zip_file(db, 'One-001.vcf')
+    populate_from_BED_file(db, 1, 'One-001.bed')
+    db.commit()
+    trace(0,'kit coverage: {}'.format(get_kit_coverage(db, 1)))
     db.commit()
     db.close()
 
