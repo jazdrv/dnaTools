@@ -26,24 +26,6 @@ config = yaml.load(open(REDUX_CONF))
 import sys
 sys.path.insert(0, config['REDUX_ENV'])
 
-# ==
-# USER DEFINED FILE MAPPING
-# ==
-names = """
-FTDNA345238Newell.zip, 345238, Newell
-155941_BigY_RawData_20140911-1.zip, 155941, Unknown
-Lee 237414 BigY Raw Data.zip, 237414, Lee
-U106_515653_Hogenmiller_BigY_RawData_2016_11_20.zip, 515653, Hogenmiller
-bigy-Bettinger57020.zip, 57020, Bettinger
-"""
-# ==
-# RENAME_DICT
-# ==
-rename_dict = {}
-for row in csv.reader(names.splitlines()):
-    if row and row[0]:
-        rename_dict[row[0].strip()] = (row[1].strip(), row[2].strip())
-# ==
 
 # routines - debug
 # fixme - there are too many levels of verbosity - probably should be a bitmap/flags
@@ -57,7 +39,7 @@ def trace (level, msg):
     #sys.stderr(flush)
 
 
-# return a full rela
+# return a path to a file or directory in the configured data dir
 def data_path(fname):
     return os.path.join(config['REDUX_DATA'], fname)
 
@@ -1062,6 +1044,11 @@ def populate_SNPs(dbo, maxage=3600*24*5):
     with open(os.path.join(config['REDUX_DATA'], config['b38_snp_file'])) as snpfile:
         snp_reference = csv.DictReader(snpfile)
         updatesnps(db, snp_reference, 'hg38')
+
+# populate calls, quality, and variants from a VCF file
+def populate_from_VCF_file(bid, pid, fname):
+    # stub work in progress Jef
+    return
 
 # test framework
 if __name__ == '__main__':
