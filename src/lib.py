@@ -57,7 +57,9 @@ def trace (level, msg):
     #sys.stderr(flush)
 
 
-# routines - file/dir - Zak
+# return a full rela
+def data_path(fname):
+    return os.path.join(config['REDUX_DATA'], fname)
 
 def refresh_dir(DIR,cleanFlag=False):
     DIR = os.path.join(config['REDUX_ENV'], DIR)
@@ -69,34 +71,29 @@ def refresh_dir(DIR,cleanFlag=False):
                 os.remove(f)
     else:
         os.makedirs(DIR)
-    
-def delete_file(FILE):
-    FILE = os.path.join(config['REDUX_ENV'], FILE)
-    if os.path.exists(FILE):
-        os.remove(FILE)
-    
+
+# update the mtime of a file without changing file contents
 def touch_file(FILE):
-    FILE = os.path.join(config['REDUX_ENV'], FILE)
-    if not os.path.exists(FILE):
-        open(FILE,'w').close()
+    if os.path.exists(FILE):
+        open(FILE,'a').close()
 
 def cmd_exists(CMD):
     return any(os.access(os.path.join(path, CMD), os.X_OK) for path in os.environ["PATH"].split(os.pathsep))
 
-# routines - file/dir - Jef/Harald
 
+# various scratch/data directory setup under "data"
 def setup_dirs():
-    shutil.rmtree(config['unzip_dir'],ignore_errors=True)
-    os.makedirs(config['unzip_dir'])
-    
-# it may make sense to pull this out into a separate file, import (unpack-zip-files)
-def extract_zips():
+    shutil.rmtree(data_path(config['unzip_dir']),ignore_errors=True)
+    os.makedirs(data_path(config['unzip_dir']))
 
-    if not os.path.isdir(os.path.join(config['REDUX_ENV'], config['zip_dir'])):
+# it may make sense to pull this out into a separate file, import (unpack-zip-files)
+# Jef
+def extract_zips():
+    if not os.path.isdir(data_path(config['zip_dir'])):
         trace (0, '   Warn: no directory with zip files: %s' % config['zip_dir'])
         return []
 
-    FILES = os.listdir(os.path.join(config['REDUX_ENV'], config['zip_dir']))
+    FILES = os.listdir(data_path(config['zip_dir']))
 
     # try to parse out at least the kit number by trying a series of regular expressions
     # adding regular expressions at the end of this list is safer than at the beginning
@@ -243,14 +240,16 @@ def extract_zips():
 
     # list of file names we unzipped
 
-    files = os.listdir(os.path.join(config['REDUX_ENV'], config['unzip_dir']))
+    files = os.listdir(data_path(config['unzip_dir']))
     return files
     
+# unpacks all of the zip files in zip_dir and puts the results in unzip_dir
+# todo - we need to be able to be selective about which files to unpack
 def unpack():
     # collect run time statistics
 
     trace(10,'   Running the unpack-zip script...')
-    refresh_dir(config['unzip_dir'],cleanFlag=False)
+    refresh_dir(data_path(config['unzip_dir']),cleanFlag=False)
     # fixme - interop with API from DW
     fnames = extract_zips()
     trace (10, '   Number of files: {0}'.format(len(fnames)))
@@ -258,6 +257,8 @@ def unpack():
     for ff in fnames:
         trace (40, ff)
 
+# I don't know what this procedure is for; it looks like it needs to go in the
+# main loop
 def skip_to_Hg19(dbo):
 
     # skip to <= 1 - unpack zips
@@ -388,6 +389,7 @@ def go_all():
     go_prep()
     go_db()
     
+# cache previous run's results
 def go_backup():
 
     trace(0,"** performing backup.")
@@ -420,6 +422,8 @@ def go_backup():
     
     trace(0,"** + backup done.")
     
+
+# I'm not sure what this procedure is for ???
 def go_prep():
 
     trace(0,"** prepare file structure.")
@@ -676,6 +680,7 @@ def go_prep():
 
 # routines - arghandler (redux2) - Zak
 
+# utility procuedure to drop/create the database and schema
 def go_db():
     trace(1, "Initialising database...")
     dbo = DB()
@@ -700,6 +705,7 @@ def getVCFvariants(FILE):
 
 #routines - "arghandler" (sort prototype) - Zak
 
+# I'm not sure what this procedure is for
 def go_sort_db():
     #trace(0,"** process SNP data.")
     dbo = go_db()
@@ -713,7 +719,6 @@ def go_sort_db():
 # SNP extraction routines based on original - Harald 
 # extracts the SNP calls from the VCF files and
 # determines the coverage of SNPs in the BED files of BigY tests.
-
 def analyzeVcf(file):
 
     #Returns a dict of position -> mutation mappings

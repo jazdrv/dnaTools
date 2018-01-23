@@ -1,11 +1,17 @@
+Some upcoming work, in approximate priority order; (suggested owner)
+
+set up daily scrum meeting? (Zak/Jef/Iain)
+
 pick a horse to ride - keep either redux2.py or redux2z.py or replace
 both of them and start making our choice be the actual main
-program/driver
+program/driver; do we want the main program to be called just "redux"?
+(Zak)
 
-pull out the unpack stuff and just replace with a call-out to
-unpack-zip-files.py external program, which I'm maintaining anyway. No
-sense duplicating code. If API changes, such as working on individual
-files are needed, fix those in unpack-zip-files.py
+better splitting of the files for logical grouping of the procedures?
+db.py - the database class and low-level database operations that don't
+depend a lot on tables and columns; lib.py - general utility
+procuedures; db-api.py (proposed?) I/O of some commonly used data
+structures to/from data in the database, ... (Zak)
 
 clean up the config variables. The yaml file has a lot of undocumented
 and old stuff in it. These can be moved to attic so we can focus on what
@@ -14,6 +20,14 @@ environment variables (move env vars and magic values in the scripts
 over to the config file). Probably the only one we should use is an env
 var that holds where the source code lives. Make sure what we're doing
 is portable to Linux, Windows, and Mac, even if we're not testing there.
+
+create an API and underlying routines for parsing a hg38 .vcf from FTDNA
+and load the vcfcalls table. At the moment, we may need to do some
+stubbing out of quality information, since it's not yet well represented
+in the schema. (Jef)
+
+get about 100 hg38 FTDNA results to act as a realistic data set and
+indicator of scalability problems (Jef)
 
 create APIs for querying the database and returning data structures
 needed in the computation. One example is creating a 2d array of people
@@ -24,18 +38,28 @@ be needed for pos-ref-alt-build tuples.
 create APIs for wrapping familiar database objects to return the
 contents. For example, return pos-ref-alt for a given variant ID
 
-unit test infrastructure. Some is started in the form of api calls in a
-"main" routine at the end of db.py and lib.py. Running lib.py runs that
-simple driver and exercises many of the routines.
+translate/assign work from flowchart Iain produced; depends on some of
+the API work stated above, so this will run into a lot of roadblocks
+until some of the above work is completed
 
 figure out tree storage - it seems like we should adopt a standard tree
 storage format so trees can be passed around to other programs that can
-do things with trees (e.g. dendropy). Fix the schema to support this if
-necessary.
+do things with trees (e.g. dendropy, James Kane? Alex Williamson?). Fix
+the schema to support this if necessary. (Zak)
 
-create an API and underlying routines for parsing a hg38 .vcf from FTDNA
-and load the vcfcalls table. At the moment, we may need to do some
-stubbing out of quality information, since it's not yet well represented
-in the schema.
+unit test infrastructure. Some is started in the form of api calls in a
+"main" routine at the end of db.py and lib.py. Running lib.py runs that
+simple driver and exercises many of the routines. create database, load
+some data, call some key routines --> smoke test, regression test, unit
+test
 
-set up daily scrum meeting?
+clean out dead/unused code and comments; move them to the attic if we
+think they might be useful sometime. otherwise, boat anchor diverting
+our attention and causing unnecessary updates
+
+pull out the unpack stuff and just replace with a call-out to
+unpack-zip-files.py external program, which I'm maintaining anyway. No
+sense duplicating code. If API changes, such as working on individual
+files are needed, fix those in unpack-zip-files.py (Jef)
+
+

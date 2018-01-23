@@ -1,13 +1,17 @@
 #!/bin/bash
 
-#Note: bash hack for getting out variants and their quality data from the VCF files:
-#This extracts all variants where more than 10% of the reads are called for that allele (accounting for 
-#multiple possibilities for the variant at a given position).
-#ie: ./getVCFvariants.sh "unzip/Donald-120386.vcf"
+# Note: bash hack for getting out variants and their quality data from
+# the VCF files: This extracts all variants where more than 10% of the
+# reads are called for that allele (accounting for multiple
+# possibilities for the variant at a given position).
+# e.g.: ./getVCFvariants.sh "Donald-120386.vcf"
 
-FILE="$1"
-FILE="$REDUX_ENV/unzips/Newell-345238.vcf" #hg19
-FILE="$REDUX_ENV/unzips2/variants.vcf" #hg38
+# this script looks in the configured DATA/unzip directory for the file
+
+. ${REDUX_ENV}/parse_yaml.sh
+eval $(parse_yaml ${REDUX_ENV}/config.yaml "config_")
+
+FILE="${config_REDUX_DATA}/${config_unzip_dir}/$1"
 if [ "$1" == "" ]; then
     echo "Nothing given. Aborting."
     exit

@@ -10,13 +10,13 @@ VERSION: 2.0.0.20180108.ALPHA
 # thought. For now, there's a .env file you can source as
 # ". ./redux.env" to set the environment variable
 # You may need to change this to a full pathname where your working directory is.
-REDUX_ENV: '.'
+REDUX_ENV: .
 
 # The path to the directory where SQL files live (e.g. the schema file)
-REDUX_SQL: '../sql'
+REDUX_SQL: ../sql
 
 # The path to the directory for the data files (e.g. the .zip files)
-REDUX_DATA: '../data'
+REDUX_DATA: ../data
 
 # Notes on SKIPZIP
 # Set SKIPZIP to >0 skip the labour-intensive parts of the

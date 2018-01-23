@@ -91,7 +91,7 @@ class DB(object):
 
 
     # fixme: migrate to schema
-    # does this procedure go here?
+    # does this procedure belong here?
     def insert_sample_sort_data(self):
 
         #sample data: 3019783,M343,1,1,Null,1,1,1,1,1,1,1
