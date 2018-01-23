@@ -23,11 +23,14 @@ from collections import defaultdict
 REDUX_CONF = 'config.yaml'
 config = yaml.load(open(REDUX_CONF))
 
+
+# add src and bin directories to path
 import sys
 sys.path.insert(0, config['REDUX_ENV'])
+sys.path.insert(0, config['REDUX_BIN'])
 
 
-# routines - debug
+# routines - debug/diagnostic output
 # fixme - there are too many levels of verbosity - probably should be a bitmap/flags
 # fixme - level is ignored
 # fixme - stdout or stderr?
@@ -68,176 +71,30 @@ def setup_dirs():
     shutil.rmtree(data_path(config['unzip_dir']),ignore_errors=True)
     os.makedirs(data_path(config['unzip_dir']))
 
-# it may make sense to pull this out into a separate file, import (unpack-zip-files)
-# Jef
-def extract_zips():
-    if not os.path.isdir(data_path(config['zip_dir'])):
-        trace (0, '   Warn: no directory with zip files: %s' % config['zip_dir'])
-        return []
-
-    FILES = os.listdir(data_path(config['zip_dir']))
-
-    # try to parse out at least the kit number by trying a series of regular expressions
-    # adding regular expressions at the end of this list is safer than at the beginning
-    # order is important - rules at top are matched first
-
-    # constants used in filename regular expressions
-    # groupings (?:xxx) are ignored
-
-    ws = r'^[_]?'
-    nam1 = r"[a-z]{0,20}|O\&#39;[a-z]{3,20}|O['][a-z]{3,20}"
-    cname = r'([\w]{1,20})' #matches unicode chars; also matches digits though
-    pnam = r'\('+nam1+r'\)'
-    nam2 = r'(?:' +nam1 +'|' +pnam +r')'
-    ndate = r'(?:(201[1-8][\d]{4}|201[1-8]-\d\d-\d\d|\d{4}201[1-8]))'
-    sep = r'[\-\s\._]'
-    seps = r'[\-\s\._]?'
-    # sepp = r'[\-\s\._]+'
-    sepp = r'_' # only use underscore as field separator
-    sept = r'[\-\s\._]{3}'
-    bigy = r'(?:big' +seps+ r'y(?:data)?|ydna)'
-    rslt = r'(?:results|data|rawdata|vcfdata|raw data|csvexport|raw_data|raw|bigyrawdata)'
-    name = r'((?:'+nam2+seps+'){1,3})'
-    kit = r'(?:(?:kit|ftdna)?[ #]?)?([enhb1-9][0-9]{3,6})'
-    rzip = r'zip(?:.zip)?'
-    plac = r'([A-Z]{2})'
-
-    #0 e.g. bigy-Treece-N4826.zip
-    #1 e.g. N4826_Treece_US_BigY_RawData_2018-01-03.zip
-    #2 e.g. 548872_Lindstrom_Germany_BigY_RawData_2018-01-01.zip
-
-    name_re = [
-        (re.compile(ws+sep.join([bigy,name,kit,rzip]), re.I), 'name', 'kit'),
-        (re.compile(ws +sepp.join([kit,name,plac,bigy,rslt,ndate])+'.zip', re.I), 'kit', 'name'),
-        (re.compile(ws +sepp.join([kit,cname,plac,bigy,rslt,ndate])+'.zip', re.I), 'kit', 'name')
-        ]
-
-
-    trace (25, '   File names mapped, according to which regular expression:')
-    # track counts - only for diagnostics
-    cnt = defaultdict(int)
-    # list of non-matching files
-    nomatch=[]
-    # all of the file names we could parse
-    fname_dict = {}
-    
-    for line in FILES:
-        fname = line.strip()
-        if fname in rename_dict:
-            # hand-edited filename mappings
-            kkit, nname = rename_dict[fname]
-            fname_dict[fname] = kkit, nname
-            trace(25, '     {3:>2} {0:<50s}{1:<15s}{2:<10s}'.format(fname, nname, kkit, 'd'))
-            cnt['d'] += 1
-        else:
-            if fname[-4:] not in ('.gitignore'):
-                if fname[-4:] not in ('.zip'):
-                    trace (15, '   Found foreigner hanging out in zip directory: {0}'.format(fname))
-                continue
-            d = {}
-            for ii, (r,k1,k2) in enumerate(name_re):
-                s = r.search(line)
-                if s:
-                    d[k1] = s.groups()[0]
-                    if k2:
-                        d[k2] = s.groups()[1]
-                    else:
-                        d['name'] = 'Unknown'
-                    try:
-                        trace (25, '     {3:>2} {0:<50s}{1:<15s}{2:<10s}'.format(fname,
-                                                   d['name'], d['kit'], ii))
-                        cnt[ii] += 1
-                        fname_dict[fname] = d['kit'], d['name']
-                    except:
-                        trace (1, '   FAILURE on filename:', fname)
-                    break
-            else:
-                if line not in ('.gitignore'):
-                    nomatch.append(line)
-
-    trace (20, '   Number of filenames not matched: {0}'.format(len(nomatch)))
-    trace (22, '   Which expressions were matched:')
-    for nn,cc in cnt.items():
-        trace (22, '     {0:>2}: {1:>4}'.format(nn,cc))
-
-    if len(nomatch) > 0:
-        trace (10, '   Files that did not match:')
-        for ll in nomatch:
-            if ll.strip() not in ('.gitignore'):
-                trace (10, '    %s' % ll.strip())
-            else:
-                nomatch = nomatch - 1
-
-    # keep track of what needs to be cleaned up
-    emptydirs = []
-
-    for fname in fname_dict:
-        kitnumber, kitname = fname_dict[fname]
-        try:
-            zf = zipfile.ZipFile(os.path.join(config['REDUX_ENV'], 'zip_dir', fname))
-        except:
-            trace (1, '   ERROR: file %s is not a zip' % fname)
-            sys.exit()
-        listfiles = zf.namelist()
-        bedfile = vcffile = None
-        for ff in listfiles:
-            dirname, basename = os.path.split(ff)
-            if basename == 'regions.bed':
-                bedfile = ff
-            elif basename == 'variants.vcf':
-                vcffile = ff
-            if dirname and (dirname not in emptydirs):
-                emptydirs.append(dirname)
-        if (not bedfile) or (not vcffile):
-            trace(1, '   Warn: missing data in '+fname)
-            continue
-        if (bedfile == None) ^ (vcffile == None):
-            trace(1, '   Warn: BED or VCF file is missing for %s' % fname)
-            trace(1, '   This is an unexpected error. %s not processed.' % fname)
-            continue
-        zf.extractall(config['unzip_dir'], [bedfile, vcffile])
-        base = '%s-%s' % (kitname, kitnumber)
-        try:
-            fpath = os.path.join(config['unzip_dir'], '%s')
-            trace (40, "      "+fpath % base)
-            os.rename(fpath % bedfile, (fpath % base)+'.bed')
-            os.rename(fpath % vcffile, (fpath % base)+'.vcf')
-        except:
-            trace(1, '   Warn: could not identify VCF and/or BED file for '+base)
-
-    # clean up any empty dirs unzip created
-
-    if emptydirs:
-        trace (30, '   Trying to remove droppings:')
-        for dir in emptydirs:
-            try:
-                dp = os.path.join(config['unzip_dir'], dir)
-                os.removedirs(dp)
-                trace (30, '     {0}'.format(dp))
-            except FileNotFoundError:
-                pass
-            except:
-                trace (30, '     W! could not remove {0}'.format(dp))
-                pass
-
-    # list of file names we unzipped
-
-    files = os.listdir(data_path(config['unzip_dir']))
-    return files
-    
-# unpacks all of the zip files in zip_dir and puts the results in unzip_dir
-# todo - we need to be able to be selective about which files to unpack
-def unpack():
-    # collect run time statistics
-
-    trace(10,'   Running the unpack-zip script...')
-    refresh_dir(data_path(config['unzip_dir']),cleanFlag=False)
+# call external utility to unpack all files in the zip directory
+# return list of files that were unzipped
+def extract_zipdir():
+    # work in progress Jef
     # fixme - interop with API from DW
-    fnames = extract_zips()
+    # fixme - don't purge unzip dir if requested (-k flag)
+    # fixme - regular expressions for the scripts need adjustment
+    # callout to unpack-zip-files.py, utility from v1, in bin directory
+    trace(10,'   Running the unpack-zip script...')
+    io = subprocess.run(['unpack-zip-files.py', '-z', data_path(config['zip_dir']),
+                             '-u', data_path(config['unzip_dir']),
+                             '-m', data_path('filemap.csv')],
+                            stdout=subprocess.PIPE)
+    output = io.stdout.decode('utf-8') # ignore this output?
+    fnames = os.listdir(data_path(config['unzip_dir']))
     trace (10, '   Number of files: {0}'.format(len(fnames)))
     trace (40, '   Files unpacked:')
     for ff in fnames:
         trace (40, ff)
+
+# unpack a single zip file
+def unpack_zipfile():
+    # work in progress Jef
+    return
 
 # I don't know what this procedure is for; it looks like it needs to go in the
 # main loop
@@ -248,7 +105,7 @@ def skip_to_Hg19(dbo):
     if (config['skip_to'] <= 1):
         trace (2, "Unpacking ZIP files...")
         #unpack(REDUX_ENV+'/'+config['zip_dir'],REDUX_ENV+'/'+config['unzip_dir'],config['verbosity'])
-        unpack()
+        unpack_zipdir()
         t = float((time.clock() - start_time))
         trace(10, '   ...complete after %.3f seconds' % t)
         trace (5, "Associating unzipped files with kits...")
@@ -1045,9 +902,32 @@ def populate_SNPs(dbo, maxage=3600*24*5):
         snp_reference = csv.DictReader(snpfile)
         updatesnps(db, snp_reference, 'hg38')
 
-# populate calls, quality, and variants from a VCF file
-def populate_from_VCF_file(bid, pid, fname):
+# populate regions from a FTDNA BED file
+# fname is an unpacked BED file
+def populate_from_BED_file(dbo, pid, fname):
     # stub work in progress Jef
+    return
+
+# populate calls, quality, and variants from a VCF file
+# fname is an unpacked VCF file
+def populate_from_VCF_file(dbo, bid, pid, fname):
+    # stub work in progress Jef
+    # parse output of getVCFvariants(fname)
+    # execute sql on results
+    return
+
+# unpack any zip from FTDNA that has the bed file and vcf file
+def populate_from_zip_file(dbo, fname):
+    # stub work in progress Jef
+    # unpack bed and vcf to a temporary unzip dir
+    # use the surname-kitID of unzip file as the kit name in the dataset table
+    # pid = get_person_id
+    # pid = id from dataset for this entry
+    # auto-determine build name for FTDNA to get build id (parsed from first lines)
+    # bid = get_build_byname()
+    # fname = unpacked vcf from unzip dir
+    # populate_from_VCF_file
+    # populate_from_BED_file
     return
 
 # test framework
@@ -1060,6 +940,7 @@ if __name__ == '__main__':
     populate_SNPs(db)
     populate_contigs(db)
     populate_age(db)
+    extract_zipdir()
     db.commit()
     db.close()
 

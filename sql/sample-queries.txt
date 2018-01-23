@@ -1,0 +1,59 @@
+sqlite> select b.buildNm,s.surname,origFileNm from dataset d inner join surname s on s.surname like '%ittma%' and s.id=d.surnameID inner join build b on b.id = d.buildID;
+buildNm|surname|origFileNm
+hg38|Pittman|bigy2-a8530092-8371-4f99-b052-af7b944d6c0f.zip
+hg38|Pittman|bigy2-b4085558-0eef-4b10-a787-8ab2892f1f8d.zip
+hg38|Dittman|bigy2-7aef4da9-7e31-43eb-b900-3bdca9f1e354.zip
+hg19|Pittman|L6BLW_aka-FTDNA-b3600.zip
+hg38|Pittman|bigy2-7181324e-fd3d-40b7-a92c-df5e0ecea45f.zip
+
+sqlite> select b.buildNm,pos,aa.allele as anc,ab.allele as der from variants inner join build b on b.id=buildID inner join alleles aa on aa.id=anc inner join alleles ab on ab.id=der limit 10;
+buildNm|pos|anc|der
+hg19|3963264|T|A
+hg19|5756668|T|C
+hg19|5131079|A|G
+hg19|7385724|C|T
+hg19|4383254|C|A
+hg19|4902204|C|G
+hg19|6126442|A|G
+hg19|8318207|C|T
+hg19|8457611|G|A
+hg19|5507163|A|C
+
+sqlite> select b.buildNm,pos,aa.allele as anc,ab.allele as der,sn.snpname from variants v inner join build b on b.id=buildID inner join alleles aa on aa.id=anc inner join alleles ab on ab.id=der inner join snpnames sn on sn.vID=v.id limit 10;
+buildNm|pos|anc|der|snpname
+hg19|3963264|T|A|FGC2806
+hg19|5756668|T|C|FGC2822
+hg19|5131079|A|G|FGC2849
+hg19|7385724|C|T|FGC2912
+hg19|4383254|C|A|FGC2933
+hg19|4902204|C|G|FGC2940
+hg19|6126442|A|G|FGC2958
+hg19|8318207|C|T|FGC2982
+hg19|8457611|G|A|FGC2986
+hg19|5507163|A|C|Y2856
+
+sqlite> select b.buildNm,pos,aa.allele as anc,ab.allele as der,sn.snpname,count(pos) from variants v inner join build b on b.id=buildID inner join alleles aa on aa.id=anc inner join alleles ab on ab.id=der inner join snpnames sn on sn.vID=v.id group by 2 order by 6 desc limit 10;
+buildNm|pos|anc|der|snpname|count(pos)
+hg38|1|T|C|S27098|477
+hg38|17006681|C|T|V3797.2|12
+hg19|19118561|C|T|V3797.2|12
+hg19|6753316|C|G|S1849|11
+hg38|6885275|C|G|S1849|11
+hg19|2888632|A|C|M368.2|10
+hg38|3020591|A|C|M368.2|10
+hg38|17260820|G|A|V4056.2|10
+hg38|17319728|A|C|M2087|10
+hg19|19372700|G|A|V4056.2|10
+
+sqlite> select b.buildNm,pos,aa.allele as anc,ab.allele as der,sn.snpname from variants v inner join build b on b.id=buildID inner join alleles aa on aa.id=anc inner join alleles ab on ab.id=der inner join snpnames sn on sn.vID=v.id where pos=17319728;
+buildNm|pos|anc|der|snpname
+hg38|17319728|A|C|Z548.2
+hg38|17319728|A|C|Z15
+hg38|17319728|A|C|Z15.3
+hg38|17319728|A|C|M2087.3
+hg38|17319728|A|C|L729
+hg38|17319728|A|C|Z548.3
+hg38|17319728|A|C|Z548
+hg38|17319728|A|C|M2087.2
+hg38|17319728|A|C|Z15.2
+hg38|17319728|A|C|M2087

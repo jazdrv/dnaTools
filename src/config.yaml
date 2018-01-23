@@ -18,6 +18,9 @@ REDUX_SQL: ../sql
 # The path to the directory for the data files (e.g. the .zip files)
 REDUX_DATA: ../data
 
+# The path to the directory for the related external programs
+REDUX_BIN: ../bin
+
 # Notes on SKIPZIP
 # Set SKIPZIP to >0 skip the labour-intensive parts of the
 # script. Requires MAKEREPORT=TRUE This should only be done if you have
