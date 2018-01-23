@@ -289,7 +289,7 @@ def skip_to_Hg19(dbo):
         #vcffiles
 
         trace (2, "Generating database of all variants...")
-        # fixme - populate uploadlog
+        # fixme - populate dataset
         vcffiles = [f for f in os.listdir(os.path.join(config['REDUX_ENV'], config['unzip_dir'])) if f.endswith('.vcf')]
         trace (10, "   %i files detected" % len(vcffiles))
         
@@ -298,7 +298,7 @@ def skip_to_Hg19(dbo):
         #print(REDUX_ENV)
         variant_dict = {}
         for file in vcffiles:
-            # fixme - this should come from walking through uploadlog
+            # fixme - this should come from walking through dataset
             vcf_calls = readHg19Vcf(os.path.join(config['REDUX_ENV'], config['unzip_dir'], file))
             # fixme .update is probably a slow way
             variant_dict.update(vcf_calls)
@@ -798,36 +798,65 @@ def extract(unzip_dir,files,variants):
 
         for line in d:
             print (line)
-    
-def file_len(fname):
-
-    #File length, thanks to StackOverflow
-    #https://stackoverflow.com/questions/845058/how-to-get-line-count-cheaply-in-python
-
-    i=-1
-    with open(fname) as f:
-        for i, l in enumerate(f):
-            pass
-    return i + 1
 
 # routines - Iain 
 
-def readHg19Vcf(file):
 
-    #Returns a dict of position -> mutation mappings
-    #Modified from Harald's analyzeVCF, this version returns every mutation with
-    #its derived value, regardless of whether it was ancestral or not
+# Returns a dict of position -> mutation mappings
+# Modified from Harald's analyzeVCF, this version returns every mutation with
+# its derived value, regardless of whether it was ancestral or not
+def readHg19Vcf(file):
 
     with open(os.path.splitext(file)[0] + '.vcf') as vcffile:
         trace (30, "   Extracting VCF: %s" % vcffile)
         result = {}
         for line in vcffile:
             fields = line.split()
-            if (fields[0] == 'chrY' and int(fields[1]) > 0 and fields[3] != '.' and fields[4] != '.'):
+            if (fields[0] == 'chrY' and int(fields[1]) > 0 and fields[3] != '.'
+                    and fields[4] != '.'):
                 result[fields[1]] = [int(fields[1]), str(fields[3]), str(fields[4])]
         return result
 
+
+# get number of lines in a file
+# probably will fail on utf-8 encoding or binary files in general
+def file_len(fname):
+    #File length, thanks to StackOverflow
+    #https://stackoverflow.com/questions/845058/how-to-get-line-count-cheaply-in-python
+    i=-1
+    with open(fname) as f:
+        for i, l in enumerate(f):
+            pass
+    return i + 1
+
+
+# populate agebed table from age.bed
+# This procedure dumps what may be in the agebed table and replaces it with the
+# ranges defined in age.bed
+def populate_age(dbo):
+    with open('age.bed') as bedfile:
+        cf = csv.reader(bedfile, delimiter=' ')
+        ranges = []
+        for row in cf:
+            try:
+                ranges.append((row[0], row[1], row[2]))
+            except:
+                trace(0,'failed on row of age.bed:{}'.format(row))
+        dbo.dc.execute('delete from agebed')
+        dbo.dc.execute('drop table if exists tmpt')
+        dbo.dc.execute('create temporary table tmpt(a,b,c)')
+        dbo.dc.executemany('insert into tmpt values(?,?,?)', ranges)
+        dbo.dc.execute('''insert or ignore into bedranges(minaddr,maxaddr)
+                           select b,c from tmpt''')
+        dbo.dc.execute('''insert into agebed(bID)
+                           select id from bedranges
+                           inner join tmpt t on t.b=minaddr and t.c=maxaddr''')
+        dbo.dc.execute('drop table tmpt')
+
+
 # populate a table of STR definitions
+# Ordering is optional. If not given, table stores SNP names in FTDNA Y111 order.
+# Otherwise, It's a 111-number vector.
 def populate_STRs(dbo, ordering=None):
     strdefs = (
         'DYS393', 'DYS390', 'DYS19', 'DYS391', 'DYS385a', 'DYS385b',
@@ -882,7 +911,7 @@ def get_kits (API='http://haplogroup-r.org/api/v1/uploads.php', qry='format=json
 def update_metadata(db, js):
     blds = {'b38': 'hg38', 'b19': 'hg19', 'b37': 'hg19'}
     rows = [(
-        # fields that go into uploadlog table directly
+        # fields that go into dataset table directly
         jr['kitId'].strip(), jr['uploaded'], jr['dataFile'], jr['long'],
         jr['lat'], jr['otherInfo'], jr['origFileName'], jr['birthYear'],
         jr['approxHg'],
@@ -926,7 +955,7 @@ def update_metadata(db, js):
     db.dc.executemany('''INSERT INTO tmpt(a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p)
         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''', rows)
     db.dc.execute('''
-        INSERT INTO uploadlog(kitId, importDt, fileNm, lng,
+        INSERT INTO dataset(kitId, importDt, fileNm, lng,
             lat, otherInfo, origFileNm, birthYr,
             approxHg,
             countryID, normalOrigID, labID, buildID, testTypeID, DNAID, surnameID)
@@ -948,7 +977,7 @@ def update_metadata(db, js):
             (tmpt.a = pn.firstname or (tmpt.a is NULL and pn.firstname is NULL)) AND
             (tmpt.m = pn.middlename or (tmpt.m is NULL and pn.middlename is NULL))
         INNER JOIN testtype tt ON tmpt.o = tt.testNm and tmpt.p = tt.isNGS''')
-    trace(1, '{} rows inserted into uploadlog'.format(db.dc.execute('select count(*) from uploadlog').fetchone()[0]))
+    trace(1, '{} rows inserted into dataset'.format(db.dc.execute('select count(*) from dataset').fetchone()[0]))
     db.dc.execute('drop table tmpt')
 
 # load data into the contig table
@@ -960,7 +989,7 @@ def populate_contigs(db):
     db.dc.execute('insert into Contig(buildID,description,length) values(?,?,?)',
                       (bid, 'chrY', 57227415))
 
-# populate uploadlog information from Haplogroup-R data warehouse API
+# populate dataset information from Haplogroup-R data warehouse API
 def populate_fileinfo(dbo, fromweb=True):
     if fromweb:
         js = get_kits()
@@ -1038,6 +1067,7 @@ if __name__ == '__main__':
     populate_STRs(db)
     populate_SNPs(db)
     populate_contigs(db)
+    populate_age(db)
     db.commit()
     db.close()
 

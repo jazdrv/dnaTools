@@ -14,8 +14,8 @@ create table person(
     );
 
 /* data sets uploaded to Haplogroup-R */
-drop table if exists uploadlog;
-create table uploadlog(
+drop table if exists dataset;
+create table dataset(
     ID INTEGER PRIMARY KEY,
     seq INTEGER DEFAULT 0,     -- can be used to order files arbitrarily
     kitName TEXT,              -- can be a simple name for the dataset
@@ -43,7 +43,7 @@ create table uploadlog(
     -- unique(kitId)
     );
 
-create index fileidx on uploadlog(kitId);
+create index fileidx on dataset(kitId);
 
 /* surname associated with person and/or kit */
 drop table if exists surname;
@@ -111,14 +111,14 @@ create index rangeidx2 on bedranges(minaddr);
 /* ranges covered by tests as reported in the individual's BED file */
 drop table if exists bed;
 create table bed(
-    pID INTEGER REFERENCES uploadlog(ID),
+    pID INTEGER REFERENCES dataset(ID),
     bID INTEGER REFERENCES bedranges(ID)
     );
 
 /* calls reported by the individual's VCF file */
 drop table if exists vcfcalls;
 create table vcfcalls(
-    pID INTEGER REFERENCES uploadlog(ID),
+    pID INTEGER REFERENCES dataset(ID),
     vID INTEGER REFERENCES variants(ID)
     );
 
@@ -127,7 +127,7 @@ create index vcfidx on vcfcalls(vID);
 /* per-kit call statistics */
 drop table if exists vcfstats;
 create table vcfstats(
-    pID INTEGER REFERENCES uploadlog(ID),
+    pID INTEGER REFERENCES dataset(ID),
     ny INTEGER,
     nv INTEGER,
     ns INTEGER,
@@ -138,7 +138,7 @@ create table vcfstats(
 /* per-kit BED coverage statistics */
 drop table if exists bedstats;
 create table bedstats(
-    pID INTEGER REFERENCES uploadlog(ID),
+    pID INTEGER REFERENCES dataset(ID),
     coverage1 INTEGER,
     coverage2 INTEGER,
     nranges INTEGER
@@ -147,7 +147,7 @@ create table bedstats(
 /* per-kit calls that are classified REJECTs */
 drop table if exists vcfrej;
 create table vcfrej(
-    pID INTEGER REFERENCES uploadlog(ID),
+    pID INTEGER REFERENCES dataset(ID),
     vID INTEGER REFERENCES variants(ID)
     );
 
@@ -171,7 +171,7 @@ create table strs(
 /* STR values for testers */
 drop table if exists strcalls;
 create table strcalls(
-    pID INTEGER REFERENCES uploadlog(ID), -- or maybe people?
+    pID INTEGER REFERENCES dataset(ID), -- or maybe people?
     val INTEGER
     );
 
@@ -212,7 +212,15 @@ create table build(
     unique(buildNm)
     );
 
-/* tree data structure may still need work */
+/* ranges from age.bed that are used in age calculations */
+drop table if exists agebed;
+create table agebed(
+    ID INTEGER PRIMARY KEY,
+    bID INTEGER REFERENCES bedranges(ID)
+    );
+
+/* tree data structure - this probably still needs work */
+/* fixme? store trees using some commonly used tree standard? */
 drop table if exists tree;
 CREATE TABLE tree(
     id INTEGER PRIMARY KEY,

@@ -62,19 +62,36 @@ class DB(object):
             bid = self.dc.lastrowid
         return bid
 
-    # insert an array of variants
-    # fixme - handle dedupe
-    # fixme - pos and ref ids
+    # insert an array of variants into variant definitions table
+    # This procedure takes a list or iterator in variant_array, which are
+    # pos,anc,der tuples and inserts these into the variants table.  if there
+    # are duplicates in variant_array, they are not inserted due to the unique
+    # constraint on the variants table.
     def insert_variants(self, variant_array, buildname='hg38'):
         bid = self.get_build_byname(buildname)
-        self.dc.executemany('INSERT INTO variants(buildID,pos,anc,der) VALUES (?,?,?,?)', [(bid,)+v for v in variant_array])
+        alleles = set([v[1] for v in variant_array] + [v[2] for v in variant_array])
+        for allele in [a.strip() for a in alleles]:
+            db.dc.execute('insert or ignore into alleles(allele) values(?)', (allele,))
+        # fixme? may need optimization
+        self.dc.executemany('''
+            INSERT OR IGNORE INTO variants(buildID,pos,anc,der)
+            select b.ID, v.pos, aa.id, ab.id
+            from variants v
+            cross join build b on b.buildNm=?
+            cross join allele ab on ab.allele=?
+            cross join allele aa on aa.allele=?''',
+            [(bid,)+v for v in variant_array])
 
-    # insert a vector of variant ids to insert for a given person specified by pid
+    # insert a vector of variant ids to insert for a given person specified by
+    # pID. This procedure inserts ids into the "calls" table and operates with
+    # variant ids (i.e. you already have the variant ids)
     def insert_calls(self, pid, calls):
-        self.dc.executemany('INSERT INTO vcfcalls(pID,vID) values (?,?)', [(pid,v) for v in calls])
+        self.dc.executemany('INSERT INTO vcfcalls(pID,vID) values (?,?)',
+                                [(pid,v) for v in calls])
 
 
     # fixme: migrate to schema
+    # does this procedure go here?
     def insert_sample_sort_data(self):
 
         #sample data: 3019783,M343,1,1,Null,1,1,1,1,1,1,1
@@ -100,7 +117,7 @@ class DB(object):
 
         cols=10
         for k in range(1,cols+1):
-            self.dc.execute("insert into datasets (kitname) values ("+str(k)+");")
+            self.dc.execute("insert into dataset (kitName) values ("+str(k)+");")
 
         # fixme - kitid != kitname
         with open(REDUX_DATA+'/sample-sort-data.csv','r') as FILE:

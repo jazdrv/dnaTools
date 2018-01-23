@@ -1,0 +1,41 @@
+pick a horse to ride - keep either redux2.py or redux2z.py or replace
+both of them and start making our choice be the actual main
+program/driver
+
+pull out the unpack stuff and just replace with a call-out to
+unpack-zip-files.py external program, which I'm maintaining anyway. No
+sense duplicating code. If API changes, such as working on individual
+files are needed, fix those in unpack-zip-files.py
+
+clean up the config variables. The yaml file has a lot of undocumented
+and old stuff in it. These can be moved to attic so we can focus on what
+we're using. Keep as much as possible in yaml, reduce dependency on
+environment variables (move env vars and magic values in the scripts
+over to the config file). Probably the only one we should use is an env
+var that holds where the source code lives. Make sure what we're doing
+is portable to Linux, Windows, and Mac, even if we're not testing there.
+
+create APIs for querying the database and returning data structures
+needed in the computation. One example is creating a 2d array of people
+by calls. There may be two versions of this needed - one is efficient,
+filled with the database ID fields, and (perhaps) a second version may
+be needed for pos-ref-alt-build tuples.
+
+create APIs for wrapping familiar database objects to return the
+contents. For example, return pos-ref-alt for a given variant ID
+
+unit test infrastructure. Some is started in the form of api calls in a
+"main" routine at the end of db.py and lib.py. Running lib.py runs that
+simple driver and exercises many of the routines.
+
+figure out tree storage - it seems like we should adopt a standard tree
+storage format so trees can be passed around to other programs that can
+do things with trees (e.g. dendropy). Fix the schema to support this if
+necessary.
+
+create an API and underlying routines for parsing a hg38 .vcf from FTDNA
+and load the vcfcalls table. At the moment, we may need to do some
+stubbing out of quality information, since it's not yet well represented
+in the schema.
+
+set up daily scrum meeting?
