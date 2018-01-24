@@ -172,7 +172,8 @@ create table strs(
 drop table if exists strcalls;
 create table strcalls(
     pID INTEGER REFERENCES dataset(ID), -- or maybe people?
-    val INTEGER
+    sID INTEGER REFERENCES strs(ID), -- STR definition
+    val INTEGER -- STR marker value
     );
 
 /* list of all variants known for this computation */
