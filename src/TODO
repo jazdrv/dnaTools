@@ -62,4 +62,6 @@ unpack-zip-files.py external program, which I'm maintaining anyway. No
 sense duplicating code. If API changes, such as working on individual
 files are needed, fix those in unpack-zip-files.py (Jef)
 
+cleaning up the project documentation on the github site. As well as 
+the packaging approach.
 
