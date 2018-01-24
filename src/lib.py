@@ -536,11 +536,15 @@ def go_db():
 def getH38references():
     foo = 1
 
-#note: sample code for calling this awk script
+# call out to bash script to parse the vcf file
+# todo - pull this under python source?
 def getVCFvariants(FILE):
-    cmd = "getVCFvariants.sh"
-    p = subprocess.Popen(cmd, FILE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-    stdout, stderr = p.communicate()
+    cmd = os.path.join(config['REDUX_ENV'], 'getVCFvariants.sh')
+    io = subprocess.run([cmd, FILE],
+                            stdout=subprocess.PIPE)
+    output = io.stdout.decode('utf-8')
+    # trace(0, 'command output: {}'.format(output))
+    return output
 
 #routines - "arghandler" (sort prototype) - Zak
 
@@ -845,6 +849,7 @@ def populate_fileinfo(dbo, fromweb=True):
 # fixme - update snpnames
 def updatesnps(db, snp_reference, buildname='hg38'):
     bid = db.get_build_byname(buildname)
+    db.dc.execute('drop table if exists tmpt')
     db.dc.execute('create temporary table tmpt(a integer, b integer, c text, d text, e text, unique(a,b,c,d,e))')
     db.dc.executemany('INSERT OR IGNORE INTO tmpt(a,b,c,d,e) VALUES (?,?,?,?,?)',
              ((bid, rec['start'],
@@ -967,13 +972,13 @@ def get_call_coverage(dbo, pid):
                               inner join variants v on c.vID=v.id
                               and c.pID=?''', (pid,))
     cv = [v[1] for v in calls]
-    trace(0, 'calls: {}'.format(cv))
+    trace(0, '{} calls: {}...'.format(len(cv), cv[:20]))
     ranges = dbo.dc.execute('''select minaddr,maxaddr from bedranges r
                               inner join bed b on b.bID=r.id
                               where b.pid=?
                               order by 1''', (pid,))
     rv = [v for v in ranges]
-    trace(0, 'ranges: {}...'.format(rv[:20]))
+    trace(0, '{} ranges: {}...'.format(len(rv), rv[:20]))
     
     return [], []
 
@@ -1003,11 +1008,49 @@ def populate_from_BED_file(dbo, pid, fname):
     return
 
 # populate calls, quality, and variants from a VCF file
-# fname is an unpacked VCF file
+# fname is an unzipped VCF file
 def populate_from_VCF_file(dbo, bid, pid, fname):
-    # stub work in progress Jef
+
     # parse output of getVCFvariants(fname)
-    # execute sql on results
+    parsed = getVCFvariants(fname)
+    tups = []
+    for line in parsed.splitlines():
+        # pos, anc, der, passfail, q1, q2, nreads, passrate
+        tups.append(line.split())
+
+    # filter down to the calls we want to store
+    # fixme this is probably not the correct filtering
+    passes = [t for t in tups if t[2] != '.' and (t[3] == 'PASS' or
+                  (int(t[6]) < 4 and float(t[7]) > .75))]
+
+    # save the distinct alleles
+    alleles = set([x[1] for x in passes] + [x[2] for x in passes])
+    db.dc.executemany('insert or ignore into alleles(allele) values(?)',
+                          [(x,) for x in alleles])
+
+    # save the call quality info
+    # fixme - update schema to handle quality info
+    pass
+
+    # execute sql on results to save in vcfcalls
+    db.dc.execute('drop table if exists tmpt')
+    db.dc.execute('''create temporary table tmpt(a integer, b integer,
+                     c text, d text, e integer)''')
+    db.dc.executemany('insert into tmpt values(?,?,?,?,?)',
+                          [[bid]+v[0:3]+[pid] for v in passes])
+    db.dc.execute('''insert or ignore into variants(buildID, pos, anc, der)
+                     select a, b, an.id, dr.id from tmpt
+                     inner join alleles an on an.allele = c
+                     inner join alleles dr on dr.allele = d''')
+    db.dc.execute('''insert into vcfcalls (pid,vid)
+                     select e, v.id from tmpt
+                     inner join alleles an on an.allele = c
+                     inner join alleles dr on dr.allele = d
+                     inner join variants v on v.buildID = a and v.pos = b
+                         and v.anc=an.id and v.der=dr.id''')
+    db.dc.execute('drop table tmpt')
+
+    trace(0, '{} vcf calls: {}...'.format(len(passes), passes[:5]))
     return
 
 # unpack any zip from FTDNA that has the bed file and vcf file
@@ -1035,15 +1078,17 @@ if __name__ == '__main__':
     populate_contigs(db)
     populate_age(db)
     extract_zipdir()
-    # currently filemap.csv remaps a sample data to One-001
-    pID = populate_from_zip_file(db, 'One-001.vcf')
+    filelist = os.listdir(data_path(config['zip_dir']))
+    pID = populate_from_zip_file(db, filelist[-1])
     # use a fake pID=1 because calls parsing is not implemented yet
+    # currently filemap.csv remaps a sample data to One-001
     populate_from_BED_file(db, 1, 'One-001.bed')
     # commit in case something fails later - the on-disk .db has stuff in it
     db.commit()
     # use fake pID=1 as above to test kit coverage statistics
     trace(0,'kit coverage: {}'.format(get_kit_coverage(db, 1)))
-    # no vcf calls parsed yet, so no interesting output from this:
+    # use fake pID=1 as above
+    populate_from_VCF_file(db, 1, 1, 'One-001.vcf')
     get_call_coverage(db,1)
     db.commit()
     db.close()
@@ -1072,4 +1117,6 @@ vID	snpname	der	allele
 
 sqlite> select count(*) from variants;
 613049
+
+see some other sample queries in ../examples directory
 '''
