@@ -904,9 +904,9 @@ def populate_SNPs(dbo, maxage=3600*24*5):
 
 # return a) sum of BED ranges for kit (how many bases are covered by the test)
 # and b) sum of coverage that is in the age BED range. These stats are needed
-# for age calculations
+# for age calculations. This is not done in the "brute force" way because it
+# can be compute intensive to search the list for every range.
 def get_kit_coverage(dbo, pid):
-    # work in progress Jef
     br = dbo.dc.execute('''select 1,minaddr from bedranges r
                            inner join bed b on b.bid=r.id and b.pid=?
                                 union
@@ -937,11 +937,44 @@ def get_kit_coverage(dbo, pid):
     return accum2, accum1
 
 
+# efficiently determine if a set of positions is contained in a set of ranges
+# return vector of True values if v contained in a range, else False
+# does not consider the endpoints
+# ranges must be sorted on their minaddr
+# input vector must be sorted
+def in_range(v_vect, ranges):
+    c_vect = []
+    ii = 0
+    nmax = len(ranges)
+    for v in v_vect:
+        while ii < nmax and ranges[ii][0] < v:
+            ii += 1
+        if ii > 0 and v > ranges[ii-1][0] and v < ranges[ii-1][1]:
+            c_vect.append(True)
+        else:
+            c_vect.append(False)
+    if len(c_vect) != len(v_vect):
+        raise ValueError
+    return c_vect
+
+
 # return a vector of calls for person and a corresponding vector of BED range
 # coverage that represents if the call is a) in a range, b) on the lower edge
 # of a range, c) on the upper edge of a range, or d) not covered by a range
 def get_call_coverage(dbo, pid):
     # stub work in progress Jef
+    calls = dbo.dc.execute('''select vID,pos from vcfcalls c
+                              inner join variants v on c.vID=v.id
+                              and c.pID=?''', (pid,))
+    cv = [v[1] for v in calls]
+    trace(0, 'calls: {}'.format(cv))
+    ranges = dbo.dc.execute('''select minaddr,maxaddr from bedranges r
+                              inner join bed b on b.bID=r.id
+                              where b.pid=?
+                              order by 1''', (pid,))
+    rv = [v for v in ranges]
+    trace(0, 'ranges: {}...'.format(rv[:20]))
+    
     return [], []
 
 # populate regions from a FTDNA BED file
@@ -1002,10 +1035,16 @@ if __name__ == '__main__':
     populate_contigs(db)
     populate_age(db)
     extract_zipdir()
+    # currently filemap.csv remaps a sample data to One-001
     pID = populate_from_zip_file(db, 'One-001.vcf')
+    # use a fake pID=1 because calls parsing is not implemented yet
     populate_from_BED_file(db, 1, 'One-001.bed')
+    # commit in case something fails later - the on-disk .db has stuff in it
     db.commit()
+    # use fake pID=1 as above to test kit coverage statistics
     trace(0,'kit coverage: {}'.format(get_kit_coverage(db, 1)))
+    # no vcf calls parsed yet, so no interesting output from this:
+    get_call_coverage(db,1)
     db.commit()
     db.close()
 
