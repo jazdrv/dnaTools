@@ -938,7 +938,8 @@ def get_kit_coverage(dbo, pid):
     if post:
         accum1 += r[1]-post
     accum2 = dbo.dc.execute('''select sum(maxaddr-minaddr) from bedranges r
-                           inner join bed b on r.id=b.bid''').fetchone()[0]
+                           inner join bed b on r.id=b.bid and b.pid=?''',
+                        (pid,)).fetchone()[0]
     return accum2, accum1
 
 
@@ -1080,16 +1081,24 @@ if __name__ == '__main__':
     extract_zipdir()
     filelist = os.listdir(data_path(config['zip_dir']))
     pID = populate_from_zip_file(db, filelist[-1])
-    # use a fake pID=1 because calls parsing is not implemented yet
-    # currently filemap.csv remaps a sample data to One-001
-    populate_from_BED_file(db, 1, 'One-001.bed')
-    # commit in case something fails later - the on-disk .db has stuff in it
-    db.commit()
-    # use fake pID=1 as above to test kit coverage statistics
-    trace(0,'kit coverage: {}'.format(get_kit_coverage(db, 1)))
-    # use fake pID=1 as above
-    populate_from_VCF_file(db, 1, 1, 'One-001.vcf')
-    get_call_coverage(db,1)
+    filelist = os.listdir(data_path(config['unzip_dir']))
+    beds = [f for f in sorted(filelist) if f.endswith('.bed')]
+    vcfs = [f for f in sorted(filelist) if f.endswith('.vcf')]
+    for ii,bedf in enumerate(beds):
+        # use a fake pID because calls parsing is not implemented yet
+        # currently filemap.csv remaps a sample data to One-001
+        populate_from_BED_file(db, ii, bedf)
+        # use fake pID as above to test kit coverage statistics
+        trace(0,'kit coverage: {}'.format(get_kit_coverage(db, ii)))
+        db.commit()
+    for ii,vcff in enumerate(vcfs):
+        # use fake pID as above
+        populate_from_VCF_file(db, 2, ii, vcff)
+        get_call_coverage(db,ii)
+        db.commit()
+    from array_api import *
+    out = variant_csv(db,[0,1,2,3,4,5])
+    open('csv.out','w').write(out)
     db.commit()
     db.close()
 
