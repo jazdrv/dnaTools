@@ -8,17 +8,20 @@
 
 # this script looks in the configured DATA/unzip directory for the file
 
-. ${REDUX_ENV}/parse_yaml.sh
-eval $(parse_yaml ${REDUX_ENV}/config.yaml "config_")
-
-FILE="${config_REDUX_DATA}/${config_unzip_dir}/$1"
-if [ "$1" == "" ]; then
-    echo "Nothing given. Aborting."
-    exit
-fi
-if [[ ! -f "$FILE" ]]; then
-    echo "$FILE doesn't exist. Aborting."
-    exit
+if [ "$1" != "-" ]; then
+    . ${REDUX_ENV}/parse_yaml.sh
+    eval $(parse_yaml ${REDUX_ENV}/config.yaml "config_")
+    FILE="${config_REDUX_DATA}/${config_unzip_dir}/$1"
+    if [ "$1" == "" ]; then
+	echo "Nothing given. Aborting."
+	exit
+    fi
+    if [[ ! -f "$FILE" ]]; then
+	echo "$FILE doesn't exist. Aborting."
+	exit
+    fi
+else
+    FILE=$1
 fi
 
 awk '

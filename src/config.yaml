@@ -21,6 +21,10 @@ REDUX_DATA: ../data
 # The path to the directory for the related external programs
 REDUX_BIN: ../bin
 
+# HOW MUCH DO YOU WANT THE PROGRAM TO SHOUT AT YOU?
+# the higher the number, the more output
+verbosity: 30
+
 # Notes on SKIPZIP
 # Set SKIPZIP to >0 skip the labour-intensive parts of the
 # script. Requires MAKEREPORT=TRUE This should only be done if you have
@@ -73,8 +77,6 @@ err_zero_age: 15.02
 # clades 
 
 DEBUG: 0
-
-verbosity: 30
 
 drop_tables: 1
 

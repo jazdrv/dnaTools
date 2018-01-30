@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 # coding: utf-8
-# authors/licensing{{{
 
 # @author: Iain McDonald
 # Contributors: Jef Treece, Harald Alvestrand, Zak Jones
@@ -9,12 +8,7 @@
 # version 3 (29 June 2007)
 # https://www.gnu.org/licenses/gpl.html
 
-# }}}
-# libs {{{
-
 import sys,os,sqlite3,yaml,time,csv,json,numpy as np
-
-# }}}
 
 REDUX_CONF = 'config.yaml'
 config = yaml.load(open(REDUX_CONF))
@@ -46,29 +40,13 @@ class DB(object):
     def create_schema(self, schemafile='schema.sql'):
         self.run_sql_file(os.path.join(config['REDUX_SQL'],schemafile))
 
-    # get build identifier by its name; creates new entry if needed
-    # known aliases are reduced to one entry
-    def get_build_byname(self, buildname='hg38'):
-        if buildname.lower().strip() in ('hg19', 'grch37', 'b19', 'b37'):
-            buildname = 'hg19'
-        elif buildname.lower().strip() in ('hg38', 'grch38', 'b38'):
-            buildname = 'hg38'
-        dc = self.dc.execute('select id from build where buildNm=?', (buildname,))
-        bid = None
-        for bid, in dc:
-            continue
-        if not bid:
-            self.dc.execute('insert into build(buildNm) values (?)', (buildname,))
-            bid = self.dc.lastrowid
-        return bid
-
     # insert an array of variants into variant definitions table
     # This procedure takes a list or iterator in variant_array, which are
     # pos,anc,der tuples and inserts these into the variants table.  if there
     # are duplicates in variant_array, they are not inserted due to the unique
     # constraint on the variants table.
     def insert_variants(self, variant_array, buildname='hg38'):
-        bid = self.get_build_byname(buildname)
+        bid = get_build_byname(self.db, buildname)
         alleles = set([v[1] for v in variant_array] + [v[2] for v in variant_array])
         for allele in [a.strip() for a in alleles]:
             db.dc.execute('insert or ignore into alleles(allele) values(?)', (allele,))

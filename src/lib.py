@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 # coding: utf-8
-# authors/licensing {{{
 
 # @author: Iain McDonald
 # Contributors: Jef Treece, Harald Alvestrand, Zak Jones
@@ -11,14 +10,11 @@
 
 # run this script as a command with no args to execute some tests
 
-# }}}
-# libs {{{
 
 import os,yaml,shutil,glob,re,csv,zipfile,subprocess
 from db import DB
 from collections import defaultdict
 
-# }}}
 
 REDUX_CONF = 'config.yaml'
 config = yaml.load(open(REDUX_CONF))
@@ -31,16 +27,16 @@ sys.path.insert(0, config['REDUX_BIN'])
 
 
 # routines - debug/diagnostic output
-# fixme - there are too many levels of verbosity - probably should be a bitmap/flags
-# fixme - level is ignored
-# fixme - stdout or stderr?
-def trace (level, msg):
-    print(msg)
-    #if level <= config['verbosity']:
-    #    print(msg)
-    #TODO: below line in clades.py
-    #sys.stderr(flush)
-
+# fixme - there are too many levels of verbosity - probably should be a
+# bitmap/flags
+# output to stderr by default - use 2> redirection in bash to capture
+# this sends all zero-level messages to stdout as well
+def trace (level, msg, stream=sys.stderr):
+    if level <= config['verbosity']:
+        if level == 0 and stream != sys.stdout:
+            print(msg)
+        print(msg, file=stream)
+        stream.flush()
 
 # return a path to a file or directory in the configured data dir
 def data_path(fname):
@@ -73,6 +69,7 @@ def setup_dirs():
 
 # call external utility to unpack all files in the zip directory
 # return list of files that were unzipped
+# this procedure is probably obsolete - remove in the future
 def extract_zipdir():
     # work in progress Jef
     # fixme - interop with API from DW
@@ -97,24 +94,14 @@ def unpack_zipfile():
     return
 
 # I don't know what this procedure is for; it looks like it needs to go in the
-# main loop
+# main loop - I've removed some code for vcf files, which is handled
+# differently
 def skip_to_Hg19(dbo):
 
     # skip to <= 1 - unpack zips
 
-    if (config['skip_to'] <= 1):
-        trace (2, "Unpacking ZIP files...")
-        #unpack(REDUX_ENV+'/'+config['zip_dir'],REDUX_ENV+'/'+config['unzip_dir'],config['verbosity'])
-        unpack_zipdir()
-        t = float((time.clock() - start_time))
-        trace(10, '   ...complete after %.3f seconds' % t)
-        trace (5, "Associating unzipped files with kits...")
-        
     # skip to <= 10 - associate kits with people
 
-    if (config['skip_to'] <= 10):
-        trace (2, "Associating kits with people...")
-        
     # skip to <= 11 - generate dictionary of variant positions 
 
     #   The VCF files are parsed twice. The first pass identifies the list
@@ -129,23 +116,11 @@ def skip_to_Hg19(dbo):
         #vcffiles
 
         trace (2, "Generating database of all variants...")
-        # fixme - populate dataset
-        vcffiles = [f for f in os.listdir(os.path.join(config['REDUX_ENV'], config['unzip_dir'])) if f.endswith('.vcf')]
-        trace (10, "   %i files detected" % len(vcffiles))
         
         #variant_dict
 
         #print(REDUX_ENV)
         variant_dict = {}
-        for file in vcffiles:
-            # fixme - this should come from walking through dataset
-            vcf_calls = readHg19Vcf(os.path.join(config['REDUX_ENV'], config['unzip_dir'], file))
-            # fixme .update is probably a slow way
-            variant_dict.update(vcf_calls)
-
-        trace (10, "   %i variants found" % len(variant_dict))
-        t = float((time.clock() - start_time))
-        trace(10, '   ...complete after %.3f seconds' % t)
 
         # dump variant dict into sorted array
 
@@ -170,12 +145,6 @@ def skip_to_Hg19(dbo):
     
     #db calls
     
-    if (config['skip_to'] <= 12):
-        trace (2, "Generating database of calls...")
-        vcffiles = [f for f in os.listdir(os.path.join(config['REDUX_ENV'], config['unzip_dir'])) if f.endswith('.vcf')]
-        trace (10, "   %i files detected" % len(vcffiles))
-        # dbo.insert_calls()
-
     # skip to <= 13 - name variants and derive ancestral values
 
     # Some variants are positive in the reference sequence, so we need to
@@ -190,36 +159,14 @@ def skip_to_Hg19(dbo):
         trace (10, "   Importing SNP reference lists...")
 
 
-
-        # db work - how we doing? {{{
-
-        # Read in SNPs from reference lists
-        # Probably doesn't need to be done at this point
-        # trace (10, "   Joining reference lists to variant database...")
-
-        # self.dc.execute('''SELECT hg38.grch38, hg38.name
-        # FROM hg38
-        # INNER JOIN hg19 on hg19.name = hg38.name''')
-
-        # self.dc.execute('''SELECT variants.id, hg38.name
-        # FROM variants
-        # LEFT OUTER JOIN hg38 on hg38.grch38 = variants.id''')
-
-        # }}}
-
         t = float((time.clock() - start_time))
         trace(10, '   ...complete after %.3f seconds' % t)
             
-    #commit
-
-    dbo.commit()
-
     # Print final message and exit {{{{
 
     t = float((time.clock() - start_time))
     trace (1, "Execution finished in: %.3f seconds" % t)
 
-    # }}}
 
 # routines - arghandler (redux1) - Zak
 
@@ -229,6 +176,7 @@ def go_all():
     go_db()
     
 # cache previous run's results
+# fixme this is incorrect, and we need to figure out what needs to be saved
 def go_backup():
 
     trace(0,"** performing backup.")
@@ -239,21 +187,6 @@ def go_backup():
     for FILE_PATTERN in config['backup_files'].split():
         for FILE in glob.glob(FILE_PATTERN):
             shutil.copy(FILE,'autobackup')
-    
-    # autobackup2 dir {{{
-
-    # Make further backup copies when running the script from scratch
-    # This is useful when you want to make changes to the bad/inconsistent list, but still want to compare to the original previous run.
-    # For example:
-    # gawk 'NR==FNR {c[$5]++;next};c[$5]==0' tree.txt autobackup2/tree.txt
-    # will tell you the changes to the tree structure that have resulted from the addition of new kits between "from-scratch" runs.
-    
-    #refresh_dir('autobackup2')
-    #for FILE_PATTERN in config['backup_files'].split():
-    #    for FILE in glob.glob(FILE_PATTERN):
-    #        shutil.copy(FILE, 'autobackup2')
-    
-    # }}}
     
     if config['make_report']:
         #print "MAKING REPORT..."
@@ -271,24 +204,21 @@ def go_prep():
 
     if not config['skip_zip']:
 
-        # Check ZIPDIR - contains existing zip files {{{
+        # Check ZIPDIR - contains existing zip files
 
         if not os.path.exists(config['zip_dir']):
             trace(0,"Input zip folder does not appear to exist. Aborting.\n")
             sys.exit()
 
-        # }}}
-        # Check WORKING - the zip working exists && Empty it, otherwise make it {{{
+        # Check WORKING - the zip working exists && Empty it, otherwise make it
 
         refresh_dir('working')
 
-    # }}}
-        # Check UNZIPDIR - contains zip output; refresh it {{{
+        # Check UNZIPDIR - contains zip output; refresh it
 
         refresh_dir('unzips',not config['zip_update_only'])
 
-        # }}}
-        # Get the list of input files {{{
+        # Get the list of input files
 
         FILES = glob.glob(os.path.join(config['REDUX_ENV'], 'zips', 'bigy-*.zip'))
 
@@ -299,218 +229,21 @@ def go_prep():
         else:
             trace(0,"input files detected: " + str(FILES))
 
-        # }}}
-        # Check whether unzip is installed {{{
+        # Check whether unzip is installed
 
         if not cmd_exists('unzip'):
             trace(0,"Unzip package not found. Aborting.")
             sys.exit()
 
-        # }}}
-        # Check whether SNP list exists {{{
+        # Check whether SNP list exists - handled elsewhere
 
-        csv = os.path.join(config['REDUX_DATA'], config['b38_snp_file'])
-        if not os.path.exists(csv):
-            trace(0,"SNP names file does not exist. Try:")
-            trace(0,"wget http://ybrowse.org/gbrowse2/gff/"+csv+" -O "+csv+"\n")
-            sys.exit()
-
-        # }}}
-        # Check whether merge-ignore list exists {{{
+        # Check whether merge-ignore list exists
 
         touch_file('merge-ignore.txt')
 
-        # }}}
-     
         # fix bash code (beg)
 
-        # Unzip each zip in turn {{{
-
-        trace(0,"Unzipping...")
-
-        if config['zip_update_only']:
-            #FILES=(`diff <(ls zip/bigy-*.zip | sed 's/zip\/bigy-//' | sed 's/.zip//') <(ls unzip/*.vcf | sed 's/unzip\///' | sed 's/.vcf//') | grep '<' | awk '{print "zip/bigy-"$2".zip"}'`)
-            SET = [set(re.sub('zip/bigy-','',re.sub('.zip','',S)) for S in glob.glob('zips/bigy-*.zip'))]-set([re.sub('bigy-','',S) for S in glob.glob('unzips/*.vcf')])
-            #print  ${#FILES[@]} "new files found"
-            trace(0,"new files found: "+len(SET))
-            trace(0,"new files detected: " + list(SET))
-
-        #FILECOUNT=0
-
-        #for ZIPFILE in ${FILES[@]}; do
-
-        #    let FILECOUNT+=1
-        #    PREFIX=`echo "$ZIPFILE" | gawk -F- '{print $2"-"$3}' | sed 's/.zip//'`
-        #    #echo $FILECOUNT: $ZIPFILE : $PREFIX
-        #    unzip -q $ZIPFILE -d working/
-        #    if [ -s working/*.vcf ]; then mv working/*.vcf working/"$PREFIX".vcf; fi
-        #    if [ -s working/*.bed ]; then mv working/*.bed working/"$PREFIX".bed; fi
-        #    if [ -s working/*/variants.vcf ]; then mv working/*/variants.vcf working/"$PREFIX".vcf; fi
-        #    if [ -s working/*/regions.bed ]; then mv working/*/regions.bed working/"$PREFIX".bed; fi
-        #    if [ -s working/"$PREFIX".vcf ] && [ -s working/"$PREFIX".bed ]; then
-        #        mv working/"$PREFIX".vcf unzip/;
-	#	mv working/"$PREFIX".bed unzip/;
-        #    else echo ""; echo "Warning: could not identify VCF and/or BED file for $PREFIX"
-        #    fi
-
-        #    rm -r working; mkdir working
-        #    echo -n "."
-
-        #done
-
-        #echo ""
-
-        # }}}
-
-        # fix bash code (end)
-    #fi
-
-    # SKIPZIP check (end)
-
-    # fix bash code (beg)
-
-    # Skip some more if SKIPZIP set {{{
-
-    #if config['skip_zip'] > 1:
-    #    cp header.csv report.csv
-    #    NFILES=`head -1 header.csv | gawk -v FS=, '{print NF-17}'`
-    #    echo "... $NFILES results to be post-processed"
-
-    #if config['skip_zip'] < 1:
-    #    # Check number of BED = number of VCF files
-    #    if [ `ls unzip/*.bed | wc -l` != `ls unzip/*.vcf | wc -l` ]; then
-    #    echo "Number of BED files does not equal number of VCF files."
-    #    echo "This is an unexpected error. Aborting."
-    #    sys.exit()
-
-    #T1=`date +%s.%N`
-    #DT=`echo "$T1" "$T0" | gawk '{print $1-$2}'`
-    #echo "...complete after $DT seconds"
-
-    # }}}
-    # Generate statistics from BED & VCF files {{{
-
-    #echo "Generating preliminary statistics..."
-
-    #FILES=(`ls unzip/*.bed`)
-    #echo "Total Kits:,,,,,"${#FILES[@]}',,,,,,,,,,,Kit' > header.csv
-    #echo 'KEY:,,,,,,,,,,,,,,,,Date' >> header.csv
-    #echo 'N+/N-,Number of +/- calls,,,,,,,,,,,,,,,Coverage' >> header.csv
-    #echo '(?+),Call uncertain but presumed positive,(position forced),,,,,,,,,,,,,,...for age analysis' >> header.csv
-    #echo 'cbl,Occurs on lower boundary of coverage,(often problematic),,,,,,,,,,,,,,Regions' >> header.csv
-    #echo 'cbu,Occurs on upper boundary of coverage,(usually ok),,,,,,,,,,,,,,Variants' >> header.csv
-    #echo 'cblu,Occurs as a 1-base-pair region,,,,,,,,,,,,,,,Passed' >> header.csv
-    #echo '1stCol,First column which is positive,,,,,,,,,,,,,,,Simple SNPs' >> header.csv
-    #echo 'Recur,Recurrencies in tree,(check: 1 or (R)),,,,,,,,,,,,,,SNPs under' "$TOPSNP" >> header.csv
-    #echo '(s?),Questionable singleton,(not negative in some clademates),,,,,,,,,,,,,,Singleton SNPs' >> header.csv
-    #echo '(s?!),Questionable singleton,(not negative in all clademates),,,,,,,,,,,,,,...for age analysis' >> header.csv
-    #echo '(R),Allowed recurrency,,,,,,,,,,,,,,,Indels' >> header.csv
-    #echo 'Blank,Securely called negative,,,,,,,,,,,,,,,Indels under' "$TOPSNP" >> header.csv
-    #echo 'Full report at:,www.jb.man.ac.uk/~mcdonald/genetics/report.csv,,,,,,,,,,,,,,,Singleton Indels' >> header.csv
-    #echo 'Non-shared SNPs' >> header.csv
-    #echo 'GrCh37,Name(s),Ref,Alt,Type,N+,(?+),N-,nc,cbl+,cbl-,cbu+,cbu-,cblu+,cblu-,1stCol,Recur' >> header.csv
-    #echo "Generating statistics for" ${#FILES[@]} "BED files..."
-    #echo -n '[1/5] '
-    #KITNAMES=`ls unzip/*.bed | sed 's/unzip\///g' | sed 's/.bed//g' | awk '1' ORS=,`
-    #echo -n '[2/5] '
-    #KITDATES=`ls -l --time-style +%Y-%m-%d unzip/*.bed | cut -d\  -f6 | awk '{print}' ORS=,`
-    #echo -n '[3/5] '
-    #STATS1=`gawk 'NR==FNR {a[NR]=$2;b[NR]=$3;n=NR} FNR==1 && NR!=1 {if (nfiles>0) print s,as,nrf;s=as=0;nfiles++} NR!=FNR {s+=$3-$2; for (i=1;i<=n;i++) if ($2<=b[i] && $3>=a[i]) {x=($3>b[i]?b[i]:$3)-($2>a[i]?$2:a[i]); if (x<0) x=0; as+=x}} {nrf=FNR} END {print s,as,FNR}' age.bed unzip/*.bed`
-    #echo -n '[4/5] '
-    #STATS2=`gawk '$1=="chrY" {n++} $1=="chrY" && $7=="PASS" {v++; if ($4!="." && $5!=".") {if (length($4)==1 && length($5)==1) {s++} else {i++} }} FNR==1 && NR!=1 {print n,v,s,0,0,0,i,0,0; n=v=s=i=0} END {print n,v,s,0,0,0,i,0,0}' unzip/*.vcf`
-
-    #echo -n '[5/5] '
-    #echo "$KITNAMES" | awk '{print substr($0,1,length($0)-1)}' > foo
-    #echo "$KITDATES" | awk '{print substr($0,1,length($0)-1)}' >> foo
-    #echo "$STATS1" | awk '{print $1}' ORS=, | awk '{print substr($0,1,length($0)-1)}' >> foo
-    #echo "$STATS1" | awk '{print $2}' ORS=, | awk '{print substr($0,1,length($0)-1)}' >> foo
-    #echo "$STATS1" | awk '{print $3}' ORS=, | awk '{print substr($0,1,length($0)-1)}' >> foo
-    #echo "$STATS2" | awk '{print $1}' ORS=, | awk '{print substr($0,1,length($0)-1)}' >> foo
-    #echo "$STATS2" | awk '{print $2}' ORS=, | awk '{print substr($0,1,length($0)-1)}' >> foo
-    #echo "$STATS2" | awk '{print $3}' ORS=, | awk '{print substr($0,1,length($0)-1)}' >> foo
-    #echo "$STATS2" | awk '{print $4}' ORS=, | awk '{print substr($0,1,length($0)-1)}' >> foo
-    #echo "$STATS2" | awk '{print $5}' ORS=, | awk '{print substr($0,1,length($0)-1)}' >> foo
-    #echo "$STATS2" | awk '{print $6}' ORS=, | awk '{print substr($0,1,length($0)-1)}' >> foo
-    #echo "$STATS2" | awk '{print $7}' ORS=, | awk '{print substr($0,1,length($0)-1)}' >> foo
-    #echo "$STATS2" | awk '{print $8}' ORS=, | awk '{print substr($0,1,length($0)-1)}' >> foo
-    #echo "$STATS2" | awk '{print $9}' ORS=, | awk '{print substr($0,1,length($0)-1)}' >> foo
-    #paste header.csv foo | sed 's/\t/,/' > fubar
-    #mv fubar header.csv
-
-    ## This does the same thing, but slower. From version 0.6.1
-    ## for BEDFILE in ${FILES[@]}; do
-    ##	VCFFILE=`echo "$BEDFILE" | sed 's/.bed/.vcf/'`
-    ##	KITNAME=`echo "$BEDFILE" | gawk -F/ '{print $2}' | sed 's/.bed//'`
-    ##	KITDATE=`ls -l --time-style +%Y-%m-%d "$BEDFILE" | cut -d\  -f6`
-    ##	STATS=`gawk 'NR==FNR {a[NR]=$1;b[NR]=$2;n=NR} NR!=FNR {s+=$3-$2-; for (i=1;i<=n;i++) if ($2<=b[i] && $3>=a[i]) {x=($3>b[i]?b[i]:$3)-($2>a[i]?$2:a[i]); if (x<0) x=0; as+=x}} END {print s,as,FNR}' age.bed "$BEDFILE"`
-    ##	STATS2=`gawk '$1=="chrY" {n++} $1=="chrY" && $7=="PASS" {v++; if ($4!="." && $5!=".") {if (length($4)==1 && length($5)==1) {s++} else {i++} }} END {print n,v,s,0,0,0,i,0,0}' "$VCFFILE"`
-    ##	STATS="$KITNAME $KITDATE $STATS $STATS2"
-    ##	gawk -v s="$STATS" 'NR==1 {split(s,stat," ")} {print $0","stat[NR]}' header.csv > foo
-    ##	mv foo header.csv
-    ##	echo -n "."
-    ##done
-
-    #echo ""
-    #cp header.csv report.csv
-
-    #T1=`date +%s.%N`
-    #DT=`echo "$T1" "$T0" | gawk '{print $1-$2}'`
-    #echo "...complete after $DT seconds"
-
-    # Close SKIPZIP if
-
-    #fi
-
-    # }}}
-    # Skip some more if SKIPZIP set {{{
-
-    #if [ "$SKIPZIP" == "0" ]; then
-
-    # }}}
-    # Identify list of variants {{{
-
-    #echo "Identifying list of variants..."
-    #gawk '$1=="chrY" && $7=="PASS" && $4!="." && $5!="." {print $2"\t"$4"\t"$5}' unzip/*.vcf | sed 's/,/;/g' > variant-list.txt
-
-    #rm -f variant-list.txt
-    #for BEDFILE in ${FILES[@]}; do
-    #	VCFFILE=`echo "$BEDFILE" | sed 's/.bed/.vcf/'`
-    #	gawk '$1=="chrY" && $7=="PASS" && $4!="." && $5!="." {print $2"\t"$4"\t"$5}' "$VCFFILE" | sed 's/,/;/g' >> variant-list.txt
-    #	echo -n "."
-    #done
-    #echo ""
-
-    # }}}
-    # Add "missing" clades from file {{{
-
-    # ! marks the implication so that is not counted when the SNP counts are made in the next section
-
-    #gawk '$1=="^" {print $2"\t"$4"\t"$5"\t!"}' implications.txt >> variant-list.txt
-
-    # }}}
-    # Create a unique list of variants {{{
-
-    #sort -nk1 variant-list.txt | uniq -c | sort -nk2 | gawk '{n="SNP"} $5=="!" {$1=0} length($3)>1 || length($4)>1 {n="Indel"} {print $2",,"$3","$4","n","$1",,,,,,,,,,,"}' > foo; mv foo variant-list.txt
-
-    #T1=`date +%s.%N`
-    #DT=`echo "$T1" "$T0" | gawk '{print $1-$2}'`
-    #print "...complete after $DT seconds"
-
-    # }}}
-    # Write out positive cases {{{
-
-    #echo "Identifying positives and no calls..."
-
-    # }}}
-    # Include python script by Harald A. {{{
-
-    #./positives-and-no-calls.py ${FILES[@]} > variant-match.txt
-
-    #T1=`date +%s.%N`
-    #DT=`echo "$T1" "$T0" | gawk '{print $1-$2}'`
-    #print "...complete after $DT seconds"
-
-    # }}}
+        # Unzip each zip in turn - handled elsewhere
 
     # fix bash code (end)
 
@@ -526,12 +259,6 @@ def go_db():
     dbo.create_schema()
     return dbo
 
-
-#    skip_to_Hg19(dbo)
-
-
-# import vcf hg38
-
 #note: it looks like clades.py is doing something like this for hg19
 def getH38references():
     foo = 1
@@ -539,10 +266,12 @@ def getH38references():
 # call out to bash script to parse the vcf file
 # todo - pull this under python source?
 def getVCFvariants(FILE):
+    from subprocess import Popen, PIPE, STDOUT
     cmd = os.path.join(config['REDUX_ENV'], 'getVCFvariants.sh')
-    io = subprocess.run([cmd, FILE],
-                            stdout=subprocess.PIPE)
-    output = io.stdout.decode('utf-8')
+
+    p = Popen([cmd, '-'], stdout=PIPE, stdin=PIPE, stderr=STDOUT)    
+    p_stdout = p.communicate(input=FILE.read())[0]
+    output = p_stdout.decode('utf-8')
     # trace(0, 'command output: {}'.format(output))
     return output
 
@@ -830,10 +559,10 @@ def update_metadata(db, js):
 
 # load data into the contig table
 def populate_contigs(db):
-    bid = db.get_build_byname('hg19')
+    bid = get_build_byname(db, 'hg19')
     db.dc.execute('insert into Contig(buildID,description,length) values(?,?,?)',
                       (bid, 'chrY', 59373566))
-    bid = db.get_build_byname('hg38')
+    bid = get_build_byname(db, 'hg38')
     db.dc.execute('insert into Contig(buildID,description,length) values(?,?,?)',
                       (bid, 'chrY', 57227415))
 
@@ -848,7 +577,7 @@ def populate_fileinfo(dbo, fromweb=True):
 # update snp definitions from a csv DictReader instance
 # fixme - update snpnames
 def updatesnps(db, snp_reference, buildname='hg38'):
-    bid = db.get_build_byname(buildname)
+    bid = get_build_byname(db, buildname)
     db.dc.execute('drop table if exists tmpt')
     db.dc.execute('create temporary table tmpt(a integer, b integer, c text, d text, e text, unique(a,b,c,d,e))')
     db.dc.executemany('INSERT OR IGNORE INTO tmpt(a,b,c,d,e) VALUES (?,?,?,?,?)',
@@ -985,71 +714,82 @@ def get_call_coverage(dbo, pid):
 
 # populate regions from a FTDNA BED file
 # fname is an unpacked BED file
-def populate_from_BED_file(dbo, pid, fname):
+def populate_from_BED_file(dbo, pid, fileobj):
+    dc = dbo.cursor()
     ranges = []
     try:
-        with open(os.path.join(data_path(config['unzip_dir']), fname)) as fp:
-            for line in fp:
-                ychr, minr, maxr = line.split()
-                ranges.append((pid, int(minr), int(maxr)))
+        for line in fileobj:
+            ychr, minr, maxr = line.split()
+            ranges.append((pid, int(minr), int(maxr)))
     except:
-        trace(0, 'FAILED on file {}'.format(os.path.join(data_path(config['unzip_dir']), fname)))
+        trace(0, 'FAILED on file at {}'.format(fileobj.readline()))
         return
     trace(0, '{} ranges for pID {}'.format(len(ranges), pid))
 
-    dbo.dc.execute('drop table if exists tmpt')
-    dbo.dc.execute('create temporary table tmpt(a,b,c)')
-    dbo.dc.executemany('insert into tmpt values(?,?,?)', ranges)
-    dbo.dc.execute('''insert or ignore into bedranges(minaddr,maxaddr)
-                      select b,c from tmpt''')
-    dbo.dc.execute('''insert into bed(pID, bID)
-                      select t.a, br.id from bedranges br
-                      inner join tmpt t on
-                      t.b=br.minaddr and t.c=br.maxaddr''')
+    dc.execute('drop table if exists tmpt')
+    dc.execute('create temporary table tmpt(a,b,c)')
+    dc.executemany('insert into tmpt values(?,?,?)', ranges)
+    dc.execute('''insert or ignore into bedranges(minaddr,maxaddr)
+                  select b,c from tmpt''')
+    dc.execute('''insert into bed(pID, bID)
+                  select t.a, br.id from bedranges br
+                  inner join tmpt t on
+                  t.b=br.minaddr and t.c=br.maxaddr''')
+    dc.close()
     return
 
 # populate calls, quality, and variants from a VCF file
 # fname is an unzipped VCF file
-def populate_from_VCF_file(dbo, bid, pid, fname):
+def populate_from_VCF_file(dbo, bid, pid, fileobj):
 
+    dc = db.cursor()
+    b = dc.execute('select buildNm from build where id=?', (bid,)).fetchone()[0]
+    if b != 'hg38':
+        trace(0, 'currently unable to parse build {}'.format(b))
+        return
     # parse output of getVCFvariants(fname)
-    parsed = getVCFvariants(fname)
+    parsed = getVCFvariants(fileobj)
     tups = []
     for line in parsed.splitlines():
         # pos, anc, der, passfail, q1, q2, nreads, passrate
         tups.append(line.split())
 
+    # trace(0, 'parsed vcf: {}...'.format(tups[:3]))
     # filter down to the calls we want to store
     # fixme this is probably not the correct filtering
-    passes = [t for t in tups if t[2] != '.' and (t[3] == 'PASS' or
+    try:
+        passes = [t for t in tups if t[2] != '.' and (t[3] == 'PASS' or
                   (int(t[6]) < 4 and float(t[7]) > .75))]
+    except ValueError:
+        trace(0, 'parsing VCF failed on {}'.format(t))
 
     # save the distinct alleles
     alleles = set([x[1] for x in passes] + [x[2] for x in passes])
-    db.dc.executemany('insert or ignore into alleles(allele) values(?)',
-                          [(x,) for x in alleles])
+    dc.executemany('insert or ignore into alleles(allele) values(?)',
+                       [(x,) for x in alleles])
 
     # save the call quality info
     # fixme - update schema to handle quality info
     pass
 
     # execute sql on results to save in vcfcalls
-    db.dc.execute('drop table if exists tmpt')
-    db.dc.execute('''create temporary table tmpt(a integer, b integer,
-                     c text, d text, e integer)''')
-    db.dc.executemany('insert into tmpt values(?,?,?,?,?)',
+    dc.execute('drop table if exists tmpt')
+    dc.execute('''create temporary table tmpt(a integer, b integer,
+                  c text, d text, e integer)''')
+    dc.executemany('insert into tmpt values(?,?,?,?,?)',
                           [[bid]+v[0:3]+[pid] for v in passes])
-    db.dc.execute('''insert or ignore into variants(buildID, pos, anc, der)
-                     select a, b, an.id, dr.id from tmpt
-                     inner join alleles an on an.allele = c
-                     inner join alleles dr on dr.allele = d''')
-    db.dc.execute('''insert into vcfcalls (pid,vid)
-                     select e, v.id from tmpt
-                     inner join alleles an on an.allele = c
-                     inner join alleles dr on dr.allele = d
-                     inner join variants v on v.buildID = a and v.pos = b
-                         and v.anc=an.id and v.der=dr.id''')
-    db.dc.execute('drop table tmpt')
+    dc.execute('''insert or ignore into variants(buildID, pos, anc, der)
+                  select a, b, an.id, dr.id from tmpt
+                  inner join alleles an on an.allele = c
+                  inner join alleles dr on dr.allele = d''')
+    dc.execute('''insert into vcfcalls (pid,vid)
+                  select e, v.id from tmpt
+                  inner join alleles an on an.allele = c
+                  inner join alleles dr on dr.allele = d
+                  inner join variants v on v.buildID = a and v.pos = b
+                  and v.anc=an.id and v.der=dr.id''')
+    dc.execute('drop table tmpt')
+    dc.close()
 
     trace(0, '{} vcf calls: {}...'.format(len(passes), passes[:5]))
     return
@@ -1068,7 +808,47 @@ def populate_from_zip_file(dbo, fname):
     # populate_from_BED_file
     return
 
+# unpack all zip files that can be handled from the HaplogroupR catalog If the
+# zip file exists, unpack it. Future - skip if already loaded?  Walk through
+# dataset table to find these files. Assume we've already pulled the list from
+# the H-R web API and downloaded zip files. Future - download file?
+def populate_from_dataset(dbo):
+    import zipfile, re
+    dc = dbo.cursor()
+    bed_re = re.compile(r'(\b(?:\w*[^_/])?regions(?:\[\d\])?\.bed)')
+    vcf_re = re.compile(r'(\b(?:\w*[^_/])?variants(?:\[\d\])?\.vcf)')
+    fl = dc.execute('select fileNm,buildID,DNAID from dataset')
+    allsets = [(t[0],t[1],t[2]) for t in fl]
+    for (fn,buildid,dnaid) in allsets:
+        zipf = os.path.join(data_path('HaplogroupR'), fn)
+        if not os.path.exists(zipf):
+            # trace(2, 'not present: {}'.format(zipf))
+            continue
+        with zipfile.ZipFile(zipf) as zf:
+            trace(0, 'populate from {}'.format(zf))
+            listfiles = zf.namelist()
+            bedfile = vcffile = None
+            for ff in listfiles:
+                dirname, basename = os.path.split(ff)
+                if bed_re.search(basename):
+                    bedfile = ff
+                elif vcf_re.search(basename):
+                    vcffile = ff
+            if (not bedfile) or (not vcffile):
+                trace(0, 'WARN: missing data in '+zipf)
+                continue
+            with zf.open(bedfile,'r') as bedf:
+                trace(1, 'populate from bed {}'.format(bedfile))
+                populate_from_BED_file(dbo, dnaid, bedf)
+            with zf.open(vcffile,'r') as vcff:
+                trace(1, 'populate from vcf {}'.format(vcffile))
+                populate_from_VCF_file(dbo, buildid, dnaid, vcff)
+                get_call_coverage(dbo, dnaid)
+
+
 # test framework
+# The following code is not really part of the program; it's for calling
+# procedures while developing or testing.
 if __name__ == '__main__':
     # print (config)
     db = DB(drop=True)
@@ -1078,26 +858,29 @@ if __name__ == '__main__':
     populate_SNPs(db)
     populate_contigs(db)
     populate_age(db)
-    extract_zipdir()
-    filelist = os.listdir(data_path(config['zip_dir']))
-    pID = populate_from_zip_file(db, filelist[-1])
-    filelist = os.listdir(data_path(config['unzip_dir']))
-    beds = [f for f in sorted(filelist) if f.endswith('.bed')]
-    vcfs = [f for f in sorted(filelist) if f.endswith('.vcf')]
-    for ii,bedf in enumerate(beds):
-        # use a fake pID because calls parsing is not implemented yet
-        # currently filemap.csv remaps a sample data to One-001
-        populate_from_BED_file(db, ii, bedf)
-        # use fake pID as above to test kit coverage statistics
-        trace(0,'kit coverage: {}'.format(get_kit_coverage(db, ii)))
-        db.commit()
-    for ii,vcff in enumerate(vcfs):
-        # use fake pID as above
-        populate_from_VCF_file(db, 2, ii, vcff)
-        get_call_coverage(db,ii)
-        db.commit()
+    populate_from_dataset(db)
+    if False:
+        extract_zipdir()
+        filelist = os.listdir(data_path(config['zip_dir']))
+        pID = populate_from_zip_file(db, filelist[-1])
+        filelist = os.listdir(data_path(config['unzip_dir']))
+        beds = [f for f in sorted(filelist) if f.endswith('.bed')]
+        vcfs = [f for f in sorted(filelist) if f.endswith('.vcf')]
+        for ii,bedf in enumerate(beds):
+            # use a fake pID because calls parsing is not implemented yet
+            # currently filemap.csv remaps a sample data to One-001
+            populate_from_BED_file(db, ii, bedf)
+            # use fake pID as above to test kit coverage statistics
+            trace(0,'kit coverage: {}'.format(get_kit_coverage(db, ii)))
+            db.commit()
+        for ii,vcff in enumerate(vcfs):
+            # use fake pID as above
+            populate_from_VCF_file(db, 2, ii, vcff)
+            get_call_coverage(db,ii)
+            db.commit()
     from array_api import *
-    out = variant_csv(db,[0,1,2,3,4,5])
+    ids = get_dna_ids(db)
+    out = get_variant_csv(db,ids)
     open('csv.out','w').write(out)
     db.commit()
     db.close()

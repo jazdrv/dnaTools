@@ -10,7 +10,7 @@
 
 # build a dictionary of people-variants
 # ppl is a 1-d array of dataset IDs we're interested in
-def variant_array(db, ppl):
+def get_variant_array(db, ppl):
     from collections import defaultdict
     c1 = db.dc
     c1.execute('drop table if exists tmpt')
@@ -33,8 +33,8 @@ def variant_array(db, ppl):
     return arr, ppl, list(var)
 
 # create a csv file of 2d person x variant array
-def variant_csv(db, ppl):
-    arr, pl, vl = variant_array(db, ppl)
+def get_variant_csv(db, ppl):
+    arr, pl, vl = get_variant_array(db, ppl)
     out = ',' + ','.join(['{}'.format(v) for v in ppl]) + '\n'
     for vv in vl:
         out += '{},'.format(vv)
@@ -45,3 +45,25 @@ def variant_csv(db, ppl):
                 out += ','
         out += '\n'
     return out
+
+# get the list of populated (ones that have vcfcalls entries) DNAIDs
+def get_dna_ids(db):
+    return [x[0] for x in db.dc.execute('select distinct(pID) from vcfcalls')]
+
+
+# get build identifier by its name; creates new entry if needed
+# known aliases are reduced to one entry
+def get_build_byname(db, buildname='hg38'):
+    if buildname.lower().strip() in ('hg19', 'grch37', 'b19', 'b37'):
+        buildname = 'hg19'
+    elif buildname.lower().strip() in ('hg38', 'grch38', 'b38'):
+        buildname = 'hg38'
+    dc = db.dc.execute('select id from build where buildNm=?', (buildname,))
+    bid = None
+    for bid, in dc:
+        continue
+    if not bid:
+        dc.execute('insert into build(buildNm) values (?)', (buildname,))
+        bid = dc.lastrowid
+    return bid
+
