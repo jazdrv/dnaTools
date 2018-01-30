@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 # coding: utf-8
 
-# @author: Iain McDonald
-# Contributors: Jef Treece, Harald Alvestrand, Zak Jones
+# Contributors: Jef Treece, Harald Alvestrand, Zak Jones, Iain McDonald
 # Purpose: Reduction and comparison script for Y-chromosome NGS test data
 # For free distribution under the terms of the GNU General Public License,
 # version 3 (29 June 2007)
 # https://www.gnu.org/licenses/gpl.html
 
 # run this script as a command with no args to execute some tests
+# it probably only works when run from the src directory
 
 
 import os,yaml,shutil,glob,re,csv,zipfile,subprocess
@@ -17,13 +17,13 @@ from collections import defaultdict
 from array_api import *
 
 
-REDUX_CONF = 'config.yaml'
-config = yaml.load(open(REDUX_CONF))
-
+# read the config file
+# todo: this might need to some bootstrapping (run outside of src dir?)
+config = yaml.load(open('config.yaml'))
 
 # add src and bin directories to path
 import sys
-sys.path.insert(0, config['REDUX_ENV'])
+sys.path.insert(0, config['REDUX_PATH'])
 sys.path.insert(0, config['REDUX_BIN'])
 
 
@@ -611,16 +611,18 @@ def get_SNPdefs_fromweb(db, maxage, url='http://ybrowse.org/gbrowse2/gff'):
     import urllib, time
     if maxage < 0:
         return
+    # convert to seconds
+    maxage = 24*3600*maxage
     for (build,) in db.dc.execute('select buildNm from build'):
         deltat = maxage + 1
         fbase = 'snps_{}.csv'.format(build)
-        trace (1, 'refresh: {}'.format(fbase))
         fget = os.path.join(url, fbase)
         fname = os.path.join(config['REDUX_DATA'], fbase)
         try:
             if os.path.exists(fname):
                 deltat = time.time() - os.path.getmtime(fname)
             if deltat > maxage:
+                trace (1, 'refresh: {}'.format(fbase))
                 urllib.request.urlretrieve(fget, fname)
                 deltat = time.time() - os.path.getmtime(fname)
         except:
@@ -629,8 +631,9 @@ def get_SNPdefs_fromweb(db, maxage, url='http://ybrowse.org/gbrowse2/gff'):
             trace(0, 'failed to update {} from the web'.format(fname))
     return
 
-# populate SNP definitions; refresh from web if we have is older than maxage (seconds)
-def populate_SNPs(dbo, maxage=3600*24*5):
+# populate SNP definitions; refresh from web if we have is older than maxage
+# (in days)
+def populate_SNPs(dbo, maxage=config['max_snpdef_age']):
     get_SNPdefs_fromweb(dbo, maxage=maxage)
     # update known snps for hg19 and hg38
     with open(os.path.join(config['REDUX_DATA'], config['b37_snp_file'])) as snpfile:
@@ -878,9 +881,9 @@ def populate_from_dataset(dbo):
 
 # initial database creation and table loads
 def db_creation():
-    db = DB(drop=True)
+    db = DB(drop=config['drop_tables'])
     db.create_schema()
-    populate_fileinfo(db, fromweb=False)
+    populate_fileinfo(db, fromweb=config['use_web_api'])
     populate_STRs(db)
     populate_SNPs(db)
     populate_contigs(db)

@@ -10,67 +10,56 @@ Directory Structure:
 
 ./README.md - the project default readme at GitHub
 
+./attic - some old things that might still be useful for reference
+
 ./bin - executables for current version
 
 ./data - csv's and other types of data dumps
+./data/HaplogroupR - mirror of Hap-R data warehouse directory for zip files
 
-./docs - pdf's, etc
-
-./env - workspace area (sort of what I see redux.bash was doing in that prep work
-for zips/unzips/txt files and such) ... a separate space so we can separate it
-from the real code directory; i've been using sym-links for some of these
-things to point to stuff I have in data directory, etc
+./docs - pdf's, READMEs, instructions, etc
 
 ./examples - code snippets, reference examples
 
 ./sql - just sql files
 
-./versions - old versions
+./src - source code, where the programs live
 
 ./tests - place for unit tests (back burner for now)
 
-./bin/redux - place for where the redux.bash (and supporting files) is
+./versions - old versions
 
-./bin/redux2 - place for the redux2.py script (and supporting files) is; i
-haven't been editing redux2.py ... because I don't want to break anything. I've
-been working with redux2z.py; my version needs db.py, lib.py; i have clades.py
-in here and unpack.py ... but I haven't really studied that code yet
-
-note: for my directory structure, i am doing a sym links like this in my bin folder:
-
-bin jazdrv$ ls -l|grep ">"
-lrwxr-xr-x   1 jazdrv  staff     20 Jan 12 09:01 clades2.py -> ./redux2/clades2z.py
-lrwxr-xr-x   1 jazdrv  staff     16 Jan 11 11:11 redux.sh -> ./redux/redux.sh
-lrwxr-xr-x   1 jazdrv  staff     19 Jan 11 12:54 redux2.py -> ./redux2/redux2z.py
-
-note: I'm not tied to any one particular folder structure over another.
-so feel free to change any of this.
 
 ---------------------------------------------------
 Setup
 ---------------------------------------------------
 
-I've been operating under the idea that a yaml config can be used. See:
-./bin/redux2/config.yaml
+1. Edit the config file. Really. Look at all of the variables near the top.
 
-And also one or two things that can be set as environment variables.
+./src/config.yaml
 
-As I write this ... these are the .bashrc settings I currently have:
+2. Set the environment variable
 
-export REDUX_CONF="/Users/jazdrv/_prj/dnatools/bin/redux2/config.yaml"
-export PYTHONPATH="$PYTHONPATH:/Users/jazdrv/_prj/dnatools/bin/redux2"
-export REDUX_ENV="/Users/jazdrv/_prj/dnatools/env"
-export REDUX_SQL="/Users/jazdrv/_prj/dnatools/sql"
-export REDUX_PATH="/Users/jazdrv/_prj/dnatools/bin/redux2"
-export REDUX_DATA="/Users/jazdrv/_prj/dnatools/data"
+export REDUX_PATH="/where/ever/redux/src"
 
-I don't think all these environment var's need setting like this though. They can be done
-in the config file too in a better way. (or various other techniques)
-But I am trying to keep things separate, and also keep moving forward.
-So this is what I've been doing so far (and why).
+3. Run the driver, which creates and populates the database basics. This is
+an important step in the setup, and it downloads a couple of important
+files from the web.
 
-Again, I'm not tied to anything in the setup either. I can accomodate
-multiple ideas -- whatever makes sense.
+cd ${REDUX_PATH}
+./redux.py -c
 
+4. Download some data files - supply proper user credentials for
+ftp. It's not important which set of or how many files you download.
 
+sqlite3 variant.db > /tmp/f.out <<EOF
+select fileNm from dataset where fileNm like '%/b38/%';
+EOF
+cd ../data/HaplogroupR
+for f in `head -10 /tmp/f.out`; do wget -nc -x -nH --user user@it2kane.org --password=xxx-xxx ftp://it2kane.org/$f; done
 
+5. Run the driver in test mode
+
+./redux.py -t
+
+<stay tuned for more progress>

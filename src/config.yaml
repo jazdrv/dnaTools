@@ -11,6 +11,7 @@ VERSION: 2.0.0.20180108.ALPHA
 # ". ./redux.env" to set the environment variable
 # You may need to change this to a full pathname where your working directory is.
 REDUX_ENV: .
+REDUX_PATH: .
 
 # The path to the directory where SQL files live (e.g. the schema file)
 REDUX_SQL: ../sql
@@ -27,7 +28,45 @@ verbosity: 30
 
 # limit the number of kits that will be processed
 # normally, process all kits available, so leave this at a high number
-kitlimit: 80
+kitlimit: 10
+
+# pull the list of kits using the HaplogroupR web API. THIS NEEDS TO BE
+# DONE ONCE, but thereafter it can be false to use the locally cached
+# copy of the list, depending on how often you want a new list of kits
+use_web_api: False
+
+# location of the data files, under REDUX_DATA
+# zip_dir contains original zip files; unzip <may> contain extracted files
+zip_dir: zip
+unzip_dir: unzip
+
+# the name of the file on disk for sqlite3
+DB_FILE: variants.db
+
+# the name of the hg19 and hg38 named SNP definitions files
+# these should not need to be changed; they are pulled from the web
+b37_snp_file: "snps_hg19.csv"
+b38_snp_file: "snps_hg38.csv"
+
+# currently used during the database creation phase to cause the
+# database to be recreated every time. False means leave whatever exists
+# in the database, but that is not necessarily working yet
+drop_tables: True
+
+# maximum age in days of SNP definitions files before we download a new
+# copy from the web
+max_snpdef_age: 5
+
+#---------------------old or not yet used------------------
+
+zero_age: 1950.33
+err_zero_age: 15.02
+
+DEBUG: 0
+
+# special case extra args for the unpack-zip-files command
+unpack_args: -s 6:1,2,3,4,5,6 
+unpack_args:
 
 # Notes on SKIPZIP
 # Set SKIPZIP to >0 skip the labour-intensive parts of the
@@ -44,12 +83,14 @@ kitlimit: 80
 # If set to 3, SNP names aren't updated either. The previous SNP names are used.
 skip_zip: False
 
+# ZIPUPDATEONLY = don't re-extract that already exist # There's a bug
+# here somewhere!
+zip_update_only: True
+
+
 # CHECKDATA = display warnings and create lists if inconsistencies
 # detected in report (0 = no; >0 = yes)
 check_data: True
-
-# ZIPUPDATEONLY = don't re-extract that already exist # There's a bug here somewhere!
-zip_update_only: True
 
 # Notes on TESTFORREFPOS
 # This should be set for clades where the reference sequence contains
@@ -60,35 +101,6 @@ zip_update_only: True
 # results should be all positive or all negative for the group.
 test_for_ref_pos: False
 
-# location of the data files, under REDUX_DATA
-# zip_dir contains original zip files; unzip <may> contain extracted files
-zip_dir: zip
-unzip_dir: unzip
-
-# special case extra args for the unpack-zip-files command
-unpack_args: -s 6:1,2,3,4,5,6 
-unpack_args:
-
-# the name of the hg19 and hg38 named SNP definitions files
-# these should not need to be changed; they are pulled from the web
-b37_snp_file: "snps_hg19.csv"
-b38_snp_file: "snps_hg38.csv"
-
-zero_age: 1950.33
-err_zero_age: 15.02
-
-
-# clades 
-
-DEBUG: 0
-
-drop_tables: 1
-
-
-
-
-
-# redux2 stuff {{{
 
 # top_snp: defines what your top-level SNP is called out of the (usually
 # large number of) possible shared SNP's
@@ -103,26 +115,6 @@ drop_tables: 1
 # MAKEHTMLTREE = make an HTML version of the tree for easier visualisation
 # SKIPZIP = skip certain parts of the script: see below
 # TESTFORREFPOS = test for positives in the references sequence and swap if needed: see below
-
-# These flags set options for Jef Treece's unpacking script and other options
-# They are not currently implemented
-
-# zip_dir
-# unzip_dir
-# zips2_dir
-# unzips2_dir
-
-# if you only want a subset; add -d if unzip dir is already populated
-
-# zip_set
-
-# 0/1 - if 1: only run bash script; do not run clades.py for any operations
-# if setting to 1 when previously run w/ 0, clear out the unzip directory first
-
-# bash_only: True
-
-# 0/1 - if 1: drop and recreate the database if running with BASHONLY=0 -- takes a few minutes
-# recreate_db: True
 
 
 
@@ -150,9 +142,6 @@ drop_tables: 1
 # ZEROAGE gives the date from which ages are computed
 # ERRZEROAGE gives the (95% c.i.) +/- variation in this date for individual testers
 
-# zero_age: 1950.33
-# err_zero_age: 15.02
-
 # That's it!
 
 # List of required internal libraries:
@@ -172,17 +161,6 @@ drop_tables: 1
 # ,CHILD_SNP
 # awk 'NR==FNR {n[NR]=$1;o[NR]=$2;x=NR} NR!=FNR {for (i=1;i<=x;i++) if ($1==o[i] && $1!=n[i] && $1+0==0) print o[i],n[i]}' <(awk '$1!="" {split($1,pp," "); split(pp[1],p,"/")} $2!="" {split($2,qq," "); split(qq[1],q,"/")} NR>3 {if ($1=="") print p[1],q[1]; if ($2=="") print p[1],p[1]}' FS=, official-tree.csv  | sed 's/In://Ig' | grep '[0-9]') <(awk '{print $16}' final-ages.txt) >> cladenames.txt
 
-# }}}
-# more redux2 stuff {{{
-
-# names = """
-# FTDNA345238Newell.zip, 345238, Newell
-# 155941_BigY_RawData_20140911-1.zip, 155941, Unknown
-# Lee 237414 BigY Raw Data.zip, 237414, Lee
-# U106_515653_Hogenmiller_BigY_RawData_2016_11_20.zip, 515653, Hogenmiller
-# bigy-Bettinger57020.zip, 57020, Bettinger
-# """
-# -----end hand-editing
 
 # Set start date for timing points
 # Note: I believe this needs to be taken out of YAML. keeping her for now.
@@ -192,9 +170,6 @@ drop_tables: 1
 # Use is currently under development
 
 
-# Sets directories and other input files
-# zip_dir = "zip/"
-# unzip_dir = "unzip/"
 
 # The list of SNPs used as a reference
 # Get this using:
@@ -207,19 +182,7 @@ drop_tables: 1
 # there doesn't seem to be a simple Pythonic way of reading in the original CSV
 # file due to the quotes.
 
-# b37_snp_file: "snps_hg19.csv"
-# b38_snp_file: "snps_hg38.csv"
 
-# This defines whether tables get made again
-# drop_tables: 1
-
-# }}}
-
-# redux2
-
-
-# the name of the file on disk for sqlite3
-DB_FILE: variants.db
 
 
 backup_files: variant-*.txt snps_hg19.csv snp-names.csv snp-used.csv report.csv short-report.csv clades.csv tree.txt raw-ages.txt
@@ -234,6 +197,7 @@ top_snp: U106
 #    30 -> do not re-make the tree
 skip_to: 11
 skip_to: 0
+
 
 make_report: True
 make_ages: True
