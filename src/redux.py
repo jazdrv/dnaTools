@@ -1,176 +1,100 @@
 #!/usr/bin/env python3
 
-# authors/licensing {{{
-
-# @author: Iain McDonald
-# Contributors: Jef Treece, Harald Alvestrand
+# Contributors: Jef Treece, Harald Alvestrand, Iain McDonald, Zak Jones
 # Purpose: Reduction and comparison script for Y-chromosome NGS test data
 # For free distribution under the terms of the GNU General Public License,
 # version 3 (29 June 2007)
 # https://www.gnu.org/licenses/gpl.html
 
-# }}}
-# libs {{{
 
 import sys,argparse,yaml,os,glob,shutil,re,time,csv,zipfile
 from collections import defaultdict
 from lib import *
-from clades import *
-
-# }}}
-# setup notes {{{
+from db import DB
+from array_api import *
 
 # required environment vars:
-# REDUX_PATH - where these bin and conf files are
-# REDUX_ENV - where the data will be
-
-# }}}
-
-# trace
+# REDUX_PATH - where the source code and config.yaml lives
 
 start_time = time.clock()
+t0 = time.time()
 trace (1, "Beginning run [%s]" % time.strftime("%H:%M:%S"))
 
-# env
-
+# environment variable required
 try:
     sys.path.append(os.environ['REDUX_PATH'])
-    REDUX_CONF = os.environ['REDUX_PATH']+'/config.yaml'
+    REDUX_CONF = os.path.join(os.environ['REDUX_PATH'], 'config.yaml')
 except:
-    trace(0,"Missing environment variable REDUX_CONF. Aborting.")
-    sys.exit()
-try:
-    REDUX_ENV = os.environ['REDUX_ENV']
-except:
-    trace(0,"Missing environment variable REDUX_ENV. Aborting.")
+    trace(0,"Missing environment variable REDUX_PATH. Aborting.")
     sys.exit()
 
-# yaml
-
+# parse the remainder of the configuration settings
 config = yaml.load(open(REDUX_CONF))
 
-# arg parser (we can replace this -if useful- with getOpts or whatever)
 
+# basic strategy for command-line arguments
+#  -command-line args mainly select one or more basic execution elements (below)
+#  -these are standalone work units
+#  -config settings (above) are for almost all of the fine tuning
+#  -limited number of options from the command line
+
+# basic execution elements selected by command line arguments
+#  -running: logging, help messages
+#  -tasks: workflows, such as compute a particular type of output
+#  -maintenance: backup, cleanup, diagnostics, tools
+#  -output: controlling type of output files
+
+
+# arg parser
 parser = argparse.ArgumentParser()
-# note: probably needs to be rethought
-parser.add_argument('-A', '--all', help='perform all possible steps (prob best not to use for now)', action='store_true')
-# note: redux2.bash refactoring area (part 1)
-parser.add_argument('-c', '--backup', help='do a "backup" (redux.bash stuff)', action='store_true')
-# note: redux2.bash refactoring area (part 2)
-parser.add_argument('-p', '--prep', help='prep file structure (redux.bash stuff)', action='store_true')
-# note: redux2.py refactoring area
-parser.add_argument('-r', '--redux2', help='redux2.py stuff (v1 schema) ', action='store_true')
-# note: sort prototype stuff
-parser.add_argument('-o', '--sort', help='sort data prototype (s_ schema currently)', action='store_true')
-# note: Jef's new v2 schema
-parser.add_argument('-n', '--new', help='new v2 schema', action='store_true')
-# note: clades.py args
-parser.add_argument('-v', '--verbose', action='count')
-parser.add_argument('action', nargs='*')
-parser.add_argument('-s', '--snp', nargs=1)
-parser.add_argument('-i', '--implications', action='store_true')
-parser.add_argument('-t', '--tree', action='store_true')
-parser.add_argument('-b', '--badlist', action='store_true')
-parser.add_argument('-k', '--kits', action='store_true')
-# TODO: what I had
+# running
+
+# tasks
+parser.add_argument('-a', '--all', help='perform all possible steps (prob best not to use for now)', action='store_true')
+parser.add_argument('-c', '--create', help='clean start with a new database', action='store_true')
+parser.add_argument('-l', '--loadkits', help='load all of the kits', action='store_true')
+parser.add_argument('-t', '--testdrive', help='runs some unit tests', action='store_true')
+
+# maintenance
+parser.add_argument('-b', '--backup', help='do a "backup"', action='store_true')
+
+# output
+
 args = parser.parse_args()
-# TODO: clades way of doing it
-namespace = parser.parse_args(sys.argv[1:])
-verbose = vars(namespace)['verbose']
 
-# TODO: new clades code
-if not verbose:
-    verbose = config['DEBUG']
-if namespace.snp or len(namespace.action):
-    cladesO = Clades();
-    cladesO.dbo = DB()
-    cladesO.dbo.db = cladesO.dbo.db_init()
-    cladesO.namespace = namespace
-if namespace.snp:
-    cladesO.querysnp = vars(namespace)['snp'][0]
 
-# TODO: new clades code
-# create: new database from all of the .bed and vcf files
-# fastest if you remove the old .db file first
-for a in namespace.action:
-    if a == 'create':
-        cladesO.create = True
-    elif a == 'stats1':
-        cladesO.stats1 = True
-    elif a == 'stats2':
-        cladesO.stats2 = True
-    elif a == 'docalls':
-        cladesO.docalls = True
-    elif a == 'listfiles':
-        cladesO.listfiles = True
-    elif a == 'listbed':
-        cladesO.listbed = True
-    elif a == 'updatesnps':
-        cladesO.updatesnps = True
-    elif a == 'mergeup':
-        cladesO.mergeup = True
-    else:
-        print('unknown:', action, 'exiting')
 
-# TODO: clades line
-t0 = time.time()
 
-# TODO: clades stuff
-if namespace.snp or len(namespace.action):
-    if cladesO.create:
-        try:
-            os.unlink(config['DB_FILE'])
-        except:
-            pass
+# main program
 
-# TODO: clades line
+# drop database and have a clean start
+if args.create:
+    db = db_creation()
 
-# args
+# load kits that were found in H-R web API and in zipdirs
+if args.loadkits:
+    populate_from_dataset(db)
 
+# run unit tests - this is for development, test and prototyping
+# not part of the actual program
+if args.testdrive:
+    db = db_creation()
+    populate_from_dataset(db)
+    ids = get_dna_ids(db)
+    out = get_variant_csv(db,ids)
+    open('csv.out','w').write(out)
+    # no other work flow
+    db.commit()
+    db.close()
+    sys.exit(0)
+
+# run everything
 if args.all:
     go_backup()
     go_prep()
     go_db()
-else:
-    # redux.bash stuff
-    if args.backup:
-        go_backup()
-    # redux.bash stuff
-    if args.prep:
-        go_prep()
-    # redux2.py stuff (v1 schema)
-    if args.redux2:
-        go_db()
-    # sort prototype
-    if args.sort:
-        go_db()
-    # (v2 schema)
-    if args.new:
-        go_db()
 
-# clades args
-
-if namespace.snp or len(namespace.action):
-    if cladesO.create:
-        cladesO.create()
-    if cladesO.docalls:
-        cladesO.docalls()
-    if cladesO.stats1:
-        cladesO.stats1()
-    if cladesO.stats2:
-        cladesO.ctats2()
-    if cladesO.listfiles:
-        cladesO.listfiles()
-    if cladesO.listbed:
-        cladesO.listbed()
-    if cladesO.updatesnps:
-        cladesO.updatesnps()
-    if cladesO.querysnp:
-        cladesO.querysnp()
-    if cladesO.mergeup: #incomplete
-        cladesO.mergeup()
 
 trace(0, "** script complete.\n")
-# TODO: clades line
 trace(1, 'done at {:.2f} seconds'.format(time.time() - t0))
 

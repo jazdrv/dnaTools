@@ -25,6 +25,10 @@ REDUX_BIN: ../bin
 # the higher the number, the more output
 verbosity: 30
 
+# limit the number of kits that will be processed
+# normally, process all kits available, so leave this at a high number
+kitlimit: 80
+
 # Notes on SKIPZIP
 # Set SKIPZIP to >0 skip the labour-intensive parts of the
 # script. Requires MAKEREPORT=TRUE This should only be done if you have
@@ -81,9 +85,10 @@ DEBUG: 0
 drop_tables: 1
 
 
+
+
+
 # redux2 stuff {{{
-
-
 
 # top_snp: defines what your top-level SNP is called out of the (usually
 # large number of) possible shared SNP's
@@ -179,9 +184,6 @@ drop_tables: 1
 # """
 # -----end hand-editing
 
-# }}}
-# more redux2 stuff {{{
-
 # Set start date for timing points
 # Note: I believe this needs to be taken out of YAML. keeping her for now.
 # T0: `date +%s.%N`
@@ -189,11 +191,6 @@ drop_tables: 1
 # left_cols: 17
 # Use is currently under development
 
-# }}}
-# clades stuff {{{
-
-# Set verbosity of messages
-# verbosity: 30
 
 # Sets directories and other input files
 # zip_dir = "zip/"

@@ -413,6 +413,7 @@ def file_len(fname):
 # This procedure dumps what may be in the agebed table and replaces it with the
 # ranges defined in age.bed
 def populate_age(dbo):
+    trace(1, 'populate agebed table')
     with open('age.bed') as bedfile:
         cf = csv.reader(bedfile, delimiter=' ')
         ranges = []
@@ -561,6 +562,7 @@ def update_metadata(db, js):
 
 # load data into the contig table
 def populate_contigs(db):
+    trace(1,'populate contigs table')
     bid = get_build_byname(db, 'hg19')
     db.dc.execute('insert into Contig(buildID,description,length) values(?,?,?)',
                       (bid, 'chrY', 59373566))
@@ -633,10 +635,10 @@ def populate_SNPs(dbo, maxage=3600*24*5):
     # update known snps for hg19 and hg38
     with open(os.path.join(config['REDUX_DATA'], config['b37_snp_file'])) as snpfile:
         snp_reference = csv.DictReader(snpfile)
-        updatesnps(db, snp_reference, 'hg19')
+        updatesnps(dbo, snp_reference, 'hg19')
     with open(os.path.join(config['REDUX_DATA'], config['b38_snp_file'])) as snpfile:
         snp_reference = csv.DictReader(snpfile)
-        updatesnps(db, snp_reference, 'hg38')
+        updatesnps(dbo, snp_reference, 'hg38')
 
 # return a) sum of BED ranges for kit (how many bases are covered by the test)
 # and b) sum of coverage that is in the age BED range. These stats are needed
@@ -695,24 +697,32 @@ def in_range(v_vect, ranges):
     return c_vect
 
 
-# return a vector of calls for person and a corresponding vector of BED range
-# coverage that represents if the call is a) in a range, b) on the lower edge
-# of a range, c) on the upper edge of a range, or d) not covered by a range
-def get_call_coverage(dbo, pid):
-    # stub work in progress Jef
-    calls = dbo.dc.execute('''select vID,pos from vcfcalls c
-                              inner join variants v on c.vID=v.id
-                              and c.pID=?''', (pid,))
+# check kit coverage for a vector of variants return a vector of BED range
+# coverage for a person that represents if the call is a) in a range, b) on the
+# lower edge of a range, c) on the upper edge of a range, or d) not covered by
+# a range
+def get_call_coverage(dbo, pid, vids):
+    # FIXME currently only returns True/False, doesn't handle range ends
+    dc = dbo.cursor()
+    dc.execute('drop table if exists tmpt')
+    dc.execute('create table tmpt (vid integer)')
+    dc.executemany('insert into tmpt values(?)', [(a,) for a in vids])
+    calls = dc.execute('''select v.id, v.pos from variants v
+                          inner join tmpt t on t.vid=v.id
+                          order by 2''')
     cv = [v[1] for v in calls]
-    trace(1, '{} calls: {}...'.format(len(cv), cv[:20]))
-    ranges = dbo.dc.execute('''select minaddr,maxaddr from bedranges r
-                              inner join bed b on b.bID=r.id
-                              where b.pid=?
-                              order by 1''', (pid,))
+    trace(500, '{} calls: {}...'.format(len(cv), cv[:20]))
+    rc = dbo.cursor()
+    ranges = rc.execute('''select minaddr,maxaddr from bedranges r
+                           inner join bed b on b.bID=r.id
+                           where b.pid=?
+                           order by 1''', (pid,))
     rv = [v for v in ranges]
-    trace(1, '{} ranges: {}...'.format(len(rv), rv[:20]))
-    
-    return [], []
+    if len(rv) == 0:
+        return []
+    trace(500, '{} ranges: {}...'.format(len(rv), rv[:20]))
+    coverage = in_range(cv, rv)
+    return coverage
 
 # populate regions from a FTDNA BED file
 # fname is an unpacked BED file
@@ -726,7 +736,7 @@ def populate_from_BED_file(dbo, pid, fileobj):
     except:
         trace(0, 'FAILED on file at {}'.format(fileobj.readline()))
         return
-    trace(1, '{} ranges for pID {}'.format(len(ranges), pid))
+    trace(500, '{} ranges for pID {}'.format(len(ranges), pid))
 
     dc.execute('drop table if exists tmpt')
     dc.execute('create temporary table tmpt(a,b,c)')
@@ -743,8 +753,7 @@ def populate_from_BED_file(dbo, pid, fileobj):
 # populate calls, quality, and variants from a VCF file
 # fname is an unzipped VCF file
 def populate_from_VCF_file(dbo, bid, pid, fileobj):
-
-    dc = db.cursor()
+    dc = dbo.cursor()
     b = dc.execute('select buildNm from build where id=?', (bid,)).fetchone()[0]
     if b != 'hg38':
         trace(0, 'currently unable to parse build {}'.format(b))
@@ -793,7 +802,7 @@ def populate_from_VCF_file(dbo, bid, pid, fileobj):
     dc.execute('drop table tmpt')
     dc.close()
 
-    trace(1, '{} vcf calls: {}...'.format(len(passes), passes[:5]))
+    trace(500, '{} vcf calls: {}...'.format(len(passes), passes[:5]))
     return
 
 # unpack any zip from FTDNA that has the bed file and vcf file
@@ -816,11 +825,14 @@ def populate_from_zip_file(dbo, fname):
 # the H-R web API and downloaded zip files. Future - download file?
 def populate_from_dataset(dbo):
     import zipfile, re
+    trace(1, 'populate from dataset with kit limit {}'.format(config['kitlimit']))
     dc = dbo.cursor()
     bed_re = re.compile(r'(\b(?:\w*[^_/])?regions(?:\[\d\])?\.bed)')
     vcf_re = re.compile(r'(\b(?:\w*[^_/])?variants(?:\[\d\])?\.vcf)')
     fl = dc.execute('select fileNm,buildID,DNAID from dataset')
-    allsets = [(t[0],t[1],t[2]) for t in fl]
+    allsets = list([(t[0],t[1],t[2]) for t in fl])
+    trace(1,'allsets: {}'.format(allsets[:config['kitlimit']]))
+    nkits = 0
     for (fn,buildid,dnaid) in allsets:
         zipf = os.path.join(data_path('HaplogroupR'), fn)
         if not os.path.exists(zipf):
@@ -845,14 +857,27 @@ def populate_from_dataset(dbo):
             with zf.open(vcffile,'r') as vcff:
                 trace(1, 'populate from vcf {}'.format(vcffile))
                 populate_from_VCF_file(dbo, buildid, dnaid, vcff)
-                get_call_coverage(dbo, dnaid)
+        nkits += 1
+        if nkits > config['kitlimit']:
+            break
+
+    dc.close()
+    # below: maybe not part of populating dataset?
+    # get variants in ascending order of number of calls across kits
+    vc = dbo.cursor().execute('''select v.id,v.anc,v.der,count(c.pid)
+                           from variants v
+                           inner join vcfcalls c on c.vid = v.id
+                           group by 1,2,3 order by 4''')
+    # variant list if called more than once
+    vl = list([s[0] for s in vc if s[3] > 1])
+    for (fn,buildid,dnaid) in allsets:
+        coverage = get_call_coverage(dbo, dnaid, vl)
+        if len(coverage) > 0:
+            trace(1, 'coverage vector: {}...'.format(coverage[:20]))
 
 
-# test framework
-# The following code is not really part of the program; it's for calling
-# procedures while developing or testing.
-if __name__ == '__main__':
-    # print (config)
+# initial database creation and table loads
+def db_creation():
     db = DB(drop=True)
     db.create_schema()
     populate_fileinfo(db, fromweb=False)
@@ -860,26 +885,16 @@ if __name__ == '__main__':
     populate_SNPs(db)
     populate_contigs(db)
     populate_age(db)
+    return db
+
+
+# test framework
+# The following code is not really part of the program; it's for calling
+# procedures while developing or testing.
+if __name__ == '__main__':
+    # print (config)
+    db = db_creation()
     populate_from_dataset(db)
-    if False:
-        extract_zipdir()
-        filelist = os.listdir(data_path(config['zip_dir']))
-        pID = populate_from_zip_file(db, filelist[-1])
-        filelist = os.listdir(data_path(config['unzip_dir']))
-        beds = [f for f in sorted(filelist) if f.endswith('.bed')]
-        vcfs = [f for f in sorted(filelist) if f.endswith('.vcf')]
-        for ii,bedf in enumerate(beds):
-            # use a fake pID because calls parsing is not implemented yet
-            # currently filemap.csv remaps a sample data to One-001
-            populate_from_BED_file(db, ii, bedf)
-            # use fake pID as above to test kit coverage statistics
-            trace(1,'kit coverage: {}'.format(get_kit_coverage(db, ii)))
-            db.commit()
-        for ii,vcff in enumerate(vcfs):
-            # use fake pID as above
-            populate_from_VCF_file(db, 2, ii, vcff)
-            get_call_coverage(db,ii)
-            db.commit()
     ids = get_dna_ids(db)
     out = get_variant_csv(db,ids)
     open('csv.out','w').write(out)
