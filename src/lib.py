@@ -14,6 +14,7 @@
 import os,yaml,shutil,glob,re,csv,zipfile,subprocess
 from db import DB
 from collections import defaultdict
+from array_api import *
 
 
 REDUX_CONF = 'config.yaml'
@@ -30,13 +31,14 @@ sys.path.insert(0, config['REDUX_BIN'])
 # fixme - there are too many levels of verbosity - probably should be a
 # bitmap/flags
 # output to stderr by default - use 2> redirection in bash to capture
-# this sends all zero-level messages to stdout as well
+# this sends all zero-level messages to stdout
 def trace (level, msg, stream=sys.stderr):
     if level <= config['verbosity']:
-        if level == 0 and stream != sys.stdout:
+        if level == 0:
             print(msg)
-        print(msg, file=stream)
-        stream.flush()
+        else:
+            print(msg, file=stream)
+            stream.flush()
 
 # return a path to a file or directory in the configured data dir
 def data_path(fname):
@@ -272,7 +274,7 @@ def getVCFvariants(FILE):
     p = Popen([cmd, '-'], stdout=PIPE, stdin=PIPE, stderr=STDOUT)    
     p_stdout = p.communicate(input=FILE.read())[0]
     output = p_stdout.decode('utf-8')
-    # trace(0, 'command output: {}'.format(output))
+    # trace(1, 'command output: {}'.format(output))
     return output
 
 #routines - "arghandler" (sort prototype) - Zak
@@ -469,10 +471,10 @@ def get_kits (API='http://haplogroup-r.org/api/v1/uploads.php', qry='format=json
     try:
         # choose where to pull the kit data
         if not API:
-            trace(0, 'reading kit info from json.out')
+            trace(1, 'reading kit info from json.out')
             js = json.loads(open('json.out').read())
         else:
-            trace(0, 'reading kit info from the web')
+            trace(1, 'reading kit info from the web')
             url = '?'.join([API, qry])
             res = requests.get(url)
             js = json.loads(res.content)
@@ -497,9 +499,9 @@ def update_metadata(db, js):
         jr['surname'], jr['testType'], jr['isNGS'])
         for jr in js
         ]
-    trace(0, 'first row out of {}:{}'.format(len(rows),rows[0]))
-    trace(0, '{} unique kit ids'.format(len(set([v['kitId'] for v in js]))))
-    trace(0, '{} null surname'.format(len([v['surname'] for v in js if not v['surname']])))
+    trace(1, 'first row out of {}:{}'.format(len(rows),rows[0]))
+    trace(1, '{} unique kit ids'.format(len(set([v['kitId'] for v in js]))))
+    trace(1, '{} null surname'.format(len([v['surname'] for v in js if not v['surname']])))
 
     # populate the dependency tables
     # (testtype,isNGS) goes into testtypes
@@ -610,7 +612,7 @@ def get_SNPdefs_fromweb(db, maxage, url='http://ybrowse.org/gbrowse2/gff'):
     for (build,) in db.dc.execute('select buildNm from build'):
         deltat = maxage + 1
         fbase = 'snps_{}.csv'.format(build)
-        trace (0, 'refresh: {}'.format(fbase))
+        trace (1, 'refresh: {}'.format(fbase))
         fget = os.path.join(url, fbase)
         fname = os.path.join(config['REDUX_DATA'], fbase)
         try:
@@ -702,13 +704,13 @@ def get_call_coverage(dbo, pid):
                               inner join variants v on c.vID=v.id
                               and c.pID=?''', (pid,))
     cv = [v[1] for v in calls]
-    trace(0, '{} calls: {}...'.format(len(cv), cv[:20]))
+    trace(1, '{} calls: {}...'.format(len(cv), cv[:20]))
     ranges = dbo.dc.execute('''select minaddr,maxaddr from bedranges r
                               inner join bed b on b.bID=r.id
                               where b.pid=?
                               order by 1''', (pid,))
     rv = [v for v in ranges]
-    trace(0, '{} ranges: {}...'.format(len(rv), rv[:20]))
+    trace(1, '{} ranges: {}...'.format(len(rv), rv[:20]))
     
     return [], []
 
@@ -724,7 +726,7 @@ def populate_from_BED_file(dbo, pid, fileobj):
     except:
         trace(0, 'FAILED on file at {}'.format(fileobj.readline()))
         return
-    trace(0, '{} ranges for pID {}'.format(len(ranges), pid))
+    trace(1, '{} ranges for pID {}'.format(len(ranges), pid))
 
     dc.execute('drop table if exists tmpt')
     dc.execute('create temporary table tmpt(a,b,c)')
@@ -754,7 +756,7 @@ def populate_from_VCF_file(dbo, bid, pid, fileobj):
         # pos, anc, der, passfail, q1, q2, nreads, passrate
         tups.append(line.split())
 
-    # trace(0, 'parsed vcf: {}...'.format(tups[:3]))
+    # trace(1, 'parsed vcf: {}...'.format(tups[:3]))
     # filter down to the calls we want to store
     # fixme this is probably not the correct filtering
     try:
@@ -791,7 +793,7 @@ def populate_from_VCF_file(dbo, bid, pid, fileobj):
     dc.execute('drop table tmpt')
     dc.close()
 
-    trace(0, '{} vcf calls: {}...'.format(len(passes), passes[:5]))
+    trace(1, '{} vcf calls: {}...'.format(len(passes), passes[:5]))
     return
 
 # unpack any zip from FTDNA that has the bed file and vcf file
@@ -825,7 +827,7 @@ def populate_from_dataset(dbo):
             # trace(2, 'not present: {}'.format(zipf))
             continue
         with zipfile.ZipFile(zipf) as zf:
-            trace(0, 'populate from {}'.format(zf))
+            trace(1, 'populate from {}'.format(zf))
             listfiles = zf.namelist()
             bedfile = vcffile = None
             for ff in listfiles:
@@ -871,14 +873,13 @@ if __name__ == '__main__':
             # currently filemap.csv remaps a sample data to One-001
             populate_from_BED_file(db, ii, bedf)
             # use fake pID as above to test kit coverage statistics
-            trace(0,'kit coverage: {}'.format(get_kit_coverage(db, ii)))
+            trace(1,'kit coverage: {}'.format(get_kit_coverage(db, ii)))
             db.commit()
         for ii,vcff in enumerate(vcfs):
             # use fake pID as above
             populate_from_VCF_file(db, 2, ii, vcff)
             get_call_coverage(db,ii)
             db.commit()
-    from array_api import *
     ids = get_dna_ids(db)
     out = get_variant_csv(db,ids)
     open('csv.out','w').write(out)
