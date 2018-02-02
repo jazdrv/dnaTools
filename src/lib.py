@@ -459,10 +459,10 @@ def populate_STRs(dbo, ordering=None):
         'DYS643', 'DYS497', 'DYS510', 'DYS434', 'DYS461', 'DYS435')
     if ordering and (len(ordering)==len(strdefs)):
         for tup in zip(ordering,strdefs):
-            dbo.dc.execute('insert into strs(ordering,strname) values(?,?)', tup)
+            dbo.dc.execute('insert or ignore into strs(ordering,strname) values(?,?)', tup)
     else:
         for tup in enumerate(strdefs):
-            dbo.dc.execute('insert into strs(ordering,strname) values(?,?)', tup)
+            dbo.dc.execute('insert or ignore into strs(ordering,strname) values(?,?)', tup)
 
 
 # pull information about the kits from the web api
@@ -507,12 +507,12 @@ def update_metadata(db, js):
     # populate the dependency tables
     # (testtype,isNGS) goes into testtypes
     tups = [y for y in set([(r[-2],r[-1]) for r in rows])]
-    db.dc.executemany('insert into testtype(testNm,isNGS) values(?,?)', tups)
+    db.dc.executemany('insert or ignore into testtype(testNm,isNGS) values(?,?)', tups)
 
     # (surname+kitId+build) goes into person
     # fixme: we need a DNA-to-person mapping. This is a big kludge
     tups = [y for y in set([(r[-3],r[0],r[-4]) for r in rows])]
-    db.dc.executemany('insert into person(surname,firstname,middlename) values(?,?,?)',
+    db.dc.executemany('insert or ignore into person(surname,firstname,middlename) values(?,?,?)',
                           tups)
 
     for tbl,val,idx in (('country','country',-7),
@@ -535,7 +535,7 @@ def update_metadata(db, js):
     db.dc.executemany('''INSERT INTO tmpt(a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p)
         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''', rows)
     db.dc.execute('''
-        INSERT INTO dataset(kitId, importDt, fileNm, lng,
+        INSERT or ignore INTO dataset(kitId, importDt, fileNm, lng,
             lat, otherInfo, origFileNm, birthYr,
             approxHg,
             countryID, normalOrigID, labID, buildID, testTypeID, DNAID, surnameID)
@@ -772,8 +772,9 @@ def populate_from_VCF_file(dbo, bid, pid, fileobj):
     # filter down to the calls we want to store
     # fixme this is probably not the correct filtering
     try:
-        passes = [t for t in tups if t[2] != '.' and (t[3] == 'PASS' or
-                  (int(t[6]) < 4 and float(t[7]) > .75))]
+        #passes = [t for t in tups if t[2] != '.' and (t[3] == 'PASS' or
+        #          (int(t[6]) < 4 and float(t[7]) > .75))]
+        passes = [t for t in tups]
     except ValueError:
         trace(0, 'parsing VCF failed on {}'.format(t))
 
@@ -833,56 +834,85 @@ def populate_from_dataset(dbo):
     bed_re = re.compile(r'(\b(?:\w*[^_/])?regions(?:\[\d\])?\.bed)')
     vcf_re = re.compile(r'(\b(?:\w*[^_/])?variants(?:\[\d\])?\.vcf)')
     fl = dc.execute('select fileNm,buildID,DNAID from dataset')
+    pc = dbo.cursor()
+    pl = pc.execute('select distinct pid from vcfcalls')
+    pexists = [p[0] for p in pl]
     allsets = list([(t[0],t[1],t[2]) for t in fl])
     trace(1,'allsets: {}'.format(allsets[:config['kitlimit']]))
     nkits = 0
     for (fn,buildid,dnaid) in allsets:
+        # if there are already calls for this person, skip the load
+        if (not config['drop_tables']) and dnaid in pexists:
+            trace(1, 'data exists for - skipping {}'.format(fn))
+            continue
         zipf = os.path.join(data_path('HaplogroupR'), fn)
         if not os.path.exists(zipf):
-            # trace(2, 'not present: {}'.format(zipf))
+            trace(10, 'not present: {}'.format(zipf))
             continue
-        with zipfile.ZipFile(zipf) as zf:
-            trace(1, 'populate from {}'.format(zf))
-            listfiles = zf.namelist()
-            bedfile = vcffile = None
-            for ff in listfiles:
-                dirname, basename = os.path.split(ff)
-                if bed_re.search(basename):
-                    bedfile = ff
-                elif vcf_re.search(basename):
-                    vcffile = ff
-            if (not bedfile) or (not vcffile):
-                trace(0, 'WARN: missing data in '+zipf)
-                continue
-            with zf.open(bedfile,'r') as bedf:
-                trace(1, 'populate from bed {}'.format(bedfile))
-                populate_from_BED_file(dbo, dnaid, bedf)
-            with zf.open(vcffile,'r') as vcff:
-                trace(1, 'populate from vcf {}'.format(vcffile))
-                populate_from_VCF_file(dbo, buildid, dnaid, vcff)
-        nkits += 1
-        if nkits > config['kitlimit']:
+        try:
+            with zipfile.ZipFile(zipf) as zf:
+                trace(1, 'populate from {}'.format(zf.filename))
+                listfiles = zf.namelist()
+                bedfile = vcffile = None
+                for ff in listfiles:
+                    dirname, basename = os.path.split(ff)
+                    if bed_re.search(basename):
+                        bedfile = ff
+                    elif vcf_re.search(basename):
+                        vcffile = ff
+                if (not bedfile) or (not vcffile):
+                    trace(0, 'WARN: missing data in '+zipf)
+                    continue
+                with zf.open(bedfile,'r') as bedf:
+                    trace(2, 'populate from bed {}'.format(bedfile))
+                    populate_from_BED_file(dbo, dnaid, bedf)
+                with zf.open(vcffile,'r') as vcff:
+                    trace(2, 'populate from vcf {}'.format(vcffile))
+                    populate_from_VCF_file(dbo, buildid, dnaid, vcff)
+            nkits += 1
+        except:
+            trace(0, 'failed on ZIP {}'.format(zipf))
+        if nkits >= config['kitlimit']:
             break
+        if nkits % 10 == 1:
+            trace(0, 'commit...')
+            dbo.commit()
 
+    pc.close()
     dc.close()
+    dbo.commit()
+
+    trace(1, 'calculate coverages')
     # below: maybe not part of populating dataset?
     # get variants in ascending order of number of calls across kits
     vc = dbo.cursor().execute('''select v.id,v.anc,v.der,count(c.pid)
                            from variants v
                            inner join vcfcalls c on c.vid = v.id
                            group by 1,2,3 order by 4''')
-    # variant list if called more than once
-    vl = list([s[0] for s in vc if s[3] > 1])
-    for (fn,buildid,dnaid) in allsets:
-        coverage = get_call_coverage(dbo, dnaid, vl)
-        if len(coverage) > 0:
-            trace(1, 'coverage vector: {}...'.format(coverage[:20]))
+    # variant list is used more than once, so make a list
+    #vl = list([s[0] for s in vc if s[3] > 1])
+    vl = []
+    for v in vc:
+        if v[3] > 1:
+            vl.append(v[0])
+    try:
+        for (fn,buildid,dnaid) in allsets:
+            coverage = get_call_coverage(dbo, dnaid, vl)
+            if len(coverage) > 0:
+                trace(1, 'calculate coverage for id {}'.format(dnaid))
+                trace(2, 'coverage vector: {}...'.format(coverage[:20]))
+            else:
+                trace(2, 'no coverage calculated for {}'.format(dnaid))
+    except:
+        trace(0, 'did not calculate coverage')
+    return
 
 
 # initial database creation and table loads
 def db_creation():
     db = DB(drop=config['drop_tables'])
-    db.create_schema()
+    if config['drop_tables']:
+        db.create_schema()
     populate_fileinfo(db, fromweb=config['use_web_api'])
     populate_STRs(db)
     populate_SNPs(db)

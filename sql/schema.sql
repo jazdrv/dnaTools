@@ -1,6 +1,12 @@
 -- schema
 -- DDL for redux programs and utilities
 
+/* enable write-ahead log (this is a persistent database setting) */
+PRAGMA journal_mode=WAL;
+/* 20MiB default cache size (persistent db setting) */
+PRAGMA default_cache_size=20000;
+
+
 /* a person who supplied DNA, or if needed, some other person */
 drop table if exists person;
 create table person(
@@ -10,7 +16,8 @@ create table person(
     surname TEXT DEFAULT NULL,
     maidenName TEXT DEFAULT NULL,
     yHaplogroupId INTEGER DEFAULT NULL,
-    mtHaplogroupId INTEGER DEFAULT NULL
+    mtHaplogroupId INTEGER DEFAULT NULL,
+    UNIQUE(surname,firstName,middleName)
     );
 
 /* data sets uploaded to Haplogroup-R */
@@ -39,8 +46,8 @@ create table dataset(
     policyVer TEXT DEFAULT NULL, -- in H-R schema
     accessToken TEXT DEFAULT NULL, -- in H-R schema
     updated TEXT,              -- date the file/record was updated
-    approxHg TEXT              -- approximate haplogroup assigned by DW
-    -- unique(kitId)
+    approxHg TEXT,              -- approximate haplogroup assigned by DW
+    unique(kitId)
     );
 
 create index fileidx on dataset(kitId);
@@ -49,7 +56,8 @@ create index fileidx on dataset(kitId);
 drop table if exists surname;
 create table surname(
     ID INTEGER PRIMARY KEY,
-    surname TEXT
+    surname TEXT,
+    UNIQUE(surname)
     );
 
 /* description of where data comes from; e.g. Big-Y, FGC Elite, pseudo */
@@ -60,7 +68,8 @@ create table testtype(
     description TEXT,          -- further description if needed
     isNGS BOOLEAN,             -- is it a nextgen sequencing test?
     tagNm TEXT,                -- field in H-R schema
-    priority INTEGER           -- field in H-R schema
+    priority INTEGER,          -- field in H-R schema
+    UNIQUE(testNm,isNGS)
     );
 
 /* regions of interest, e.g. chrY, b38, 57000000 */
@@ -93,7 +102,8 @@ create table origin(
 drop table if exists lab;
 create table lab(
     ID INTEGER PRIMARY KEY,
-    labNm TEXT                 -- name of the testing lab
+    labNm TEXT,                -- name of the testing lab
+    unique(labNm)
     );
 
 /* the ranges (min,max) as reported in BED files */
@@ -105,7 +115,7 @@ create table bedranges(
     unique(minaddr, maxaddr)
     );
 
-create index rangeidx on bedranges(minaddr);
+create index rangeidx on bedranges(maxaddr);
 create index rangeidx2 on bedranges(minaddr);
 
 /* ranges covered by tests as reported in the individual's BED file */
@@ -115,6 +125,8 @@ create table bed(
     bID INTEGER REFERENCES bedranges(ID)
     );
 
+create index bedidx on bed(pID,bID);
+
 /* calls reported by the individual's VCF file */
 drop table if exists vcfcalls;
 create table vcfcalls(
@@ -123,6 +135,7 @@ create table vcfcalls(
     );
 
 create index vcfidx on vcfcalls(vID);
+create index vcfpidx on vcfcalls(pID);
 
 /* per-kit call statistics */
 drop table if exists vcfstats;
@@ -165,7 +178,8 @@ drop table if exists strs;
 create table strs(
     ID INTEGER PRIMARY KEY,
     strname TEXT,
-    ordering INTEGER           -- can be used to put STRs in particular order
+    ordering INTEGER,           -- can be used to put STRs in particular order
+    unique(strname)
     );
 
 /* STR values for testers */

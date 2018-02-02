@@ -23,6 +23,10 @@ class DB(object):
             os.unlink(dbfname)
         self.db = sqlite3.connect(dbfname)
         self.dc = self.cursor()
+        # affect whether or not to wait for data write to disk
+        self.dc.execute('PRAGMA synchronous=OFF')
+        # force single-user for slightly better performance
+        self.dc.execute('PRAGMA locking_mode=EXCLUSIVE')
 
     def cursor(self):
         return self.db.cursor()

@@ -1,2 +1,4 @@
 *.zip
 *.html
+*.gz
+*.bz2

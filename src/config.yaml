@@ -24,11 +24,11 @@ REDUX_BIN: ../bin
 
 # HOW MUCH DO YOU WANT THE PROGRAM TO SHOUT AT YOU?
 # the higher the number, the more output
-verbosity: 30
+verbosity: 1
 
 # limit the number of kits that will be processed
 # normally, process all kits available, so leave this at a high number
-kitlimit: 10
+kitlimit: 700
 
 # pull the list of kits using the HaplogroupR web API. THIS NEEDS TO BE
 # DONE ONCE, but thereafter it can be false to use the locally cached
@@ -51,11 +51,11 @@ b38_snp_file: "snps_hg38.csv"
 # currently used during the database creation phase to cause the
 # database to be recreated every time. False means leave whatever exists
 # in the database, but that is not necessarily working yet
-drop_tables: True
+drop_tables: False
 
 # maximum age in days of SNP definitions files before we download a new
 # copy from the web
-max_snpdef_age: 5
+max_snpdef_age: 3
 
 #---------------------old or not yet used------------------
 

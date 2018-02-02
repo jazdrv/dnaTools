@@ -80,10 +80,16 @@ if args.loadkits:
 if args.testdrive:
     db = db_creation()
     populate_from_dataset(db)
+    trace(0,'get DNA ids')
     ids = get_dna_ids(db)
-    out = get_variant_csv(db,ids)
-    open('csv.out','w').write(out)
+    if config['kitlimit'] < 100:
+        trace(0, 'calculate array')
+        out = get_variant_csv(db,ids)
+        open('csv.out','w').write(out)
+    else:
+        trace(0, 'skipping large csv file')
     # no other work flow
+    trace(0, 'commit work')
     db.commit()
     db.close()
     sys.exit(0)
