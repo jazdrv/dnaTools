@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 
+# Copyright (c) 2018 the Authors
+
 # Contributors: Jef Treece, Harald Alvestrand, Iain McDonald, Zak Jones
 # Purpose: Reduction and comparison script for Y-chromosome NGS test data
 # For free distribution under the terms of the GNU General Public License,
@@ -7,7 +9,13 @@
 # https://www.gnu.org/licenses/gpl.html
 
 
-import sys,argparse,yaml,os,glob,shutil,re,time,csv,zipfile
+import sys
+import argparse
+import yaml
+import os
+import glob
+import shutil
+import re,time,csv,zipfile
 from collections import defaultdict
 from lib import *
 from db import DB

@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 # coding: utf-8
 
+# Copyright (c) 2018 The Authors
+
 # Contributors: Jef Treece, Harald Alvestrand, Zak Jones, Iain McDonald
 # Purpose: Reduction and comparison script for Y-chromosome NGS test data
 # For free distribution under the terms of the GNU General Public License,
@@ -478,7 +480,8 @@ def get_kits (API='http://haplogroup-r.org/api/v1/uploads.php', qry='format=json
             trace(1, 'reading kit info from the web')
             url = '?'.join([API, qry])
             res = requests.get(url)
-            js = json.loads(res.content)
+            print('Res.encoding is', res.encoding)
+            js = res.json()
             open('json.out','w').write(json.dumps(js))
     except:
         print('Failed to pull kit metadata from {}'.format(API))
