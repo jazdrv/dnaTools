@@ -28,7 +28,7 @@ verbosity: 1
 
 # limit the number of kits that will be processed
 # normally, process all kits available, so leave this at a high number
-kitlimit: 700
+kitlimit: 5
 
 # pull the list of kits using the HaplogroupR web API. THIS NEEDS TO BE
 # DONE ONCE, but thereafter it can be false to use the locally cached
@@ -41,7 +41,7 @@ zip_dir: zip
 unzip_dir: unzip
 
 # the name of the file on disk for sqlite3
-DB_FILE: variants.db
+DB_FILE: variant.db
 
 # the name of the hg19 and hg38 named SNP definitions files
 # these should not need to be changed; they are pulled from the web

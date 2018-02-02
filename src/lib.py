@@ -97,87 +97,6 @@ def unpack_zipfile():
     # work in progress Jef
     return
 
-# I don't know what this procedure is for; it looks like it needs to go in the
-# main loop - I've removed some code for vcf files, which is handled
-# differently
-def skip_to_Hg19(dbo):
-
-    # skip to <= 1 - unpack zips
-
-    # skip to <= 10 - associate kits with people
-
-    # skip to <= 11 - generate dictionary of variant positions 
-
-    #   The VCF files are parsed twice. The first pass identifies the list
-    #   of variants to be queried. The second pass reads the calls for those
-    #   variants. This means we only need to treat positions with a variant,
-    #   rather than every position in a chromosome.
-    #   Using a dictionary here means only one copy of each variant is
-    #   created.
-
-    if (config['skip_to'] <= 11):
-
-        #vcffiles
-
-        trace (2, "Generating database of all variants...")
-        
-        #variant_dict
-
-        #print(REDUX_ENV)
-        variant_dict = {}
-
-        # dump variant dict into sorted array
-
-        trace (20, "   Dumping variants into array...")
-        variant_array = np.array(list(variant_dict.values()))
-
-        # variant_array = np.array([],dtype={'names': ('start', 'anc', 'der'),'formats': ('i4', 'S20', 'S20')})
-
-        trace (30, "      Check variant [0] is %s" % variant_array[0])
-        trace (30, "      Check variant [0] position is %s" % variant_array[0][1])
-        trace (30, "      Check variant [%s] is %s" % (len(variant_dict)-1, variant_array[len(variant_dict)-1]))
-        trace (30, "      Check variant [%s] position is %s" % (len(variant_dict)-1, variant_array[len(variant_dict)-1][1]))
-
-        #db calls
-
-        trace (20, "   Inserting data into variant array database...")
-        dbo.insert_variants(variant_array, 'hg38')
-        t = float((time.clock() - start_time))
-        trace(10, '   ...complete after %.3f seconds' % t)
-        
-    # skip to <= 12 - reading calls for variants
-    
-    #db calls
-    
-    # skip to <= 13 - name variants and derive ancestral values
-
-    # Some variants are positive in the reference sequence, so we need to
-    # look up their ancestral values. We'll get the SNP names while we're
-    # at it.
-
-    #db calls
-
-    if (config['skip_to'] <= 13):
-        # Read in SNPs from reference lists
-        trace (2, "Getting names of variants...")
-        trace (10, "   Importing SNP reference lists...")
-
-
-        t = float((time.clock() - start_time))
-        trace(10, '   ...complete after %.3f seconds' % t)
-            
-    # Print final message and exit {{{{
-
-    t = float((time.clock() - start_time))
-    trace (1, "Execution finished in: %.3f seconds" % t)
-
-
-# routines - arghandler (redux1) - Zak
-
-def go_all():
-    go_backup()
-    go_prep()
-    go_db()
     
 # cache previous run's results
 # fixme this is incorrect, and we need to figure out what needs to be saved
@@ -199,62 +118,6 @@ def go_backup():
     trace(0,"** + backup done.")
     
 
-# I'm not sure what this procedure is for ???
-def go_prep():
-
-    trace(0,"** prepare file structure.")
-
-    # SKIPZIP check (beg)
-
-    if not config['skip_zip']:
-
-        # Check ZIPDIR - contains existing zip files
-
-        if not os.path.exists(config['zip_dir']):
-            trace(0,"Input zip folder does not appear to exist. Aborting.\n")
-            sys.exit()
-
-        # Check WORKING - the zip working exists && Empty it, otherwise make it
-
-        refresh_dir('working')
-
-        # Check UNZIPDIR - contains zip output; refresh it
-
-        refresh_dir('unzips',not config['zip_update_only'])
-
-        # Get the list of input files
-
-        FILES = glob.glob(os.path.join(config['REDUX_ENV'], 'zips', 'bigy-*.zip'))
-
-        if len(FILES) == 0:
-            trace(0,"No input files detected in zip folder. Aborting.")
-            trace(0,"Check name format: should be bigy-<NAME>-<NUMBER>.zip\n")
-            sys.exit()
-        else:
-            trace(0,"input files detected: " + str(FILES))
-
-        # Check whether unzip is installed
-
-        if not cmd_exists('unzip'):
-            trace(0,"Unzip package not found. Aborting.")
-            sys.exit()
-
-        # Check whether SNP list exists - handled elsewhere
-
-        # Check whether merge-ignore list exists
-
-        touch_file('merge-ignore.txt')
-
-        # fix bash code (beg)
-
-        # Unzip each zip in turn - handled elsewhere
-
-    # fix bash code (end)
-
-    trace(0,"** + prep done.")
-    
-
-# routines - arghandler (redux2) - Zak
 
 # utility procuedure to drop/create the database and schema
 def go_db():
@@ -262,10 +125,6 @@ def go_db():
     dbo = DB()
     dbo.create_schema()
     return dbo
-
-#note: it looks like clades.py is doing something like this for hg19
-def getH38references():
-    foo = 1
 
 # call out to bash script to parse the vcf file
 # todo - pull this under python source?
@@ -290,25 +149,6 @@ def go_sort_db():
     dbo.sort_data()
     #trace(0,"** + SNP processing done.")
 
-#routines - "arghandler" (new v2 schema)- Jef/Zak
-
-# SNP extraction routines based on original - Harald 
-# extracts the SNP calls from the VCF files and
-# determines the coverage of SNPs in the BED files of BigY tests.
-def analyzeVcf(file):
-
-    #Returns a dict of position -> mutation mappings
-
-    with open(os.path.splitext(file)[0] + '.vcf') as vcffile:
-        trace (30, "   Extracting VCF: %s" % vcffile)
-        result = {}
-        for line in vcffile:
-            fields = line.split()
-            if (fields[0] == 'chrY' and fields[6] == 'PASS' and fields[3] != '.' and fields[4] != '.'):
-                # fix by Jef Treece for fields containing commas:
-                result[int(fields[1])] = fields[1] + '.' + fields[3].replace(',', ';') + '.' + fields[4].replace(',', ';')
-                # result[int(fields[1])] = fields[1] + '.' + fields[3] + '.' + fields[4]
-        return result
     
 def analyzeBed(file):
 
@@ -323,37 +163,6 @@ def analyzeBed(file):
                 result.append((int(fields[1]), int(fields[2])))
         return result
     
-def makeCall(pos, index_container, bed_calls):
-
-    #Figure out whether this position is on a segment boundary.
-    #Between segments = 'nc'; top of segment = 'cbu'; bottom of segment = 'cbl'.
-    #Only call in a single-position segment = 'cblu'.
-    #index_container contains first segment to be looked at.
-    #This function must only be called for increasing values of pos, and with
-    #sorted bed_calls.
-
-    call = ';nc'
-    for bed_index in range(index_container[0], len(bed_calls)):
-        pos_pair = bed_calls[bed_index]
-        index_container[0] = bed_index
-        if pos_pair[1] >= pos:
-            # Position is before or within this segment.
-            if pos_pair[0] <= pos:
-                # Position is within this segment.
-                if pos_pair[0] == pos_pair[1] and pos_pair[0] == pos:
-                    call = ';cblu'
-                elif pos_pair[0] == pos:
-                    call = ';cbl'
-            elif pos_pair[1] == pos:
-                call = ';cbu'
-            else:
-                call = ''
-        else:
-            # Position is before this segment.
-            call = ';nc'
-        return call
-        # If position is after segment, continue.
-    return ';nc' # After end of last segment.
     
 def extract(unzip_dir,files,variants):
 
@@ -922,45 +731,3 @@ def db_creation():
     populate_contigs(db)
     populate_age(db)
     return db
-
-
-# test framework
-# The following code is not really part of the program; it's for calling
-# procedures while developing or testing.
-if __name__ == '__main__':
-    # print (config)
-    db = db_creation()
-    populate_from_dataset(db)
-    ids = get_dna_ids(db)
-    out = get_variant_csv(db,ids)
-    open('csv.out','w').write(out)
-    db.commit()
-    db.close()
-
-sanity_tests='''
-./lib.py
-should produce no errors and produce variants.db after some time
-
-sqlite3 variants.db
-sqlite> .mode tabs
-sqlite> .header on
-
-sqlite> select vid, snpname, der, allele from snpnames inner join variants v on v.id=vid and v.pos=6753258 inner join alleles a on v.der=a.id;
-
-should return nine rows similar to
-vID	snpname	der	allele
-7574	L147.2	3	C
-7574	L147.5	3	C
-7574	L147.3	3	C
-179549	L1283	4	G
-181076	Y8884	2	A
-7574	L147.4	3	C
-7574	PF4883	3	C
-7574	L147.1	3	C
-7574	L147	3	C
-
-sqlite> select count(*) from variants;
-613049
-
-see some other sample queries in ../examples directory
-'''

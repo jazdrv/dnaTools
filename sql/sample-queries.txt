@@ -57,3 +57,17 @@ hg38|17319728|A|C|Z548
 hg38|17319728|A|C|M2087.2
 hg38|17319728|A|C|Z15.2
 hg38|17319728|A|C|M2087
+
+sqlite> select vid, snpname, der, allele from snpnames inner join variants v on v.id=vid and v.pos=6753258 inner join alleles a on v.der=a.id;
+
+should return nine rows similar to
+vID	snpname	der	allele
+7574	L147.2	3	C
+7574	L147.5	3	C
+7574	L147.3	3	C
+179549	L1283	4	G
+181076	Y8884	2	A
+7574	L147.4	3	C
+7574	PF4883	3	C
+7574	L147.1	3	C
+7574	L147	3	C
