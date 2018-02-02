@@ -149,9 +149,31 @@ This README would normally document whatever steps are necessary to get your app
 
 ### How do I get set up? ###
 
-* Summary of set up
-* Configuration
-* Dependencies
+First, clone this repo.
+
+The main script is "src/redux.py".
+
+This requires the following things to be installed:
+* Python 3, with subpackages
+** numpy
+** pyyaml
+** requests
+
+If your default python interpreter is not Python 3, you might want to
+use virtualenv; in the homedir, do:
+* mkdir venv
+* mkvirtualenv -p /usr/bin/python3 venv
+* . venv/bin/activate (REMEMBER THE DOT!)
+* pip install numpy pyyaml requests
+
+Then you should be able to run the redux.py script:
+* cd src
+* export REDUX_PATH=$CWD
+* Change config.yaml use_web_api: to True, to pull down initial data
+* redux.py --testdrive
+
+This takes a while.
+
 * Database configuration
 * How to run tests
 * Deployment instructions
