@@ -644,13 +644,10 @@ def populate_from_VCF_file(dbo, bid, pid, fileobj):
 
     # save the distinct alleles - check performance
     alleles = set([x[1] for x in passes] + [x[2] for x in passes])
-    trace(3,'update alleles at {}'.format(time.clock()))
     dc.executemany('insert or ignore into alleles(allele) values(?)',
                        [(x,) for x in alleles])
-    trace(3,'done at {}'.format(time.clock()))
 
-    # save the call quality info
-    # experimental - update schema to handle quality info
+    # save the call quality info - experimental
     call_info = [t + [pack_call(t)] for t in passes]
 
     # execute sql on results to save in vcfcalls
@@ -709,7 +706,7 @@ def populate_from_dataset(dbo):
     pc = dbo.cursor()
     pl = pc.execute('select distinct pid from vcfcalls')
     pexists = [p[0] for p in pl]
-    trace(1,'allsets: {}'.format(allsets[:config['kitlimit']]))
+    trace(5,'allsets: {}'.format(allsets[:config['kitlimit']]))
     nkits = 0
 
     # fixme - hack - better index handling (drop index for insert performance)
@@ -722,7 +719,7 @@ def populate_from_dataset(dbo):
     for (fn,buildid,pid) in allsets:
         # if there are already calls for this person, skip the load
         if (not config['drop_tables']) and pid in pexists:
-            trace(1, 'data exists for - skipping {}'.format(fn))
+            trace(2, 'calls exist - skip {}'.format(fn[:50]))
             continue
         zipf = os.path.join(data_path('HaplogroupR'), fn)
         if not os.path.exists(zipf):
@@ -730,7 +727,7 @@ def populate_from_dataset(dbo):
             continue
         try:
             with zipfile.ZipFile(zipf) as zf:
-                trace(1, '{} - populate from {}'.format(nkits,zf.filename))
+                trace(1, '{}-{}'.format(nkits,zf.filename[:70]))
                 listfiles = zf.namelist()
                 bedfile = vcffile = None
                 for ff in listfiles:
@@ -740,7 +737,7 @@ def populate_from_dataset(dbo):
                     elif vcf_re.search(basename):
                         vcffile = ff
                 if (not bedfile) or (not vcffile):
-                    trace(0, 'WARN: missing data in '+zipf)
+                    trace(0, 'FAIL: missing data:{} (not loaded)'.format(zipf))
                     continue
                 with zf.open(bedfile,'r') as bedf:
                     trace(2, 'populate from bed {}'.format(bedfile))
@@ -750,7 +747,7 @@ def populate_from_dataset(dbo):
                     populate_from_VCF_file(dbo, buildid, pid, vcff)
             nkits += 1
         except:
-            trace(0, 'failed on ZIP {}'.format(zipf))
+            trace(0, 'FAIL on file {} (not loaded)'.format(zipf))
             # raise
         if nkits >= config['kitlimit']:
             break
@@ -778,7 +775,7 @@ def populate_from_dataset(dbo):
         if v[3] > 1:
             vl.append(v[0])
     vc.close()
-    trace(1,'closed cursor')
+    trace(2,'closed cursor')
     try:
         for (fn,buildid,pid) in allsets:
             coverage = get_call_coverage(dbo, pid, vl)

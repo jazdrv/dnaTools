@@ -90,7 +90,7 @@ if args.testdrive:
     populate_from_dataset(db)
     trace(0,'get DNA ids')
     ids = get_dna_ids(db)
-    if config['kitlimit'] < 20:
+    if config['kitlimit'] < 15:
         trace(0, 'calculate array')
         out = get_variant_csv(db,ids)
         open('csv.out','w').write(out)
