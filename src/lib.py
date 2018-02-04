@@ -600,6 +600,22 @@ def pack_call(call_tup):
     bitfield |= passrate
     return bitfield
 
+# experimental - unpack that corresponds to pack_call
+# if pack_call changes, this needs to change
+def unpack_call(bitfield):
+    maxshift = 31
+    nqbits = 7
+    ncbits = 9
+    npbits = 8
+    passrate = float(bitfield & (1<<npbits) - 1) / ((1<<npbits) - 1)
+    calls = (bitfield>>npbits) & ((1<<ncbits) - 1)
+    q2 = float((bitfield>>(npbits+ncbits)) & ((1<<nqbits) - 1)) / 2.
+    q1 = float((bitfield>>(npbits+ncbits+nqbits)) & ((1<<nqbits) - 1)) /3.
+    if (1<<maxshift) & bitfield:
+        passfail = True
+    else:
+        passfail = False
+    return passfail, q1, q2, calls, passrate
 
 # populate calls, quality, and variants from a VCF file
 # fname is an unzipped VCF file
@@ -634,16 +650,15 @@ def populate_from_VCF_file(dbo, bid, pid, fileobj):
     trace(3,'done at {}'.format(time.clock()))
 
     # save the call quality info
-    # fixme - update schema to handle quality info
-    # call_info = [pack_call(t) for t in passes]
-    pass
+    # experimental - update schema to handle quality info
+    call_info = [t + [pack_call(t)] for t in passes]
 
     # execute sql on results to save in vcfcalls
     dc.execute('drop table if exists tmpt')
     dc.execute('''create temporary table tmpt(a integer, b integer,
-                  c text, d text, e integer)''')
-    dc.executemany('insert into tmpt values(?,?,?,?,?)',
-                          [[bid]+v[0:3]+[pid] for v in passes])
+                  c text, d text, e integer, f integer)''')
+    dc.executemany('insert into tmpt values(?,?,?,?,?,?)',
+                          [[bid]+v[0:3]+[pid]+[v[-1]] for v in call_info])
     # fixme - performance
     trace(3,'VCF update variants at {}'.format(time.clock()))
     dc.execute('''insert or ignore into variants(buildID, pos, anc, der)
@@ -652,8 +667,8 @@ def populate_from_VCF_file(dbo, bid, pid, fileobj):
                   inner join alleles dr on dr.allele = d''')
     trace(3,'done at {}'.format(time.clock()))
     trace(3,'VCF update calls at {}'.format(time.clock()))
-    dc.execute('''insert into vcfcalls (pid,vid)
-                  select e, v.id from tmpt
+    dc.execute('''insert into vcfcalls (pid,vid,callinfo)
+                  select e, v.id, f from tmpt
                   inner join alleles an on an.allele = c
                   inner join alleles dr on dr.allele = d
                   inner join variants v on v.buildID = a and v.pos = b
@@ -736,6 +751,7 @@ def populate_from_dataset(dbo):
             nkits += 1
         except:
             trace(0, 'failed on ZIP {}'.format(zipf))
+            # raise
         if nkits >= config['kitlimit']:
             break
 

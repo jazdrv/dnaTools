@@ -131,7 +131,8 @@ create index bedidx on bed(pID,bID);
 drop table if exists vcfcalls;
 create table vcfcalls(
     pID INTEGER REFERENCES dataset(ID),
-    vID INTEGER REFERENCES variants(ID)
+    vID INTEGER REFERENCES variants(ID),
+    callinfo INTEGER  --some info about this call packed into an int
     );
 
 create index vcfidx on vcfcalls(vID);
