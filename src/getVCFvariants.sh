@@ -9,8 +9,8 @@
 # this script looks in the configured DATA/unzip directory for the file
 
 if [ "$1" != "-" ]; then
-    . ${REDUX_ENV}/parse_yaml.sh
-    eval $(parse_yaml ${REDUX_ENV}/config.yaml "config_")
+    . ${REDUX_PATH}/parse_yaml.sh
+    eval $(parse_yaml ${REDUX_PATH}/config.yaml "config_")
     FILE="${config_REDUX_DATA}/${config_unzip_dir}/$1"
     if [ "$1" == "" ]; then
 	echo "Nothing given. Aborting."
@@ -31,5 +31,5 @@ print $2,$4,$5,c,a[1],a[6],b[2],b[3]}' "$FILE" |\
 sed 's/=/ /g' |\
 awk '$9~"," {sub(/^[0-9]*,/, "", $9)} {print $1,$2,$3,$4,$6,$8,$10,$9}' |\
 awk '$0!~"," {$8/=$7;print} $0~"," {n=split($3,a,",");split($8,b,",");for(i=1;i<=n;i++) print $1,$2,a[i],$4,$5,$6,$7,b[i]/$7}' |\
-awk '$8>0.1'
+awk '$8>0.0'
 
