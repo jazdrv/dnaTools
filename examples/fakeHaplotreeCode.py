@@ -2,7 +2,13 @@
 
 # Pseudo-code for running haplotree comparisons
 
-# This code does not work. It's not even written properly in Python.
+# -------------------------------------------
+# ! This code does not work!!!!!!!!!!!!!!!!!!
+# ! It's not even written properly in Python!
+# ! It's not even real code!!!!!!!!!!!!!!!!!!
+# -------------------------------------------
+
+# This pseudo-code is just programmatic doodlings, but it roughly describes how a haplotree can be sorted from input data
 
 # INHERITANCE FROM WORK PACKAGE A
 # How this process works depends strongly on the setup acquired from Work Package A. We assume we have:
@@ -132,49 +138,58 @@ def getAllPersonRanges(matrix,vSortIdx,pSortIdx):
 		
 def sortVariants(matrix,vSortIdx,pSortIdx,vstats):
 	# Sort variants, based on quality, frequency, first person and starting position
-	# Uses:		findQuality, getAllPersonRanges
 
 def sortPeople(matrix,variant,prange,pSortIdx):
 	# Re-sort a subset of people, based on positive and negative alleles
-	# Uses:		getPersonRange
 
-def isPhylogenyOK(matrix,variant,vSortIdx,pSortIdx,vstats):
-	# Binary test of whether a phylogeny is ok: for all positive calls for a variant, search up the variant sort order to find if they map to the same parent
-	# Uses:		findPersonRange
-	# Returns:	True/false
+def countOccurrences(matrix,variant,vSortIdx,pSortIdx,vstats):
+	# Count occurrences of a variant in the haplotree
+	# For all positive calls for a variant, search up the variant sort order to find if they map to the same parent
+	# Returns:	Number of occurences
 	parentVariant=0
-	isGood=.true.
+	occur=0
 	for person in pSortIdx[vstats[2]:vstats[3]]: # Loop over all called, non-negative tests
 		if (matrix[variant,person]%16>3):
 			testVar=vSortIdx[variant]
-			while (matrix[testVar,person]%16<0):
+			while (matrix[testVar,person]%16<=3):
 				testVar--
+			if (parentVariant!=testvar):
+				parentVariant=testvar
+				occur++
+	return occur
 		
-
-def insertVariant(matrix,variant,vSortIdx,newpos):
-	# Insert a variant into the haplotree by moving it up the calls matrix
-	# Uses:		findPersonRange
 
 def isEquivalent(matrix,variant,vSortIdx,pSortIdx):
 	# Test whether a variant is equivalent to another in the calls matrix
-	# Uses:		findPersonRange
-	# Returns:	True/false
+	# Uses:		getPersonRange
+	# Returns:	True/false	
 
-def editCall(matrix,variant,person,assignment):
+def insertVariant(matrix,variant,vSortIdx):
+	# Insert a variant into the haplotree by moving it up the calls matrix
+	# Uses:		getPersonRange
+
+def splitVariant(matrix,variant,vSortIdx):
+	# Split a recurrent variant into many haplogroups
+	# Uses:		getPersonRange
+
+def editCalls(matrix,variants,people,assignment):
 	# Edit a call to assign it positive/negative/junk
 	# Assignment (1=junk, 2=neg; 3=pos)
-	# Uses:		findPersonRange
+	foreach variant in variants:
+		foreach person in people:
+			matrix[person,variant]=matrix[person,variant]%16+assignment*16
 
 def makeCSV(matrix,vSortIdx,pSortIdx,pstats,vstats):
 	# Edit a call to assign it positive/negative/junk
 	# Assignment (1=junk, 2=neg; 3=pos)
-	# Uses:		findPersonRange
 	
 def makehaplotree:
 # Pseudo-code for making the haplotree
 
 	backMutTolPerc=0.01 # Maximum fractional and absolute numbers
 	backMutTolAbs=2 # of negatives to flag as potential back mutations
+	maxRecurRate=1000 # Maximum recurrence rate (per # tests and absolute)
+	maxRecurAbs=3 # before variant is junked
 
 	# Populate NGS-tested people from People table
 	# <<< people = SELECT * FROM people WHERE (ngs=.true.)
@@ -184,7 +199,7 @@ def makehaplotree:
 	callsMatrix=np.zeros((npeople,length(variants),dtype=int) # 2D matrix of calls
 	vSortIdx=np.zeros(length(variants),dtype=int) # Variant sort order
 	pSortIdx=np.zeros(npeople,dtype=int) # People sort order
-	lastGoodVar=0 # Separates passed rows in haplotree
+	lastGoodVar=0 # Separates passed rows in haplotree from uncertain/junk calls
 
 	# Read shared variants into the calls matrix
 	callsMatrix=getHaplotreeRows(sharedVariants,ngsPeople)
@@ -193,15 +208,24 @@ def makehaplotree:
 	# Mask out potential false positives
 	for variant in sharedVariants:
 		if (pstats.nppos[variant]/npeople >= 1-backMutTolPerc || npeople-pstats.nppos[variant] <= backMutTolAbs):
-			# <<< editCalls(callsMatrix,variant,people[variant=negative],1)
+			# <<< editCall(callsMatrix,variant,people[variant%16<3],1)
 
 	# Sort the variants by quality
 	sortVariants(callsMatrix,vSortIdx,pSortIdx)
+
 	# <<< lastGoodVar= last variant where everyone is positive
 	# Sort through the variants, checking whether they are phylogenically ok 
-	for variant in sharedVariants:
-		isPhylogenyOK(callsMatrix,variant,vSortIdx)
-		sortPeople(callsMatrix,variant,pSortIdx)
+	for variant in sharedVariants[:lastGoodVar]:
+		occur=countOccurences(callsMatrix,variant,vSortIdx)
+		if (occur==1):
+			sortPeople(callsMatrix,variant,pSortIdx)
+		else if (occur<npeople/maxRecurRate && occur<=maxRecurAbs):
+			splitVariant(callsMatrix,variant,vSortIdx)
+			sortPeople(callsMatrix,variant,pSortIdx)
+		else:
+			# Junk any non-negative calls on variant
+			# <<< editCall(callsMatrix,variant,people[variant%16>=3],1) # Junk variant
+		
 	# etc., etc., etc.
-	# Get variant stats
+	# Get final variant stats
 	
