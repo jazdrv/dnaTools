@@ -1,7 +1,9 @@
 .stats
 .header on
-select count(*) as num_called_variants from (select v.id,v.anc,v.der,count(c.pid) from variants v inner join vcfcalls c on c.vid = v.id group by 1,2,3);
-select count(distinct pos) as num_positions from (select pos from variants v inner join vcfcalls c on c.vid=v.id);
+create temporary table foo as select distinct vid from vcfcalls;
+select count(*) as num_called_variants from foo;
+select count(distinct v.pos) as num_positions from variants v inner join foo f on f.vid=v.id;
+drop table foo;
 select count(*) as num_variants from variants;
 select count(*) as num_calls from vcfcalls;
 select count(*) as num_alleles from alleles;

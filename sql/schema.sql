@@ -111,12 +111,12 @@ drop table if exists bedranges;
 create table bedranges(
     ID INTEGER PRIMARY KEY,
     minaddr INTEGER,
-    maxaddr INTEGER,
-    unique(minaddr, maxaddr)
+    maxaddr INTEGER
     );
-
-create index rangeidx on bedranges(maxaddr);
-create index rangeidx2 on bedranges(minaddr);
+create unique index rangeuniq on bedranges(minaddr, maxaddr);
+--fixme these indexes may be important to performance
+--create index rangeidx1 on bedranges(maxaddr);
+--create index rangeidx2 on bedranges(minaddr);
 
 /* ranges covered by tests as reported in the individual's BED file */
 drop table if exists bed;
@@ -131,7 +131,8 @@ create index bedidx on bed(pID,bID);
 drop table if exists vcfcalls;
 create table vcfcalls(
     pID INTEGER REFERENCES dataset(ID),
-    vID INTEGER REFERENCES variants(ID)
+    vID INTEGER REFERENCES variants(ID),
+    callinfo INTEGER  --some info about this call packed into an int
     );
 
 create index vcfidx on vcfcalls(vID);

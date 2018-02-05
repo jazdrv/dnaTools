@@ -9,8 +9,8 @@
 # this script looks in the configured DATA/unzip directory for the file
 
 if [ "$1" != "-" ]; then
-    . ${REDUX_ENV}/parse_yaml.sh
-    eval $(parse_yaml ${REDUX_ENV}/config.yaml "config_")
+    . ${REDUX_PATH}/parse_yaml.sh
+    eval $(parse_yaml ${REDUX_PATH}/config.yaml "config_")
     FILE="${config_REDUX_DATA}/${config_unzip_dir}/$1"
     if [ "$1" == "" ]; then
 	echo "Nothing given. Aborting."

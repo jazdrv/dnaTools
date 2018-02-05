@@ -28,7 +28,7 @@ verbosity: 1
 
 # limit the number of kits that will be processed
 # normally, process all kits available, so leave this at a high number
-kitlimit: 5
+kitlimit: 800
 
 # pull the list of kits using the HaplogroupR web API. THIS NEEDS TO BE
 # DONE ONCE, but thereafter it can be false to use the locally cached

@@ -17,7 +17,7 @@ import os,yaml,shutil,glob,re,csv,zipfile,subprocess
 from db import DB
 from collections import defaultdict
 from array_api import *
-
+import time
 
 # read the config file
 # todo: this might need to some bootstrapping (run outside of src dir?)
@@ -432,11 +432,11 @@ def get_SNPdefs_fromweb(db, maxage, url='http://ybrowse.org/gbrowse2/gff'):
         fname = os.path.join(config['REDUX_DATA'], fbase)
         try:
             if os.path.exists(fname):
-                deltat = time.time() - os.path.getmtime(fname)
+                deltat = time.clock() - os.path.getmtime(fname)
             if deltat > maxage:
                 trace (1, 'refresh: {}'.format(fbase))
                 urllib.request.urlretrieve(fget, fname)
-                deltat = time.time() - os.path.getmtime(fname)
+                deltat = time.clock() - os.path.getmtime(fname)
         except:
             pass
         if not os.path.exists(fname) or deltat > maxage:
@@ -565,6 +565,58 @@ def populate_from_BED_file(dbo, pid, fileobj):
     dc.close()
     return
 
+# experimental - pack call information into an integer
+# pos, anc, der, passfail, q1, q2, nreads, passrate
+def pack_call(call_tup):
+    maxshift = 31
+    nqbits = 7
+    ncbits = 9
+    npbits = 8
+    # pack in a pass/fail flag
+    bitfield = {'PASS': 1<<maxshift, 'FAIL': 0}[call_tup[3]]
+    maxshift -= 1
+    # pack in a unitless nqbits-number representing q1
+    qnum = int(float(call_tup[4]) * 3)
+    if qnum > (1<<nqbits) - 1:
+        qnum = (1<<nqbits)-1
+    bitfield |= (qnum << (maxshift - nqbits + 1))
+    maxshift -= nqbits
+    # pack in a unitless nqbits-number representing q2
+    qnum = int(float(call_tup[5]) * 2)
+    if qnum > (1<<nqbits) - 1:
+        qnum = (1<<nqbits) - 1
+    bitfield |= (qnum << (maxshift - nqbits + 1))
+    maxshift -= nqbits
+    # pack in a ncbits-bit number representing num reads
+    nreads = int(call_tup[6])
+    if nreads > (1<<ncbits) - 1:
+        nreads = (1<<ncbits) - 1
+    bitfield |= (nreads << (maxshift - ncbits + 1))
+    maxshift -= nqbits
+    # pack in a ncbits-bit number representing passrate
+    passrate = int(float(call_tup[7]) * ((1<<npbits) - 1))
+    if passrate > (1<<npbits) - 1:
+        passrate = (1<<npbits) - 1
+    bitfield |= passrate
+    return bitfield
+
+# experimental - unpack that corresponds to pack_call
+# if pack_call changes, this needs to change
+def unpack_call(bitfield):
+    maxshift = 31
+    nqbits = 7
+    ncbits = 9
+    npbits = 8
+    passrate = float(bitfield & (1<<npbits) - 1) / ((1<<npbits) - 1)
+    calls = (bitfield>>npbits) & ((1<<ncbits) - 1)
+    q2 = float((bitfield>>(npbits+ncbits)) & ((1<<nqbits) - 1)) / 2.
+    q1 = float((bitfield>>(npbits+ncbits+nqbits)) & ((1<<nqbits) - 1)) /3.
+    if (1<<maxshift) & bitfield:
+        passfail = True
+    else:
+        passfail = False
+    return passfail, q1, q2, calls, passrate
+
 # populate calls, quality, and variants from a VCF file
 # fname is an unzipped VCF file
 def populate_from_VCF_file(dbo, bid, pid, fileobj):
@@ -590,31 +642,35 @@ def populate_from_VCF_file(dbo, bid, pid, fileobj):
     except ValueError:
         trace(0, 'parsing VCF failed on {}'.format(t))
 
-    # save the distinct alleles
+    # save the distinct alleles - check performance
     alleles = set([x[1] for x in passes] + [x[2] for x in passes])
     dc.executemany('insert or ignore into alleles(allele) values(?)',
                        [(x,) for x in alleles])
 
-    # save the call quality info
-    # fixme - update schema to handle quality info
-    pass
+    # save the call quality info - experimental
+    call_info = [t + [pack_call(t)] for t in passes]
 
     # execute sql on results to save in vcfcalls
     dc.execute('drop table if exists tmpt')
     dc.execute('''create temporary table tmpt(a integer, b integer,
-                  c text, d text, e integer)''')
-    dc.executemany('insert into tmpt values(?,?,?,?,?)',
-                          [[bid]+v[0:3]+[pid] for v in passes])
+                  c text, d text, e integer, f integer)''')
+    dc.executemany('insert into tmpt values(?,?,?,?,?,?)',
+                          [[bid]+v[0:3]+[pid]+[v[-1]] for v in call_info])
+    # fixme - performance
+    trace(3,'VCF update variants at {}'.format(time.clock()))
     dc.execute('''insert or ignore into variants(buildID, pos, anc, der)
                   select a, b, an.id, dr.id from tmpt
                   inner join alleles an on an.allele = c
                   inner join alleles dr on dr.allele = d''')
-    dc.execute('''insert into vcfcalls (pid,vid)
-                  select e, v.id from tmpt
+    trace(3,'done at {}'.format(time.clock()))
+    trace(3,'VCF update calls at {}'.format(time.clock()))
+    dc.execute('''insert into vcfcalls (pid,vid,callinfo)
+                  select e, v.id, f from tmpt
                   inner join alleles an on an.allele = c
                   inner join alleles dr on dr.allele = d
                   inner join variants v on v.buildID = a and v.pos = b
                   and v.anc=an.id and v.der=dr.id''')
+    trace(3,'done at {}'.format(time.clock()))
     dc.execute('drop table tmpt')
     dc.close()
 
@@ -645,17 +701,25 @@ def populate_from_dataset(dbo):
     dc = dbo.cursor()
     bed_re = re.compile(r'(\b(?:\w*[^_/])?regions(?:\[\d\])?\.bed)')
     vcf_re = re.compile(r'(\b(?:\w*[^_/])?variants(?:\[\d\])?\.vcf)')
-    fl = dc.execute('select fileNm,buildID,DNAID from dataset')
+    fl = dc.execute('select fileNm,buildID,ID from dataset')
+    allsets = list([(t[0],t[1],t[2]) for t in fl])
     pc = dbo.cursor()
     pl = pc.execute('select distinct pid from vcfcalls')
     pexists = [p[0] for p in pl]
-    allsets = list([(t[0],t[1],t[2]) for t in fl])
-    trace(1,'allsets: {}'.format(allsets[:config['kitlimit']]))
+    trace(5,'allsets: {}'.format(allsets[:config['kitlimit']]))
     nkits = 0
-    for (fn,buildid,dnaid) in allsets:
+
+    # fixme - hack - better index handling (drop index for insert performance)
+    trace(3, 'drop indexes at {}'.format(time.clock()))
+    dc.execute('drop index bedidx')
+    dc.execute('drop index vcfidx')
+    dc.execute('drop index vcfpidx')
+    trace(3, 'done at {}'.format(time.clock()))
+
+    for (fn,buildid,pid) in allsets:
         # if there are already calls for this person, skip the load
-        if (not config['drop_tables']) and dnaid in pexists:
-            trace(1, 'data exists for - skipping {}'.format(fn))
+        if (not config['drop_tables']) and pid in pexists:
+            trace(2, 'calls exist - skip {}'.format(fn[:50]))
             continue
         zipf = os.path.join(data_path('HaplogroupR'), fn)
         if not os.path.exists(zipf):
@@ -663,7 +727,7 @@ def populate_from_dataset(dbo):
             continue
         try:
             with zipfile.ZipFile(zipf) as zf:
-                trace(1, 'populate from {}'.format(zf.filename))
+                trace(1, '{}-{}'.format(nkits,zf.filename[:70]))
                 listfiles = zf.namelist()
                 bedfile = vcffile = None
                 for ff in listfiles:
@@ -673,26 +737,29 @@ def populate_from_dataset(dbo):
                     elif vcf_re.search(basename):
                         vcffile = ff
                 if (not bedfile) or (not vcffile):
-                    trace(0, 'WARN: missing data in '+zipf)
+                    trace(0, 'FAIL: missing data:{} (not loaded)'.format(zipf))
                     continue
                 with zf.open(bedfile,'r') as bedf:
                     trace(2, 'populate from bed {}'.format(bedfile))
-                    populate_from_BED_file(dbo, dnaid, bedf)
+                    populate_from_BED_file(dbo, pid, bedf)
                 with zf.open(vcffile,'r') as vcff:
                     trace(2, 'populate from vcf {}'.format(vcffile))
-                    populate_from_VCF_file(dbo, buildid, dnaid, vcff)
+                    populate_from_VCF_file(dbo, buildid, pid, vcff)
             nkits += 1
         except:
-            trace(0, 'failed on ZIP {}'.format(zipf))
+            trace(0, 'FAIL on file {} (not loaded)'.format(zipf))
+            # raise
         if nkits >= config['kitlimit']:
             break
-        if nkits % 10 == 1:
-            trace(0, 'commit...')
-            dbo.commit()
 
-    pc.close()
-    dc.close()
-    dbo.commit()
+    # fixme - hack
+    trace(3, 're-create indexes at {}'.format(time.clock()))
+    dc.execute('create index bedidx on bed(pID,bID)')
+    dc.execute('create index vcfidx on vcfcalls(vID)')
+    dc.execute('create index vcfpidx on vcfcalls(pID)')
+    trace(3, 'done at {}'.format(time.clock()))
+
+    return
 
     trace(1, 'calculate coverages')
     # below: maybe not part of populating dataset?
@@ -707,14 +774,16 @@ def populate_from_dataset(dbo):
     for v in vc:
         if v[3] > 1:
             vl.append(v[0])
+    vc.close()
+    trace(2,'closed cursor')
     try:
-        for (fn,buildid,dnaid) in allsets:
-            coverage = get_call_coverage(dbo, dnaid, vl)
+        for (fn,buildid,pid) in allsets:
+            coverage = get_call_coverage(dbo, pid, vl)
             if len(coverage) > 0:
-                trace(1, 'calculate coverage for id {}'.format(dnaid))
+                trace(1, 'calculate coverage for id {}'.format(pid))
                 trace(2, 'coverage vector: {}...'.format(coverage[:20]))
             else:
-                trace(2, 'no coverage calculated for {}'.format(dnaid))
+                trace(2, 'no coverage calculated for {}'.format(pid))
     except:
         trace(0, 'did not calculate coverage')
     return
