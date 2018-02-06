@@ -7,7 +7,6 @@
 # version 3 (29 June 2007)
 # https://www.gnu.org/licenses/gpl.html
 
-
 # build a dictionary of people-variants
 # ppl is a 1-d array of dataset IDs we're interested in
 def get_variant_array(db, ppl):
@@ -67,3 +66,22 @@ def get_build_byname(db, buildname='hg38'):
         bid = dc.lastrowid
     return bid
 
+# get coverage for indels
+# pid is the dataset id
+def get_indel_coverage(db, pid):
+    from lib import get_call_coverage
+    # fixme - get and reuse list of indels since it takes time to find them
+    # using this query and we need to call this on each kit
+    c = db.cursor()
+    c = c.execute('''select v.id, max(length(a.allele),length(b.allele))
+                     from variants v
+                     inner join alleles a on a.id=v.anc
+                     inner join alleles b on b.id=v.der
+                     inner join vcfcalls c on c.vid=v.id
+                     where length(a.allele)>1 or length(b.allele)>1''')
+    indels = [t for t in c]
+    ids = list([t[0] for t in indels])
+    spans = list([int(t[1]) for t in indels])
+    c.close()
+    cv = get_call_coverage(db, pid, ids, spans)
+    return cv
