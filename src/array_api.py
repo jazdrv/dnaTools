@@ -73,7 +73,7 @@ def get_indel_coverage(db, pid):
     # fixme - get and reuse list of indels since it takes time to find them
     # using this query and we need to call this on each kit
     c = db.cursor()
-    c = c.execute('''select v.id, max(length(a.allele),length(b.allele))
+    c = c.execute('''select distinct v.id,max(length(a.allele),length(b.allele))
                      from variants v
                      inner join alleles a on a.id=v.anc
                      inner join alleles b on b.id=v.der
