@@ -155,9 +155,9 @@ The main script is "src/redux.py".
 
 This requires the following things to be installed:
 * Python 3, with subpackages
-** numpy
-** pyyaml
-** requests
+    * numpy
+    * pyyaml
+    * requests
 
 If your default python interpreter is not Python 3, you might want to
 use virtualenv; in the homedir, do:
