@@ -496,35 +496,48 @@ def get_kit_coverage(dbo, pid):
 # does not consider the endpoints
 # ranges must be sorted on their minaddr
 # input vector must be sorted
-def in_range(v_vect, ranges):
+def in_range(v_vect, ranges, spans):
     c_vect = []
     ii = 0
     nmax = len(ranges)
-    for v in v_vect:
+    for iv,v in enumerate(v_vect):
         while ii < nmax and ranges[ii][0] < v:
             ii += 1
         if ii > 0 and v > ranges[ii-1][0] and v < ranges[ii-1][1]:
-            c_vect.append(True)
+            if spans and v+spans[iv] < ranges[ii-1][1]:
+                # span fits within the range
+                c_vect.append(True)
+            elif spans:
+                # span exceeded the upper end of the range
+                c_vect.append(False)
+            else:
+                # no span - SNP fits within range
+                c_vect.append(True)
         else:
             c_vect.append(False)
     if len(c_vect) != len(v_vect):
         raise ValueError
     return c_vect
 
-
-# check kit coverage for a vector of variants return a vector of BED range
-# coverage for a person that represents if the call is a) in a range, b) on the
-# lower edge of a range, c) on the upper edge of a range, or d) not covered by
-# a range
-def get_call_coverage(dbo, pid, vids):
+# Check kit coverage for a vector of variants; return a coverage vector that
+# indicates if that person has a BED range such that the call is a) in a range,
+# b) on the lower edge of a range, c) on the upper edge of a range, or d) not
+# covered by a range. If spans is passed, it corresponds to the maximum length
+# affected by the variant in vids: 1 for SNPs, max(ref,alt) for indels
+def get_call_coverage(dbo, pid, vids, spans=None):
     # FIXME currently only returns True/False, doesn't handle range ends
+    # FIXME maybe more efficient to pass positions instead of ids
     dc = dbo.cursor()
     dc.execute('drop table if exists tmpt')
     dc.execute('create table tmpt (vid integer)')
+    trace(3, 'get_call_coverage: vids:{}...'.format(vids[:10]))
+    if spans:
+        trace(3, 'get_call_coverage: spans:{}...'.format(spans[:10]))
     dc.executemany('insert into tmpt values(?)', [(a,) for a in vids])
     calls = dc.execute('''select v.id, v.pos from variants v
                           inner join tmpt t on t.vid=v.id
                           order by 2''')
+    # form a list of positions of interest
     cv = [v[1] for v in calls]
     trace(500, '{} calls: {}...'.format(len(cv), cv[:20]))
     rc = dbo.cursor()
@@ -532,11 +545,14 @@ def get_call_coverage(dbo, pid, vids):
                            inner join bed b on b.bID=r.id
                            where b.pid=?
                            order by 1''', (pid,))
+    # form a list of ranges of interest
     rv = [v for v in ranges]
     if len(rv) == 0:
         return []
     trace(500, '{} ranges: {}...'.format(len(rv), rv[:20]))
-    coverage = in_range(cv, rv)
+    coverage = in_range(cv, rv, spans)
+    dc.close()
+    rc.close()
     return coverage
 
 # populate regions from a FTDNA BED file
@@ -701,8 +717,8 @@ def populate_from_dataset(dbo):
     dc = dbo.cursor()
     bed_re = re.compile(r'(\b(?:\w*[^_/])?regions(?:\[\d\])?\.bed)')
     vcf_re = re.compile(r'(\b(?:\w*[^_/])?variants(?:\[\d\])?\.vcf)')
-    fl = dc.execute('select fileNm,buildID,ID from dataset')
-    allsets = list([(t[0],t[1],t[2]) for t in fl])
+    dc = dc.execute('select fileNm,buildID,ID from dataset')
+    allsets = list([(t[0],t[1],t[2]) for t in dc])
     pc = dbo.cursor()
     pl = pc.execute('select distinct pid from vcfcalls')
     pexists = [p[0] for p in pl]
@@ -718,6 +734,7 @@ def populate_from_dataset(dbo):
 
     for (fn,buildid,pid) in allsets:
         # if there are already calls for this person, skip the load
+        # fixme - should also skip if BED entries exist
         if (not config['drop_tables']) and pid in pexists:
             trace(2, 'calls exist - skip {}'.format(fn[:50]))
             continue
@@ -751,15 +768,21 @@ def populate_from_dataset(dbo):
             # raise
         if nkits >= config['kitlimit']:
             break
+        # fixme - if BED passes and VCF fails, cruft is left behind. This loop
+        # could go into a transaction, but that slows the loading. I can't
+        # think of any harm storing the extra BED info.
 
     # fixme - hack
     trace(3, 're-create indexes at {}'.format(time.clock()))
     dc.execute('create index bedidx on bed(pID,bID)')
     dc.execute('create index vcfidx on vcfcalls(vID)')
     dc.execute('create index vcfpidx on vcfcalls(pID)')
+    dc.close()
     trace(3, 'done at {}'.format(time.clock()))
 
-    return
+    # return without calculating coverage for large number of kits
+    if config['kitlimit'] > 20:
+        return 
 
     trace(1, 'calculate coverages')
     # below: maybe not part of populating dataset?
@@ -769,23 +792,28 @@ def populate_from_dataset(dbo):
                            inner join vcfcalls c on c.vid = v.id
                            group by 1,2,3 order by 4''')
     # variant list is used more than once, so make a list
-    #vl = list([s[0] for s in vc if s[3] > 1])
-    vl = []
-    for v in vc:
-        if v[3] > 1:
-            vl.append(v[0])
+    vl = list([s[0] for s in vc if s[3] > 1])
     vc.close()
     trace(2,'closed cursor')
+    # fixme - need to do similar for indels (save/reuse the list)
+    fl = dbo.cursor()
+    fl = fl.execute('''select distinct fileNm,buildID,ID from dataset d
+                       inner join vcfcalls c on c.pid=d.id''')
+    allsets = list([(t[0],t[1],t[2]) for t in fl])
+    fl.close()
     try:
         for (fn,buildid,pid) in allsets:
+            trace(1, 'calculate coverage for id {}'.format(pid))
             coverage = get_call_coverage(dbo, pid, vl)
+            trace(1, 'calculate indel coverage for id {}'.format(pid))
+            indel_coverage = get_indel_coverage(dbo, pid)
             if len(coverage) > 0:
-                trace(1, 'calculate coverage for id {}'.format(pid))
                 trace(2, 'coverage vector: {}...'.format(coverage[:20]))
             else:
                 trace(2, 'no coverage calculated for {}'.format(pid))
     except:
         trace(0, 'did not calculate coverage')
+        raise
     return
 
 
