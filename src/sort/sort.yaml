@@ -11,7 +11,7 @@ DBG_SUBS_IN: False
 
 allowImperfectWithVInfo: True
 
-#env
+# env
 
 #where the code is - I'm using this for sort
 REDUX_PATH: /Users/jazdrv/_prj/dnatools/_env/redux2
@@ -22,7 +22,7 @@ REDUX_SQL: /Users/jazdrv/_prj/dnatools/sql
 #where data files are - I'm using this for sort
 REDUX_DATA: /Users/jazdrv/_prj/dnatools/data
 
-#db
+# db
 
 DBG_SQL: False 
 COMMITS_ON: True
