@@ -1,0 +1,118 @@
+How to evaluate the sort prototype
+
+1. Need to set one environment var so it knows where to find your 
+sort.yaml. Something like this for example, in your ~/.bashrc would do it.
+
+export REDUX_CONF="/Users/jazdrv/_prj/dnatools/_env/redux2/sort.yaml"
+
+and then either relogin, or run "source ~/.bashrc"
+
+2. There's a couple other settings in the config.yaml that needs
+checking too.
+
+REDUX_PATH: /Users/jazdrv/_prj/dnatools/_env/redux2
+REDUX_SQL: /Users/jazdrv/_prj/dnatools/sql
+REDUX_DATA: /Users/jazdrv/_prj/dnatools/data
+
+Again, change per your unique file system.
+
+The sql path should be where the sort schema file is.
+The data path should be where the sort sample data file is.
+The main redux path should be where the .py files are.
+
+3. the redux script in this case is:
+
+redux_s.py 
+
+I haven't figured out how this might fit into the main redux. That idea
+needs to be explored assuming you guys like the prototype.
+
+4. How to load the data into the db and do some prelim vert/horiz
+sorting.
+
+~/redux_s.py -o  
+
+It should show a matrix on how it looks at this point.
+
+Matrix views (without a recreation of the data) can also be accomplished 
+like this:
+
+~/redux_s.py -m
+
+5. How to see what variants have unknowns that need to be dealt with:
+
+~/redux_s.py -u
+
+ie: (sample response)
+[9]  var: Z381
+     kuc: D [0]
+
+6. To get more information on a variant, you do this:
+
+~/redux_s.py -vi 12 <---- it's sort order
+
+or
+
+~/redux_s.py -vi a297 <-- it's name (case insensitive)
+
+(ie sample response)
+
+vix: A297 - [12]
+kpc: D,G [0,4]
+knc: C,H,A,F,E,J [3,5,6,7,8,9]
+kuc: I,B [1,2]
+sups: U106 [1]
+subs: Z8 [8]
+eqv:  []
+
+[+] U106 - [1]
+    kpc: D,I,B,C,G,H,A,F [0,1,2,3,4,5,6,7]
+    knc: E,J [8,9]
+    kuc:  []
+    sups:  []
+    subs: Z381,L48,A297,Z28,Z301,Z9,Z18,Z156,Z8,Z306 [9,2,12,11,10,6,5,4,8,7]
+    eqv:  []
+
+[-] Z8 - [8]
+    kpc: D [0]
+    knc: I,B,C,G,H,A,F,E,J [1,2,3,4,5,6,7,8,9]
+    kuc:  []
+    sups: U106,L48,A297,Z28,Z9 [1,2,12,11,6]
+    subs:  []
+    eqv:  []
+
+7. To test how the sort rules would "process" an imperfect variant, 
+you do this:
+
+~/redux_s.py -vp z381
+
+ie (sample response)
+
+vix: Z381 [9]
+unks: D [0]
+
+sup: U106 [1]
+ - [1] sup is truly sup to target variant, all unks open to promotion
+ - [1] remaining unk - ambig pos: D [0]
+ - [2] v1sub: L48 [2]
+       (mtP) shared btw vix + v1sub: I,C,H [1,3,5]
+       (msP) shared btw sup + v1sub: D,I,C,H [0,1,3,5]
+       (xP) msP-mtP: D [0]
+       (cP) common btw msP+mtP: I,C,H [1,3,5]
+ - [2] v1sub: Z9 [6]
+       (mtP) shared btw vix + v1sub: I [1]
+       (msP) shared btw sup + v1sub: D,I [0,1]
+       (xP) msP-mtP: D [0]
+       (cP) common btw msP+mtP: I [1]
+ - [2] D [0] is a req positive
+
+pos: D [0]
+
+The last bit there (pos: D [0]) is the action it would take. 
+
+8. I haven't coded up any more than this (ie actually changing the variants to
+reflect what the rules suggest) ... because that logic is bound to change
+depending on the schema adjustments that are bound to be needed. (assuming
+of course, this prototype is useful) Suffice to say, that's the "easy part".
+Same goes with the haplotree part of the requirement.
+

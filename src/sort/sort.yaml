@@ -1,0 +1,29 @@
+---
+# debugging
+
+DBG_RELS: False 
+DBG_SUPS: False
+DBG_SUPS_IN: False 
+DBG_SUBS: False 
+DBG_SUBS_IN: False
+
+# special handling
+
+allowImperfectWithVInfo: True
+
+#env
+
+#where the code is - I'm using this for sort
+REDUX_PATH: /Users/jazdrv/_prj/dnatools/_env/redux2
+#where the work environment is
+REDUX_ENV: /Users/jazdrv/_prj/dnatools/_env/redux2
+#where sql files are - I'm using this for sort
+REDUX_SQL: /Users/jazdrv/_prj/dnatools/sql
+#where data files are - I'm using this for sort
+REDUX_DATA: /Users/jazdrv/_prj/dnatools/data
+
+#db
+
+DBG_SQL: False 
+COMMITS_ON: True
+DB_FILE: sort.db
