@@ -169,8 +169,8 @@ use virtualenv; in the homedir, do:
 Then you should be able to run the redux.py script:
 * cd src
 * export REDUX_PATH=$CWD
-* Change config.yaml use_web_api: to True, to pull down initial data
-* redux.py --testdrive
+* ./fetch_kits.py
+* ./redux.py --testdrive
 
 This takes a while.
 
