@@ -204,6 +204,13 @@ create table variants(
 
 create index varidx on variants(buildID, pos);
 
+/* reference positives */
+/* a listing in this table means reverse the meaning of anc and der */
+drop table if exists refpos;
+create table refpos(
+    vID INTEGER references variants(ID)
+    );
+
 /* allele values, strings of DNA letters */
 drop table if exists alleles;
 create table alleles(

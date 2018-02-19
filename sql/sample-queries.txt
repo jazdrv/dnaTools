@@ -1,3 +1,4 @@
+# show kits matching a surname pattern via like clause
 sqlite> select b.buildNm,s.surname,origFileNm from dataset d inner join surname s on s.surname like '%ittma%' and s.id=d.surnameID inner join build b on b.id = d.buildID;
 buildNm|surname|origFileNm
 hg38|Pittman|bigy2-a8530092-8371-4f99-b052-af7b944d6c0f.zip
@@ -6,6 +7,7 @@ hg38|Dittman|bigy2-7aef4da9-7e31-43eb-b900-3bdca9f1e354.zip
 hg19|Pittman|L6BLW_aka-FTDNA-b3600.zip
 hg38|Pittman|bigy2-7181324e-fd3d-40b7-a92c-df5e0ecea45f.zip
 
+# human readable variants
 sqlite> select b.buildNm,pos,aa.allele as anc,ab.allele as der from variants inner join build b on b.id=buildID inner join alleles aa on aa.id=anc inner join alleles ab on ab.id=der limit 10;
 buildNm|pos|anc|der
 hg19|3963264|T|A
@@ -19,6 +21,7 @@ hg19|8318207|C|T
 hg19|8457611|G|A
 hg19|5507163|A|C
 
+# human readable variants displayed with their name for named snps
 sqlite> select b.buildNm,pos,aa.allele as anc,ab.allele as der,sn.snpname from variants v inner join build b on b.id=buildID inner join alleles aa on aa.id=anc inner join alleles ab on ab.id=der inner join snpnames sn on sn.vID=v.id limit 10;
 buildNm|pos|anc|der|snpname
 hg19|3963264|T|A|FGC2806
@@ -32,6 +35,8 @@ hg19|8318207|C|T|FGC2982
 hg19|8457611|G|A|FGC2986
 hg19|5507163|A|C|Y2856
 
+# popular positions
+# show how many variant-snpname occur at each position for the top counts
 sqlite> select b.buildNm,pos,aa.allele as anc,ab.allele as der,sn.snpname,count(pos) from variants v inner join build b on b.id=buildID inner join alleles aa on aa.id=anc inner join alleles ab on ab.id=der inner join snpnames sn on sn.vID=v.id group by 2 order by 6 desc limit 10;
 buildNm|pos|anc|der|snpname|count(pos)
 hg38|1|T|C|S27098|477
@@ -45,6 +50,7 @@ hg38|17260820|G|A|V4056.2|10
 hg38|17319728|A|C|M2087|10
 hg19|19372700|G|A|V4056.2|10
 
+# show known snp names and allele values for a particular position
 sqlite> select b.buildNm,pos,aa.allele as anc,ab.allele as der,sn.snpname from variants v inner join build b on b.id=buildID inner join alleles aa on aa.id=anc inner join alleles ab on ab.id=der inner join snpnames sn on sn.vID=v.id where pos=17319728;
 buildNm|pos|anc|der|snpname
 hg38|17319728|A|C|Z548.2
@@ -58,6 +64,8 @@ hg38|17319728|A|C|M2087.2
 hg38|17319728|A|C|Z15.2
 hg38|17319728|A|C|M2087
 
+# show variants at a particular location (pos=6753258 in this example)
+# ignoring build and derived allele
 sqlite> select vid, snpname, der, allele from snpnames inner join variants v on v.id=vid and v.pos=6753258 inner join alleles a on v.der=a.id;
 
 should return nine rows similar to
@@ -71,3 +79,55 @@ vID	snpname	der	allele
 7574	PF4883	3	C
 7574	L147.1	3	C
 7574	L147	3	C
+
+
+# show all reference-positive snps; repeated lines for alias names
+# the refpos table has been populated from refpos.txt (in populate_refpos())
+sqlite> .mode tabs
+sqlite> select l.buildnm, v.pos, s.snpname, a.allele as anc, b.allele as der from variants v inner join build l on v.buildid=l.id inner join alleles a on a.id=v.anc inner join alleles b on b.id=v.der inner join snpnames s on s.vid=v.id where v.id in (select vid from refpos);
+hg19	6932790	S4072	T	A
+hg19	6932790	L98	T	A
+hg19	14231292	L20	G	A
+hg19	7844490	L303	A	G
+hg19	19045124	S3856	T	C
+hg19	19045124	CTS9733	T	C
+hg19	22157311	P312	C	A
+hg19	22157311	S116	C	A
+hg19	28670117	PF6548	C	T
+hg19	5755550	L2	C	T
+hg19	9810794	S255	T	C
+hg19	17005069	YSC0000193	T	A
+hg19	8086815	L309	A	G
+hg19	7250235	CTS1169	A	G
+hg19	14231292	S144	G	A
+hg19	22157311	PF6547	C	A
+hg19	28670117	CTS12684	C	T
+hg19	5755550	S139	C	T
+hg19	9810794	Z367	T	C
+hg19	14144641	L77	T	G
+hg19	17222906	CTS6985	T	G
+hg19	17397645	CTS7275	T	C
+hg19	28670117	Z1904	C	T
+hg38	7064749	L98	T	A
+hg38	12110586	L20	G	A
+hg38	7064749	S4072	T	A
+hg38	19995425	P312	C	A
+hg38	19995425	S116	C	A
+hg38	16933244	S3856	T	C
+hg38	16933244	CTS9733	T	C
+hg38	7976449	L303	A	G
+hg38	26523970	PF6548	C	T
+hg38	9973185	S255	T	C
+hg38	14893189	YSC0000193	T	A
+hg38	8218774	L309	A	G
+hg38	5887509	L2	C	T
+hg38	12110586	S144	G	A
+hg38	19995425	PF6547	C	A
+hg38	26523970	CTS12684	C	T
+hg38	7382194	CTS1169	A	G
+hg38	5887509	S139	C	T
+hg38	9973185	Z367	T	C
+hg38	12023935	L77	T	G
+hg38	15111026	CTS6985	T	G
+hg38	15285765	CTS7275	T	C
+hg38	26523970	Z1904	C	T
