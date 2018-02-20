@@ -244,6 +244,25 @@ def populate_age(dbo):
                            inner join tmpt t on t.b=minaddr and t.c=maxaddr''')
         dbo.dc.execute('drop table tmpt')
 
+# populate reference positives
+def populate_refpos(dbo):
+    trace(1, 'populate refpos table')
+    with open('refpos.txt') as refposfile:
+        cf = csv.reader(refposfile)
+        snps = []
+        for row in cf:
+            if row[0].startswith('#'):
+                continue
+            try:
+                snps.append(row[0])
+            except:
+                trace(0, 'failed on row of refpos.txt:{}'.format(row))
+        dbo.dc.execute('delete from refpos')
+        for snpname in snps:
+           dbo.dc.execute('''insert into refpos select v.id from variants v
+                       inner join snpnames s on s.vid=v.id and s.snpname=?''',
+                       (snpname,))
+
 
 # populate a table of STR definitions
 # Ordering is optional. If not given, table stores SNP names in FTDNA Y111 order.
@@ -827,4 +846,5 @@ def db_creation():
     populate_SNPs(db)
     populate_contigs(db)
     populate_age(db)
+    populate_refpos(db)
     return db
