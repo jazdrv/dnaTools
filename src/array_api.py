@@ -80,6 +80,7 @@ def unpack_call(bitfield):
 # ranges must be sorted on their minaddr
 # input vector must be sorted
 def in_range(v_vect, ranges, spans):
+    trace(4,'in_range')
     c_vect = []
     ii = 0
     nmax = len(ranges)
@@ -87,17 +88,22 @@ def in_range(v_vect, ranges, spans):
         while ii < nmax and ranges[ii][0] < v:
             ii += 1
         if ii > 0 and v > ranges[ii-1][0] and v < ranges[ii-1][1]:
-            if spans and v+spans[iv] < ranges[ii-1][1]:
+            # note <= ranges[1] means we don't treat cbh any differently
+            if spans and v+spans[iv] <= ranges[ii-1][1]:
                 # span fits within the range
                 c_vect.append(True)
+                trace(5, '{}-{}:cov ({},{})'.format(iv,v,ranges[ii-1][0],ranges[ii-1][1]))
             elif spans:
                 # span exceeded the upper end of the range
                 c_vect.append(False)
+                trace(5, '{}-{}:nc ({},{})'.format(iv,v,ranges[ii-1][0],ranges[ii-1][1]))
             else:
                 # no span - SNP fits within range
                 c_vect.append(True)
+                trace(5, '{}-{}:snp cov ({},{})'.format(iv,v,ranges[ii-1][0],ranges[ii-1][1]))
         else:
             c_vect.append(False)
+            trace(5, '{}-{}:not cov ({},{})'.format(iv,v,ranges[ii-1][0],ranges[ii-1][1]))
     if len(c_vect) != len(v_vect):
         raise ValueError
     return c_vect
@@ -230,8 +236,10 @@ def get_call_coverage(dbo, pid, vids, spans=None):
                           inner join tmpt t on t.vid=v.id
                           order by 2''')
     # form a list of positions of interest
-    cv = [v[1] for v in calls]
-    trace(500, '{} calls: {}...'.format(len(cv), cv[:20]))
+    xl = list([(v[0],v[1]) for v in calls])
+    iv = [v[0] for v in xl]
+    pv = [v[1] for v in xl]
+    trace(500, '{} calls: {}...'.format(len(pv), pv[:20]))
     rc = dbo.cursor()
     ranges = rc.execute('''select minaddr,maxaddr from bedranges r
                            inner join bed b on b.bID=r.id
@@ -242,10 +250,10 @@ def get_call_coverage(dbo, pid, vids, spans=None):
     if len(rv) == 0:
         return []
     trace(500, '{} ranges: {}...'.format(len(rv), rv[:20]))
-    coverage = in_range(cv, rv, spans)
+    coverage = in_range(pv, rv, spans)
     dc.close()
     rc.close()
-    return coverage
+    return iv, coverage
 
 
 # find coverage for a list of kits and a list of variants
@@ -285,18 +293,20 @@ def get_kit_coverages(db, pids, vids):
     for pid in pids:
         # get indel coverage for a kit
         trace(2, 'indels for kit {}...'.format(pid))
-        iv = get_call_coverage(db, pid, indel_ids, spans)
-        trace(3, 'indels:{}..., coverage:{}...'.format(indel_ids[:5], iv[:5]))
+        trace(3, 'get_call_coverage(db, {}, {}, {})'.format(pid,[(i[0],i[1]) for i in enumerate(indel_ids)][:50],[(i[0],i[1]) for i in enumerate(spans)][:50]))
+        iv,cv = get_call_coverage(db, pid, indel_ids, spans)
+        trace(4, 'indels:{}..., coverage:{}...'.format([(i[0],i[1]) for i in enumerate(iv)][:50], [(i[0],i[1]) for i in enumerate(cv)][:50]))
         # store "not-covered" since it's sparse
-        for cov,vid in zip(iv, indel_ids):
+        for cov,vid in zip(cv, iv):
             if not cov:
                 cdict[pid][vid] = False
         # get snp coverage for a kit
         trace(2, 'snps for kit {}...'.format(pid))
-        sv = get_call_coverage(db, pid, snp_ids)
-        trace(3, 'snps:{}..., coverage:{}...'.format(snp_ids[:5], sv[:5]))
+        trace(3, 'get_call_coverage(db, {}, {})'.format(pid,snp_ids))
+        iv,cv = get_call_coverage(db, pid, snp_ids)
+        trace(4, 'snps:{}..., coverage:{}...'.format(iv[:5], cv[:5]))
         # store "not-covered" since it's sparse
-        for cov,vid in zip(sv, snp_ids):
+        for cov,vid in zip(cv, iv):
             if not cov:
                 cdict[pid][vid] = False
 
