@@ -510,70 +510,6 @@ def get_kit_coverage(dbo, pid):
     return accum2, accum1
 
 
-# efficiently determine if a set of positions is contained in a set of ranges
-# return vector of True values if v contained in a range, else False
-# does not consider the endpoints
-# ranges must be sorted on their minaddr
-# input vector must be sorted
-def in_range(v_vect, ranges, spans):
-    c_vect = []
-    ii = 0
-    nmax = len(ranges)
-    for iv,v in enumerate(v_vect):
-        while ii < nmax and ranges[ii][0] < v:
-            ii += 1
-        if ii > 0 and v > ranges[ii-1][0] and v < ranges[ii-1][1]:
-            if spans and v+spans[iv] < ranges[ii-1][1]:
-                # span fits within the range
-                c_vect.append(True)
-            elif spans:
-                # span exceeded the upper end of the range
-                c_vect.append(False)
-            else:
-                # no span - SNP fits within range
-                c_vect.append(True)
-        else:
-            c_vect.append(False)
-    if len(c_vect) != len(v_vect):
-        raise ValueError
-    return c_vect
-
-# Check kit coverage for a vector of variants; return a coverage vector that
-# indicates if that person has a BED range such that the call is a) in a range,
-# b) on the lower edge of a range, c) on the upper edge of a range, or d) not
-# covered by a range. If spans is passed, it corresponds to the maximum length
-# affected by the variant in vids: 1 for SNPs, max(ref,alt) for indels
-def get_call_coverage(dbo, pid, vids, spans=None):
-    # FIXME currently only returns True/False, doesn't handle range ends
-    # FIXME maybe more efficient to pass positions instead of ids
-    dc = dbo.cursor()
-    dc.execute('drop table if exists tmpt')
-    dc.execute('create table tmpt (vid integer)')
-    trace(3, 'get_call_coverage: vids:{}...'.format(vids[:10]))
-    if spans:
-        trace(3, 'get_call_coverage: spans:{}...'.format(spans[:10]))
-    dc.executemany('insert into tmpt values(?)', [(a,) for a in vids])
-    calls = dc.execute('''select v.id, v.pos from variants v
-                          inner join tmpt t on t.vid=v.id
-                          order by 2''')
-    # form a list of positions of interest
-    cv = [v[1] for v in calls]
-    trace(500, '{} calls: {}...'.format(len(cv), cv[:20]))
-    rc = dbo.cursor()
-    ranges = rc.execute('''select minaddr,maxaddr from bedranges r
-                           inner join bed b on b.bID=r.id
-                           where b.pid=?
-                           order by 1''', (pid,))
-    # form a list of ranges of interest
-    rv = [v for v in ranges]
-    if len(rv) == 0:
-        return []
-    trace(500, '{} ranges: {}...'.format(len(rv), rv[:20]))
-    coverage = in_range(cv, rv, spans)
-    dc.close()
-    rc.close()
-    return coverage
-
 # populate regions from a FTDNA BED file
 # fname is an unpacked BED file
 def populate_from_BED_file(dbo, pid, fileobj):
@@ -600,57 +536,6 @@ def populate_from_BED_file(dbo, pid, fileobj):
     dc.close()
     return
 
-# experimental - pack call information into an integer
-# pos, anc, der, passfail, q1, q2, nreads, passrate
-def pack_call(call_tup):
-    maxshift = 31
-    nqbits = 7
-    ncbits = 9
-    npbits = 8
-    # pack in a pass/fail flag
-    bitfield = {'PASS': 1<<maxshift, 'FAIL': 0}[call_tup[3]]
-    maxshift -= 1
-    # pack in a unitless nqbits-number representing q1
-    qnum = int(float(call_tup[4]) * 3)
-    if qnum > (1<<nqbits) - 1:
-        qnum = (1<<nqbits)-1
-    bitfield |= (qnum << (maxshift - nqbits + 1))
-    maxshift -= nqbits
-    # pack in a unitless nqbits-number representing q2
-    qnum = int(float(call_tup[5]) * 2)
-    if qnum > (1<<nqbits) - 1:
-        qnum = (1<<nqbits) - 1
-    bitfield |= (qnum << (maxshift - nqbits + 1))
-    maxshift -= nqbits
-    # pack in a ncbits-bit number representing num reads
-    nreads = int(call_tup[6])
-    if nreads > (1<<ncbits) - 1:
-        nreads = (1<<ncbits) - 1
-    bitfield |= (nreads << (maxshift - ncbits + 1))
-    maxshift -= nqbits
-    # pack in a ncbits-bit number representing passrate
-    passrate = int(float(call_tup[7]) * ((1<<npbits) - 1))
-    if passrate > (1<<npbits) - 1:
-        passrate = (1<<npbits) - 1
-    bitfield |= passrate
-    return bitfield
-
-# experimental - unpack that corresponds to pack_call
-# if pack_call changes, this needs to change
-def unpack_call(bitfield):
-    maxshift = 31
-    nqbits = 7
-    ncbits = 9
-    npbits = 8
-    passrate = float(bitfield & (1<<npbits) - 1) / ((1<<npbits) - 1)
-    calls = (bitfield>>npbits) & ((1<<ncbits) - 1)
-    q2 = float((bitfield>>(npbits+ncbits)) & ((1<<nqbits) - 1)) / 2.
-    q1 = float((bitfield>>(npbits+ncbits+nqbits)) & ((1<<nqbits) - 1)) /3.
-    if (1<<maxshift) & bitfield:
-        passfail = True
-    else:
-        passfail = False
-    return passfail, q1, q2, calls, passrate
 
 # populate calls, quality, and variants from a VCF file
 # fname is an unzipped VCF file
@@ -799,40 +684,6 @@ def populate_from_dataset(dbo):
     dc.close()
     trace(3, 'done at {}'.format(time.clock()))
 
-    # return without calculating coverage for large number of kits
-    if config['kitlimit'] > 20:
-        return 
-
-    trace(1, 'calculate coverages')
-    # below: maybe not part of populating dataset?
-    # get variants in ascending order of number of calls across kits
-    vc = dbo.cursor().execute('''select v.id,v.anc,v.der,count(c.pid)
-                           from variants v
-                           inner join vcfcalls c on c.vid = v.id
-                           group by 1,2,3 order by 4''')
-    # variant list is used more than once, so make a list
-    vl = list([s[0] for s in vc if s[3] > 1])
-    vc.close()
-    trace(2,'closed cursor')
-    # fixme - need to do similar for indels (save/reuse the list)
-    fl = dbo.cursor()
-    fl = fl.execute('''select distinct fileNm,buildID,ID from dataset d
-                       inner join vcfcalls c on c.pid=d.id''')
-    allsets = list([(t[0],t[1],t[2]) for t in fl])
-    fl.close()
-    try:
-        for (fn,buildid,pid) in allsets:
-            trace(1, 'calculate coverage for id {}'.format(pid))
-            coverage = get_call_coverage(dbo, pid, vl)
-            trace(1, 'calculate indel coverage for id {}'.format(pid))
-            indel_coverage = get_indel_coverage(dbo, pid)
-            if len(coverage) > 0:
-                trace(2, 'coverage vector: {}...'.format(coverage[:20]))
-            else:
-                trace(2, 'no coverage calculated for {}'.format(pid))
-    except:
-        trace(0, 'did not calculate coverage')
-        raise
     return
 
 
