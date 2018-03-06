@@ -132,7 +132,11 @@ drop table if exists vcfcalls;
 create table vcfcalls(
     pID INTEGER REFERENCES dataset(ID),
     vID INTEGER REFERENCES variants(ID),
-    callinfo INTEGER  --some info about this call packed into an int
+    callinfo INTEGER,  --some info about this call packed into an int
+    -- zak (beg) sort prototype
+    assigned INTEGER, -- just to get this working
+    genotype TEXT -- just to get this working
+    -- zak (end) sort prototype
     );
 
 create index vcfidx on vcfcalls(vID);

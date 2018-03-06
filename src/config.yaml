@@ -204,3 +204,32 @@ make_ages: True
 make_short_report: True
 make_html_report: True
 
+# (beg) sort - prototype
+
+# debugging
+
+DBG_RELS: False
+DBG_SUPS: False #True #False #True #False
+DBG_SUPS_IN: False #True #False #True #False
+DBG_SUBS: False #True #False
+DBG_SUBS_IN: False #True #False #True #False
+DBG_MATRIX: False #True
+DBG_DUPE_MSGS: True #False #True
+
+# special handling
+
+allowImperfectWithVInfo: True
+SHOW_STDOUT_MATRIX_OVER_50_ROWS: True
+SHOW_PROC_CHK_DETAILS: False
+
+# db
+
+GEN_ALL_DATA: all # options: test1, test2, all
+ALL_DATA_MATRIX_AFT_SORT: False
+TEST_DATA_MATRIX_AFT_SORT: True
+DBG_SQL: False
+COMMITS_ON: True
+
+# (end) sort - prototype
+
+#DB_FILE: sort.dbk

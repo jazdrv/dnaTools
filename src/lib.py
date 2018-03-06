@@ -572,11 +572,22 @@ def populate_from_VCF_file(dbo, bid, pid, fileobj):
 
     # execute sql on results to save in vcfcalls
     dc.execute('drop table if exists tmpt')
-    dc.execute('''create temporary table tmpt(a integer, b integer,
-                  c text, d text, e integer, f integer)''')
-    dc.executemany('insert into tmpt values(?,?,?,?,?,?)',
-                          [[bid]+v[0:3]+[pid]+[v[-1]] for v in call_info])
-    # fixme - performance
+
+    #dc.execute('''create temporary table tmpt(a integer, b integer,
+    #              c text, d text, e integer, f integer)''')
+
+    #(beg) hack - for sort prototype
+    dc.execute('''create temporary table tmpt(a int, b int, c text, d text, g text, e int, f int, h text)''')
+    #(end) hack - for sort prototype
+
+    #dc.executemany('insert into tmpt values(?,?,?,?,?,?)',
+    #                      [[bid]+v[0:3]+[pid]+[v[-1]] for v in call_info])
+
+    #(beg) hack - for sort prototype
+    dc.executemany("insert into tmpt values(?,?,?,?,?,?,?,?)",
+                          [[bid]+v[0:4]+[pid]+[v[-1]]+[v[-2]] for v in call_info])
+    #(end) hack - for sort prototype
+
     trace(3,'VCF update variants at {}'.format(time.clock()))
     dc.execute('''insert or ignore into variants(buildID, pos, anc, der)
                   select a, b, an.id, dr.id from tmpt
@@ -584,8 +595,13 @@ def populate_from_VCF_file(dbo, bid, pid, fileobj):
                   inner join alleles dr on dr.allele = d''')
     trace(3,'done at {}'.format(time.clock()))
     trace(3,'VCF update calls at {}'.format(time.clock()))
-    dc.execute('''insert into vcfcalls (pid,vid,callinfo)
-                  select e, v.id, f from tmpt
+
+    #dc.execute('''insert into vcfcalls (pid,vid,callinfo)
+    #              select e, v.id, f from tmpt
+
+    #(next two lines) hack - for sort prototype
+    dc.execute('''insert into vcfcalls (pid,vid,callinfo,assigned,genotype)
+                  select e, v.id, f, case when g = 'PASS' then 1 else -1 end as g, h from tmpt
                   inner join alleles an on an.allele = c
                   inner join alleles dr on dr.allele = d
                   inner join variants v on v.buildID = a and v.pos = b
@@ -646,7 +662,8 @@ def populate_from_dataset(dbo):
         if not os.path.exists(zipf):
             trace(10, 'not present: {}'.format(zipf))
             continue
-        try:
+        #try:
+        if 1 == 1:
             with zipfile.ZipFile(zipf) as zf:
                 trace(1, '{}-{}'.format(nkits,zf.filename[:70]))
                 listfiles = zf.namelist()
@@ -667,9 +684,9 @@ def populate_from_dataset(dbo):
                     trace(2, 'populate from vcf {}'.format(vcffile))
                     populate_from_VCF_file(dbo, buildid, pid, vcff)
             nkits += 1
-        except:
-            trace(0, 'FAIL on file {} (not loaded)'.format(zipf))
-            # raise
+        #except:
+        #    trace(0, 'FAIL on file {} (not loaded)'.format(zipf))
+        #    # raise
         if nkits >= config['kitlimit']:
             break
         # fixme - if BED passes and VCF fails, cruft is left behind. This loop
