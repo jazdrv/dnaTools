@@ -50,12 +50,16 @@ class Variant(object):
                 self.vix = self.sort.get_vixs_by_vids(v)
                 cntErr = cntErr + self.proc_chk(allowImperfect=False,auto_nonsplits=True)
                 self.upd_unk(auto_nonsplits=True)
+                self.sort.mx_remove_dupes()
                 self.sort.mx_vandh_sort()
                 self.sort.save_mx()
             if cntErr>0:
                 print("\n%s consistency problem(s) seen. Please resolve\n."%cntErr)
             else:
                 print("Consistency check: OK.\n")
+            #self.sort.mx_remove_dupes()
+            #self.sort.mx_vandh_sort()
+            #self.sort.save_mx()
             print("\nNum - matrix kits: %s" % len(self.sort.KITS))
             print("Num - perfect matrix variants: %s" % len(self.sort.get_perfect_variants_idx()))
             print("Num - total matrix variants: %s\n" % len(self.sort.VARIANTS))
@@ -1028,10 +1032,12 @@ class Variant(object):
         #    self.proc_chk(allowImperfect=False)
 
         if auto_nonsplits is False:
+
+            self.sort.mx_remove_dupes()
+
             self.sort.mx_vandh_sort()
             self.sort.save_mx()
 
-        if auto_nonsplits is False:
             print("\nNum - matrix kits: %s" % len(self.sort.KITS))
             print("Num - perfect matrix variants: %s" % len(self.sort.get_perfect_variants_idx()))
             print("Num - total matrix variants: %s\n" % len(self.sort.VARIANTS))
@@ -1818,11 +1824,6 @@ class Sort(object):
         
     def create_mx_data(self):
 
-        def return_counts(idx, inv):
-            count = np.zeros(len(idx), np.int)
-            np.add.at(count, inv, 1)
-            return count
-
         print("beg MatrixData create: %s" % format(time.clock()))
 
         #bedranges - uses in_range routine
@@ -1943,6 +1944,31 @@ class Sort(object):
         print("\nThere are %s pos not-used variants" % nu_pos)
         print("There are %s neg not-used variants" % nu_neg)
 
+        #remove dupes
+        self.mx_remove_dupes()
+
+        print("Num - matrix kits: %s" % len(self.KITS))
+        print("Num - perfect matrix variants: %s" % len(self.get_perfect_variants_idx()))
+        print("Num - total matrix variants: %s\n" % len(self.VARIANTS))
+
+        print("end MatrixData create: %s" % format(time.clock()))
+        #self.stdout_matrix()
+        if config['DBG_MATRIX']:
+            print("\n---------------------------------------")
+            print("Matrix: end of create data routine")
+            print("---------------------------------------")
+            print(self.NP)
+
+        #save matrix data
+        #self.save_mx()
+        
+    def mx_remove_dupes(self,auto_nonsplits=False):
+
+        def return_counts(idx, inv):
+            count = np.zeros(len(idx), np.int)
+            np.add.at(count, inv, 1)
+            return count
+
         #create variables that we'll need for finding duplicates among the variants
         b = np.ascontiguousarray(self.NP).view(np.dtype((np.void, self.NP.dtype.itemsize * self.NP.shape[1])))
         _, idx, inv = np.unique(b, return_index=True, return_inverse=True)
@@ -1950,11 +1976,12 @@ class Sort(object):
         cnts = return_counts(idx,inv)
         dupes = [(i,j) for i,j in enumerate(idx) if cnts[i] > 1]
 
-        print("\nThere are %s variants pre-dupe" % len(self.NP))
-        if len(dupes) > 0:
-            print("There are dupes: moving them\n")
-        else:
-            print("There are 0 dupes\n")
+        if auto_nonsplits is False:
+            print("\nThere are %s variants pre-dupe" % len(self.NP))
+            if len(dupes) > 0:
+                print("There are dupes: moving them\n")
+            else:
+                print("There are 0 dupes\n")
 
         idx_uniq = [i for i, j in enumerate(idx) if cnts[i] == 1]
         idx_dupe = [i for i, j in enumerate(idx) if cnts[i] > 1]
@@ -1979,25 +2006,12 @@ class Sort(object):
 
         #reset the matrix idxs for the remaining non-dupe variants
         for ix,vn in enumerate(self.get_vname_by_vix(idx)):
-            self.VARIANTS[vn][1] = ix
+            self.VARIANTS[vn] = (self.VARIANTS[vn][0],ix,self.VARIANTS[vn][2])
             
         #reset the matrix (now that the dupes are out)
         self.NP = self.NP[idx,]
-        print("Total dupes removed: %s\n" % dupe_cnt)
-        print("Num - matrix kits: %s" % len(self.KITS))
-        print("Num - perfect matrix variants: %s" % len(self.get_perfect_variants_idx()))
-        print("Num - total matrix variants: %s\n" % len(self.VARIANTS))
-
-        print("end MatrixData create: %s" % format(time.clock()))
-        #self.stdout_matrix()
-        if config['DBG_MATRIX']:
-            print("\n---------------------------------------")
-            print("Matrix: end of create data routine")
-            print("---------------------------------------")
-            print(self.NP)
-
-        #save matrix data
-        #self.save_mx()
+        if dupe_cnt > 0:
+            print("Total dupes removed: %s\n" % dupe_cnt)
         
     def reset_ss_data(self):
         #reset tbl
