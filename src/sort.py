@@ -892,7 +892,10 @@ class Variant(object):
         row = self.dbo.fetchone()
         if row is None:
             print("vix (%s [%s]) - there are no saved instructions.  Exiting."%(self.vix,self.sort.get_vname_by_vix(self.vix)))
-            sys.exit()
+            if auto_nonsplits is False:
+                sys.exit()
+            else:
+                return 0 #TODO: need to flag these situations
         rec = row[0].replace("'",'"')
         recD = json.loads(rec)
         if auto_nonsplits is False:
@@ -951,7 +954,7 @@ class Variant(object):
                     oldval = self.sort.NP[self.vix,kix]
                     sql = "insert into mx_calls (pID,vID,assigned,confidence,changed) values (%s,%s,%s,%s,%s);"%(kid,self.vix,-1,2,oldval)
                     self.dbo.sql_exec(sql)
-                self.sort.NP[self.vix,kix] = 1
+                self.sort.NP[self.vix,kix] = -1
         #vars needed for not used chk
         kuc = self.sort.get_kixs_by_val(val=0,vix=self.vix)
         kpc = self.sort.get_kixs_by_val(val=1,vix=self.vix)
