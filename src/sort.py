@@ -710,14 +710,14 @@ class Variant(object):
                 #(beg)consistency check 
 
                 if sup == -999: #top handling
-                    v1subs_ = self.sort.get_perfect_variants_idx()
+                    supsubs_ = self.sort.get_perfect_variants_idx()
 
                 else:
                     vid = self.sort.get_vid_by_vix(sup)
                     try:
-                        v1subs_ = self.sort.get_vixs_by_vids(list(self.sort.SS.loc[self.sort.SS['sup']==vid,['sub']].as_matrix().T[0]))
+                        supsubs_ = self.sort.get_vixs_by_vids(list(self.sort.SS.loc[self.sort.SS['sup']==vid,['sub']].as_matrix().T[0]))
                     except:
-                        v1subs_ = []
+                        supsubs_ = []
 
                 #create a temporary kpc for the target variant based on expected unk-pos promotions
                 pos_ = []
@@ -728,61 +728,95 @@ class Variant(object):
                         pos_.append(k) #pos
                     elif v[0] == 1:
                         pos_.append(k) #pos ambiguous
-                #print(self.kpc)
-                #print(pos_)
                 kpc_ = sorted(self.kpc + pos_)
-                #print(kpc_)
+
+                #debugging - kpc and temp kpc
+                if config['SHOW_PROC_CHK_DETAILS']:
+                    print("\nself.kpc: %s [%s]"%(l2s(self.sort.get_kname_by_kix(self.kpc)),l2s(self.kpc)))
+                    print("temp kpc (kpc_): %s [%s]"%(l2s(self.sort.get_kname_by_kix(kpc_)),l2s(kpc_)))
 
                 #kpc of the sup
-                v1kpc = self.sort.get_kixs_by_val(val=1,vix=sup)
+                supkpc = self.sort.get_kixs_by_val(val=1,vix=sup)
 
-                if kpc_ != v1kpc: #no sense in doing consistency check, if target variant is looking to be a dupe of its sup
+                if kpc_ != supkpc: #no sense in doing consistency check, if target variant is looking to be a dupe of its sup
 
                     #remove any target subs or target equivalent variants from consideration (use cache)
-                    v1subs = list(set(v1subs_)-set(self.subs)-set(self.eqvs))
+                    supsubs = list(set(supsubs_)-set(self.subs)-set(self.eqvs))
 
                     #do consistency checks on remaining variants
                     if config['SHOW_PROC_CHK_DETAILS']:
-                        print("\nThere are %s v1subs for sup %s"%(len(v1subs),self.sort.get_vname_by_vix(sup)))
-                    if len(v1subs):
+                        print("\nThere are %s supsubs for sup: %s"%(len(supsubs),self.sort.get_vname_by_vix(sup)))
+                    if len(supsubs):
                         if config['SHOW_PROC_CHK_DETAILS']:
                             print("")
 
                         VAR1a = np.argwhere(self.sort.NP[:,kpc_] == 1) #find self.kpc overlaps
-                        mask = np.isin(VAR1a[:,0], v1subs)
+                        mask = np.isin(VAR1a[:,0], supsubs)
                         idx = list(list(np.where(mask))[0])
-                        VAR2a = np.unique(VAR1a[:,0][idx]) #these are the overlapping v1subs with target v
+                        VAR2a = np.unique(VAR1a[:,0][idx]) #these are the overlapping supsubs with target v
                         if config['SHOW_PROC_CHK_DETAILS']:
-                            print("overlapping v1subs: %s"%VAR2a)
+                            print("Overlapping supsubs: [%s]\n"%(l2s(VAR2a)))
                         for v in VAR2a:
-                            akpc = self.sort.get_kixs_by_val(val=1,vix=v)
-                            #(mtP) common kpc btw v1sub and target variant
-                            at_common_kpc = list(set(akpc).intersection(set(kpc_)))
-                            #(msP) common kpc btw v1sub and common sup
-                            as_common_kpc = list(set(akpc).intersection(set(v1kpc)))
-                            #(xP) diff_common_kpc = [msP-mtP]
-                            diff_common_kpc = list(set(as_common_kpc)-set(at_common_kpc))
-                            #(cP) common_kp c = intersection btw msP and mtP
-                            common_kpc = list(set(as_common_kpc).intersection(set(at_common_kpc)))
+                            supsubkpc = self.sort.get_kixs_by_val(val=1,vix=v)
+                            #(mtP) common kpc btw supsub and target variant
+                            at_common_kpc = sorted(list(set(supsubkpc).intersection(set(kpc_))))
+                            #(msP1) common kpc btw vix and common sup
+                            as_common_kpc1 = sorted(list(set(kpc_).intersection(set(supkpc))))
+                            #(msP2) common kpc btw supsub and common sup
+                            as_common_kpc2 = sorted(list(set(supsubkpc).intersection(set(kpc_))))
+                            #(xP) diff_common_kpc = [msP(1/2)-mtP]
+                            diff_common_kpc1 = sorted(list(set(as_common_kpc1)-set(at_common_kpc)))
+                            diff_common_kpc2 = sorted(list(set(as_common_kpc2)-set(at_common_kpc)))
+                            #(cP) common_kp c = intersection btw msP(1/2) and mtP
+                            common_kpc1 = sorted(list(set(as_common_kpc1).intersection(set(at_common_kpc))))
+                            common_kpc2 = sorted(list(set(as_common_kpc2).intersection(set(at_common_kpc))))
                             if config['SHOW_PROC_CHK_DETAILS']:
-                                print(" - [2] v1sub: %s [%s]"%(self.sort.get_vname_by_vix(v),v))
-                                print("       (mtP) shared btw vix + v1sub: %s [%s]"%(l2s(self.sort.get_kname_by_kix(at_common_kpc)),l2s(at_common_kpc)))
-                                print("       (msP) shared btw sup + v1sub: %s [%s]"%(l2s(self.sort.get_kname_by_kix(as_common_kpc)),l2s(as_common_kpc)))
-                                print("       (xP) msP-mtP: %s [%s]"%(l2s(self.sort.get_kname_by_kix(diff_common_kpc)),l2s(diff_common_kpc)))
-                                print("       (cP) common btw msP+mtP: %s [%s]"%(l2s(self.sort.get_kname_by_kix(common_kpc)),l2s(common_kpc)))
-                            for k in diff_common_kpc:
+                                print(" - [2] supsub: %s [%s]"%(self.sort.get_vname_by_vix(v),v))
+                                print("       supsubkpc: %s [%s]"%(l2s(self.sort.get_kname_by_kix(supsubkpc)),l2s(supsubkpc)))
+                                print("       (msP1) shared btw vix + sup: %s [%s]"%(l2s(self.sort.get_kname_by_kix(as_common_kpc1)),l2s(as_common_kpc1)))
+                                print("       (msP2) shared btw supsub + sup: %s [%s]"%(l2s(self.sort.get_kname_by_kix(as_common_kpc2)),l2s(as_common_kpc2)))
+                                print("       (mtP) shared btw vix + supsub: %s [%s]"%(l2s(self.sort.get_kname_by_kix(at_common_kpc)),l2s(at_common_kpc)))
+                                print("       (xP1) msP1-mtP: %s [%s]"%(l2s(self.sort.get_kname_by_kix(diff_common_kpc1)),l2s(diff_common_kpc1)))
+                                print("       (xP2) msP2-mtP: %s [%s]"%(l2s(self.sort.get_kname_by_kix(diff_common_kpc2)),l2s(diff_common_kpc2)))
+                                print("       (cP1) common btw msP1+mtP: %s [%s]"%(l2s(self.sort.get_kname_by_kix(common_kpc1)),l2s(common_kpc1)))
+                                print("       (cP2) common btw msP2+mtP: %s [%s]"%(l2s(self.sort.get_kname_by_kix(common_kpc2)),l2s(common_kpc2)))
+
+                            #go through common_kpc1/diff_common_kpc1
+                            for k in diff_common_kpc1:
                                 if k in unkL:
                                     unkD[k][1] = unkD[k][1] + 1
                                     if unkD[k][1] > 1:
                                         if config['SHOW_PROC_CHK_DETAILS']:
                                             print(" - [2] %s [%s] is a req positive" % (self.sort.get_kname_by_kix(k),k))
-                            if len(common_kpc) > 0:
-                                splitL.append(common_kpc)
+                            if len(common_kpc1) > 0:
+                                splitL.append(common_kpc1)
+                            if len(diff_common_kpc1) > 0:
+                                splitL.append(diff_common_kpc1)
+                            if config['SHOW_PROC_CHK_DETAILS']:
+                                print("       splitL after commkpc1 checks: %s"%splitL)
+
+                            #go through common_kpc2/diff_common_kpc2
+                            for k in diff_common_kpc2:
+                                if k in unkL:
+                                    unkD[k][1] = unkD[k][1] + 1
+                                    if unkD[k][1] > 1:
+                                        if config['SHOW_PROC_CHK_DETAILS']:
+                                            print(" - [2] %s [%s] is a req positive" % (self.sort.get_kname_by_kix(k),k))
+                            if len(common_kpc2) > 0:
+                                splitL.append(common_kpc2)
+                            if len(diff_common_kpc2) > 0:
+                                splitL.append(diff_common_kpc2)
+                            if config['SHOW_PROC_CHK_DETAILS']:
+                                print("       splitL after commkpc2 checks: %s"%splitL)
                         
                     #splits
                     uniq_splits = [list(x) for x in set(tuple(x) for x in splitL)]
+                    if config['SHOW_PROC_CHK_DETAILS']:
+                        print("       uniq_splits: %s"%uniq_splits)
                     if len(uniq_splits) > 0:
-                        split_intersects = list(set.intersection(*map(set, uniq_splits)))
+                        split_intersects = sorted(list(set.intersection(*map(set, uniq_splits))))
+                        if config['SHOW_PROC_CHK_DETAILS']:
+                            print("       split_intersects: %s"%l2s(split_intersects))
                         if (len(uniq_splits) > 1 and len(split_intersects) == 0):
                             if config['SHOW_PROC_CHK_DETAILS']:
                                 print(" - [2] split required: btw %s" % uniq_splits)
@@ -836,7 +870,7 @@ class Variant(object):
 
         if len(spl) > 0:
             if auto_perfVariants is True:
-                print("[SPLIT ISSUE] vix: %s [%s] - splits: %s [%s]"%(self.sort.get_vname_by_vix(self.vix),self.vix,l2s(self.sort.get_vname_by_vix(spl)),l2s(spl)))
+                print("[SPLIT ISSUE] vix: %s [%s] - splits: %s [%s]"%(self.sort.get_vname_by_vix(self.vix),self.vix,l2s(self.sort.get_kname_by_kix(spl)),l2s(spl)))
                 print(uniq_splits)
                 return 1 #split errors for perfect variant chk
             elif auto_perfVariants is False:
@@ -2060,7 +2094,7 @@ class Sort(object):
             print("\n%s consistency problem(s) seen. Please resolve\n."%cntErr)
         else:
             print("Consistency check: OK.\n")
-        print("Found %s new sup-sub relations\n" % len(sups_))
+        print("Reset sup-sub relations count: %s\n" % len(sups_))
 
 
         
