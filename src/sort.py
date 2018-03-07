@@ -61,12 +61,11 @@ class Variant(object):
                 print("\n%s consistency problem(s) seen. Please resolve\n."%cntErr)
             else:
                 print("Consistency check: OK.\n")
-            #self.sort.mx_remove_dupes()
-            #self.sort.mx_vandh_sort()
-            #self.sort.save_mx()
-            print("\nNum - matrix kits: %s" % len(self.sort.KITS))
-            print("Num - perfect matrix variants: %s" % len(self.sort.get_perfect_variants_idx()))
-            print("Num - total matrix variants: %s\n" % len(self.sort.VARIANTS))
+
+            print("\nTotal matrix kits: %s" % len(self.sort.KITS))
+            print("Total perfect matrix variants: %s" % len(self.sort.get_perfect_variants_idx()))
+            print("Total imperfect matrix variants: %s" % len(self.sort.get_imperfect_variants_idx()))
+            print("Total matrix variants: %s\n" % len(self.sort.VARIANTS))
         
     def info(self,vname):
         self.sort.restore_mx_data()
@@ -1067,9 +1066,10 @@ class Variant(object):
             self.sort.mx_remove_dupes()
             self.sort.mx_vandh_sort()
             self.sort.save_mx()
-            print("\nNum - matrix kits: %s" % len(self.sort.KITS))
-            print("Num - perfect matrix variants: %s" % len(self.sort.get_perfect_variants_idx()))
-            print("Num - total matrix variants: %s\n" % len(self.sort.VARIANTS))
+            print("\nTotal matrix kits: %s" % len(self.sort.KITS))
+            print("Total perfect matrix variants: %s" % len(self.sort.get_perfect_variants_idx()))
+            print("Total imperfect matrix variants: %s" % len(self.sort.get_imperfect_variants_idx()))
+            print("Total matrix variants: %s\n" % len(self.sort.VARIANTS))
 
     def get_rel(self,relType,override_val=None,kix=None,kpc=None,allowImperfect=False):
 
@@ -1372,6 +1372,12 @@ class Sort(object):
             table.column_alignments['v'] = BeautifulTable.ALIGN_LEFT
             cntV = cntV + 1
         print(table)
+
+        #Note: counts for stdout
+        print("\nTotal matrix kits: %s" % len(self.KITS))
+        print("Total perfect matrix variants: %s" % len(self.get_perfect_variants_idx()))
+        print("Total imperfect matrix variants: %s" % len(self.get_imperfect_variants_idx()))
+        print("Total matrix variants: %s\n" % len(self.VARIANTS))
 
         #done
         print("")
@@ -1994,9 +2000,10 @@ class Sort(object):
         self.mx_remove_dupes()
 
         #Note: counts for stdout
-        print("Num - matrix kits: %s" % len(self.KITS))
-        print("Num - perfect matrix variants: %s" % len(self.get_perfect_variants_idx()))
-        print("Num - total matrix variants: %s\n" % len(self.VARIANTS))
+        print("Total matrix kits: %s" % len(self.KITS))
+        print("Total perfect matrix variants: %s" % len(self.get_perfect_variants_idx()))
+        print("Total imperfect matrix variants: %s" % len(self.get_imperfect_variants_idx()))
+        print("Total matrix variants: %s\n" % len(self.VARIANTS))
 
         #Note: done (stdout)
         print("end MatrixData create: %s" % format(time.clock()))
