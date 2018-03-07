@@ -1,4 +1,17 @@
+# license + libs{{{
 
+# Purpose: Y-DNA NGS analytics
+# Git repo: https://github.com/jazdrv/dnaTools
+# For free distribution under the terms of the GNU General Public License,
+# version 3 (29 June 2007) https://www.gnu.org/licenses/gpl.html
+
+import sys,os,yaml,csv,json,time,numpy as np
+from beautifultable import BeautifulTable
+from collections import OrderedDict
+import pandas as pd
+from array_api import *
+
+#}}}
 
 try:
     config = yaml.load(open(os.environ['REDUX_CONF_ZAK']))
