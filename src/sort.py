@@ -141,7 +141,7 @@ class Variant(object):
 
         #build hg38
         sql = '''
-            SELECT S.snpname, V.ID, V.pos, B.buildNm, AA.allele as anc,
+            SELECT DISTINCT S.snpname, V.ID, V.pos, B.buildNm, AA.allele as anc,
             DA.allele as der, IX.idx, D1.vID, D2.vID, NU.reasonId
             FROM snpnames S, build B,
             alleles AA, alleles DA, variants V
@@ -190,7 +190,7 @@ class Variant(object):
 
         #build hg19
         sql = '''
-            SELECT S.snpname,V.ID,V.pos, B.buildNm
+            SELECT DISTINCT S.snpname,V.ID,V.pos, B.buildNm
             FROM snpnames S, build B, variants V
             WHERE
             S.snpname in (%s)
@@ -211,7 +211,7 @@ class Variant(object):
                 table.column_seperator_char = ''
             print(table)
 
-        sql = "SELECT axis_id from mx_idxs where type_id=1;"
+        sql = "SELECT DISTINCT axis_id from mx_idxs where type_id=1;"
         self.dbo.sql_exec(sql)
         F = self.dbo.fetchall()
         #for row in F:
@@ -280,7 +280,7 @@ class Variant(object):
 
         #build hg19
         sql = '''
-            SELECT S.snpname,V.ID,V.pos, B.buildNm
+            SELECT DISTINCT S.snpname,V.ID,V.pos, B.buildNm
             FROM build B, variants V
             LEFT JOIN snpnames S
             ON S.vID = v.ID
@@ -366,7 +366,7 @@ class Variant(object):
 
         #build hg19
         sql = '''
-            SELECT S.snpname,V.ID,V.pos, B.buildNm
+            SELECT DISTINCT S.snpname,V.ID,V.pos, B.buildNm
             FROM build B, variants V
             LEFT JOIN snpnames S
             ON S.vID = V.ID
@@ -402,7 +402,7 @@ class Variant(object):
 
         #build hg38
         sql = '''
-            SELECT S.snpname,V.ID,V.pos, B.buildNm, AA.allele as anc, DA.allele
+            SELECT DISTINCT S.snpname,V.ID,V.pos, B.buildNm, AA.allele as anc, DA.allele
             as der, IX.idx, D1.vID, D2.vID, NU.reasonId
             FROM build B, alleles AA, alleles DA, mx_idxs IX, variants V
             LEFT JOIN snpnames S
@@ -455,7 +455,7 @@ class Variant(object):
             
         #build hg19
         #sql = '''
-        #    SELECT S.snpname,V.ID,V.pos, B.buildNm
+        #    SELECT DISTINCT S.snpname,V.ID,V.pos, B.buildNm
         #    FROM snpnames S, build B, variants V
         #    WHERE
         #    V.id in (%s)
@@ -1824,7 +1824,7 @@ class Sort(object):
         self.KITS = {}
         #variants
         sql = '''
-            SELECT V.name, V.ID, IX.idx, V.pos
+            SELECT DISTINCT V.name, V.ID, IX.idx, V.pos
             FROM mx_idxs IX
             INNER JOIN mx_variants V
             ON IX.axis_id = V.ID
@@ -1837,7 +1837,7 @@ class Sort(object):
             self.VARIANTS[row[0]] = (row[1],row[2],row[3]) #self.VARIANTS[name] = [vID,idx]
         #kits
         sql = '''
-            SELECT K.kitId, K.ID, IX.idx
+            SELECT DISTINCT K.kitId, K.ID, IX.idx
             FROM mx_idxs IX
             INNER JOIN mx_kits K
             ON IX.axis_id = K.ID
