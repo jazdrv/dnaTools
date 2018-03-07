@@ -50,8 +50,10 @@ class Variant(object):
             for v in vids:
                 #and then convert it back, because the loop will keep chopping away vixes
                 self.vix = self.sort.get_vixs_by_vids(v)
-                cntErr = cntErr + self.proc_chk(allowImperfect=False,auto_nonsplits=True)
-                self.upd_unk(auto_nonsplits=True)
+                newErr = self.proc_chk(allowImperfect=False,auto_nonsplits=True)
+                if newErr == 0:
+                    self.upd_unk(auto_nonsplits=True)
+                cntErr = cntErr + newErr
                 self.sort.mx_remove_dupes()
                 self.sort.mx_vandh_sort()
                 self.sort.save_mx()
@@ -608,7 +610,7 @@ class Variant(object):
         self.eqvs = self.get_rel(relType=0,allowImperfect=allowImperfect)
 
         #this is used when checking perfect variants (where the subs/sups are cached)
-        if auto_perfVariants is True:
+        if 1==2 and auto_perfVariants is True:
             vid = self.sort.get_vid_by_vix(self.vix)
             try:
                 self.subs = self.sort.get_vixs_by_vids(list(self.sort.SS.loc[self.sort.SS['sup']==vid,['sub']].as_matrix().T[0]))
@@ -723,13 +725,13 @@ class Variant(object):
                     if v[0] == 3 or v[2] == 1:
                         continue
                     elif v[0] == 2 or v[1] > 1:
-                        pos_.append(k)
+                        pos_.append(k) #pos
                     elif v[0] == 1:
-                        pos_.append(k)
-                print(self.kpc)
-                print(pos_)
+                        pos_.append(k) #pos ambiguous
+                #print(self.kpc)
+                #print(pos_)
                 kpc_ = sorted(self.kpc + pos_)
-                print(kpc_)
+                #print(kpc_)
 
                 #kpc of the sup
                 v1kpc = self.sort.get_kixs_by_val(val=1,vix=sup)
@@ -746,11 +748,12 @@ class Variant(object):
                         if config['SHOW_PROC_CHK_DETAILS']:
                             print("")
 
-                        VAR1a = np.argwhere(self.sort.NP[:,kpc_] == 1) #find kpc_ overlaps
+                        VAR1a = np.argwhere(self.sort.NP[:,kpc_] == 1) #find self.kpc overlaps
                         mask = np.isin(VAR1a[:,0], v1subs)
                         idx = list(list(np.where(mask))[0])
                         VAR2a = np.unique(VAR1a[:,0][idx]) #these are the overlapping v1subs with target v
-                        print("overlapping v1subs: %s"%VAR2a)
+                        if config['SHOW_PROC_CHK_DETAILS']:
+                            print("overlapping v1subs: %s"%VAR2a)
                         for v in VAR2a:
                             akpc = self.sort.get_kixs_by_val(val=1,vix=v)
                             #(mtP) common kpc btw v1sub and target variant
@@ -830,16 +833,17 @@ class Variant(object):
 
         if auto_perfVariants is True and len(spl) == 0:
             return 0 #no split errors for perfect variant chk
+
         if len(spl) > 0:
             if auto_perfVariants is True:
                 print("[SPLIT ISSUE] vix: %s [%s] - splits: %s [%s]"%(self.sort.get_vname_by_vix(self.vix),self.vix,l2s(self.sort.get_vname_by_vix(spl)),l2s(spl)))
                 print(uniq_splits)
                 return 1 #split errors for perfect variant chk
-            if auto_perfVariants is False and auto_nonsplits is False:
-                print("splits: %s [%s]" % (l2s(self.sort.get_kname_by_kix(spl)),l2s(spl)))
+            elif auto_perfVariants is False:
+                print("[SPLIT ISSUE] splits: %s [%s]" % (l2s(self.sort.get_kname_by_kix(spl)),l2s(spl)))
                 rec.update({"spl":spl})
 
-        if auto_perfVariants is not True:
+        if auto_perfVariants is False:
             if len(pos):
                 print("pos: %s [%s]" % (l2s(self.sort.get_kname_by_kix(pos)),l2s(pos)))
                 rec.update({"p":pos})
@@ -861,7 +865,7 @@ class Variant(object):
                 sql = '''insert into mx_sort_recommendations (vID,instructions) values (%s,"%s");'''%(self.vix,str(rec).replace(" ",""))
                 self.dbo.sql_exec(sql)
 
-        if len(spl) > 0 and auto_nonsplits is False:
+        if len(spl) > 0:
             return 1 #split errors for imperfect variant chk
         else:
             return 0 #no split errors for imperfect variant chk
@@ -871,25 +875,18 @@ class Variant(object):
             print("---------------------------------------------------------------------")
             print("")
         
-    def upd_unk(self,argL=None,auto_nonsplits=True):
+    def upd_unk(self,vname=None,auto_nonsplits=False):
         if auto_nonsplits is False:
             self.sort.restore_mx_data()
-        #arg input handling (not for auto_nonsplits)
+
+        #Note: arg input handling (not for auto_nonsplits)
         if auto_nonsplits is False:
-            if len(argL) == 1:
-                vname = argL[0]
-                if vname.isdigit() and int(vname)<=len(self.sort.VARIANTS):
-                    print("\n** Assuming, you're providing a vix ID...")
-                    vix = int(vname)
-                elif vname.isdigit():
-                    vix = self.sort.get_vix_by_name(vname)
-                else:
-                    vix = self.sort.get_vix_by_name(vname.upper())
-                self.vix = vix
-            else:
-                print("Missing vix criteria. Exiting.")
+            self.vix = self.proc_vname(vname)
+            if self.vix is None:
+                print ("No variants could be found. Exiting.")
                 sys.exit()
-        #retrieve insructions for this variant (or exit, if nothing)
+
+        #Note: retrieve insructions for this variant (or exit, if nothing)
         sql = "select instructions from mx_sort_recommendations where vID=%s"%self.vix
         self.dbo.sql_exec(sql)
         row = self.dbo.fetchone()
@@ -903,11 +900,13 @@ class Variant(object):
         recD = json.loads(rec)
         if auto_nonsplits is False:
             print("")
-        #split inconsistency found
+
+        #Note: split inconsistency found - shouldn't be getting here, but just in case...
         if auto_nonsplits and 'spl' in recD.keys():
             print("split found! Not going to do anything.")
             return 1 #TODO: need to set up processes to deal with splits
-        #positive calls
+
+        #Note: positive calls
         if 'p' in recD.keys():
             for kix in recD['p']:
                 if auto_nonsplits is False:
@@ -925,7 +924,8 @@ class Variant(object):
                     sql = "insert into mx_calls (pID,vID,assigned,confidence,changed) values (%s,%s,%s,%s,%s);"%(kid,self.vix,1,2,oldval)
                     self.dbo.sql_exec(sql)
                 self.sort.NP[self.vix,kix] = 1
-        #positive ambiguous calls
+
+        #Note: positive ambiguous calls
         if 'pa' in recD.keys():
             for kix in recD['pa']:
                 if auto_nonsplits is False:
@@ -944,7 +944,8 @@ class Variant(object):
                     sql = "insert into mx_calls (pID,vID,assigned,confidence,changed) values (%s,%s,%s,%s,%s);"%(kid,self.vix,1,1,oldval)
                     self.dbo.sql_exec(sql)
                 self.sort.NP[self.vix,kix] = 1
-        #negative calls
+
+        #Note: negative calls
         if 'n' in recD.keys():
             for kix in recD['n']:
                 if auto_nonsplits is False:
@@ -962,7 +963,8 @@ class Variant(object):
                     sql = "insert into mx_calls (pID,vID,assigned,confidence,changed) values (%s,%s,%s,%s,%s);"%(kid,self.vix,-1,2,oldval)
                     self.dbo.sql_exec(sql)
                 self.sort.NP[self.vix,kix] = -1
-        #vars needed for not used chk
+
+        #Note: vars needed for not used chk
         kuc = self.sort.get_kixs_by_val(val=0,vix=self.vix)
         kpc = self.sort.get_kixs_by_val(val=1,vix=self.vix)
         knc = self.sort.get_kixs_by_val(val=-1,vix=self.vix)
@@ -973,7 +975,8 @@ class Variant(object):
                 print("There was a problem. Exiting.")
                 print("vix (%s [%s]) - there was a problem.  Exiting."%(self.vix,self.sort.get_vname_by_vix(self.vix)))
                 sys.exit()
-        #updated variant reveals it's not usable
+
+        #Note: updated variant reveals it's not usable
         if len(kpc) == 0 or len(knc) == 0:
             if auto_nonsplits is False:
                 if len(kpc) == 0 : print("Updated unks for this variant reveals no positives. Achiving.")
@@ -1171,23 +1174,18 @@ class Variant(object):
         subsc = list(VAR5)
         invalid_subs = []
         self.sups = self.get_rel(relType=1,allowImperfect=False)
+        if len(self.sups) == 0:
+            self.sups.append(-999) #top handling
         self.kpc = self.sort.get_kixs_by_val(val=1,vix=self.vix)
         for v in subsc:
-            #v1 = Variant()
-            #v1.dbo = self.dbo
-            #v1.sort = self.sort
-            #v1.vix = v
             vid = self.sort.get_vid_by_vix(v)
-            #print("vid:%s"%vid)
             try:
                 v1sups = self.sort.get_vixs_by_vids(list(self.sort.SS.loc[self.sort.SS['sub']==vid,['sup']].as_matrix().T[0]))
             except:
                 v1sups = []
-            #print("(from cache) sups of sub (%s): %s"%(v,v1sups))
-            #print("12.10") #slow
-            #v1sups = v1.get_rel(relType=1)
-            #print("12.11")
             valid_sub = 1
+            if len(v1sups) == 0:
+                v1sups.append(-999) #top handling
             if len(v1sups):
                 common_sups = set(v1sups).intersection(set(self.sups))
                 v1kpc = self.sort.get_kixs_by_val(val=1,vix=v)
@@ -1977,6 +1975,7 @@ class Sort(object):
     def mx_remove_dupes(self,auto_nonsplits=False):
         #Note: this is where dupe variant profiles are removed from the matrix
         #and stored in the DB
+
         def return_counts(idx, inv):
             count = np.zeros(len(idx), np.int)
             np.add.at(count, inv, 1)

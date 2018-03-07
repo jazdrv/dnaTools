@@ -81,7 +81,7 @@ parser.add_argument('-t', '--testdrive', help='runs some unit tests', action='st
 parser.add_argument('-vi', '--variant_info', help='variant info', type=str)
 parser.add_argument('-vp', '--variant_proc', help='variant process', type=str)
 parser.add_argument('-vpns', '--variant_proc_nonsplits', help='variant process all non splits', action='store_true')
-parser.add_argument('-vu', '--variant_upd_unk', help='variant upd unknowns')
+parser.add_argument('-vu', '--variant_upd_unk', help='variant upd unknowns', type=str)
 parser.add_argument('-vss', '--variant_stash', help='variant stash')
 parser.add_argument('-vsu', '--variant_unstash', help='variant unstash')
 parser.add_argument('-m', '--matrix', help='matrix', action='store_true')
@@ -255,7 +255,7 @@ if args.variant_upd_unk:
     vt.dbo.dc = vt.dbo.cursor()
     vt.sort = Sort()
     vt.sort.dbo = vt.dbo
-    vt.upd_unk([args.variant_upd_unk]+args.rest)
+    vt.upd_unk(args.variant_upd_unk)
 
 # (end) sort prototype stuff
 
