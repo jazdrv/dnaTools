@@ -58,7 +58,7 @@ class Variant(object):
                 self.sort.mx_vandh_sort()
                 self.sort.save_mx()
             if cntErr>0:
-                print("\n%s consistency problem(s) seen. Please resolve\n."%cntErr)
+                print("\n%s consistency problem(s) seen. Please resolve.\n"%cntErr)
             else:
                 print("Consistency check: OK.\n")
 
@@ -476,6 +476,7 @@ class Variant(object):
         #print(table)
 
     def stash(self,vname):
+        #TODO: setup the ability to stash multiple variants at once
         self.sort.restore_mx_data()
         if vname.isdigit() and int(vname)<=len(self.sort.VARIANTS):
             print("\n** Assuming, you're providing a vix ID...")
@@ -2098,7 +2099,7 @@ class Sort(object):
             vt.kpc = self.get_kixs_by_val(val=1,vix=vt.vix)
             cntErr = cntErr + vt.proc_chk(allowImperfect=False,auto_perfVariants=True)
         if cntErr>0:
-            print("\n%s consistency problem(s) seen. Please resolve\n."%cntErr)
+            print("\n%s consistency problem(s) seen. Please resolve.\n"%cntErr)
         else:
             print("Consistency check: OK.\n")
         print("Reset sup-sub relations count: %s\n" % len(sups_))
