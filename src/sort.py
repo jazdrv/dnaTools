@@ -685,21 +685,23 @@ class Variant(object):
         #look for sups
         if len(self.sups) == 0:
             if auto_perfVariants is not True:
-                print("This variant has no supsets, can't do anything with it!")
-        else:
+                print("This variant has no matrix supsets; creating a top.")
+            self.sups.append(-999) #top handling
 
+        if len(self.sups) > 0:
             if config['SHOW_PROC_CHK_DETAILS']:
                 print("unks: %s [%s]" % (l2s(self.sort.get_kname_by_kix(self.kuc)),l2s(self.kuc)))
                 print("")
                 print("There are %s sups to go through.\n"%(len(self.sups)))
-            for sup in reversed(self.sups):
 
+            for sup in reversed(self.sups):
                 splitL = []
                 if config['SHOW_PROC_CHK_DETAILS']:
-                    print("sup: %s [%s]" % (self.sort.get_vname_by_vix(sup),sup))
+                    print("sup: %s [%s]" % (self.sort.get_vname_by_vix(sup),sup)) #can handle top
 
-                #This part is only for variants with unknowns
+                #this part is only for variants with unknowns
                 if len(self.kuc)>0:
+
                     #(beg)sup check
                     knc4sup = self.sort.get_kixs_by_val(val=-1,vix=sup)
                     self.knc = self.sort.get_kixs_by_val(val=-1,vix=self.vix)
@@ -719,6 +721,7 @@ class Variant(object):
                     else:
                         if config['SHOW_PROC_CHK_DETAILS']:
                             print(" - [1] sup is sub/eq/sup to target variant")
+
                     #ambiguous promotions
                     for k in unkL:
                         if unkD[k] != 3:
@@ -729,11 +732,15 @@ class Variant(object):
 
                 #(beg)consistency check 
 
-                vid = self.sort.get_vid_by_vix(sup)
-                try:
-                    v1subs_ = self.sort.get_vixs_by_vids(list(self.sort.SS.loc[self.sort.SS['sup']==vid,['sub']].as_matrix().T[0]))
-                except:
-                    v1subs_ = []
+                if sup == -999: #top handling
+                    v1subs_ = self.sort.get_perfect_variants_idx()
+
+                else:
+                    vid = self.sort.get_vid_by_vix(sup)
+                    try:
+                        v1subs_ = self.sort.get_vixs_by_vids(list(self.sort.SS.loc[self.sort.SS['sup']==vid,['sub']].as_matrix().T[0]))
+                    except:
+                        v1subs_ = []
 
                 #kpc of the sup
                 v1kpc = self.sort.get_kixs_by_val(val=1,vix=sup)
@@ -875,7 +882,7 @@ class Variant(object):
     def upd_unk(self,argL=None,auto_nonsplits=True):
         if auto_nonsplits is False:
             self.sort.restore_mx_data()
-        #arg input handling
+        #arg input handling (not for auto_nonsplits)
         if auto_nonsplits is False:
             if len(argL) == 1:
                 vname = argL[0]
@@ -904,6 +911,10 @@ class Variant(object):
         recD = json.loads(rec)
         if auto_nonsplits is False:
             print("")
+        #split inconsistency found
+        if auto_nonsplits and 'spl' in recD.keys():
+            print("split found! Not going to do anything.")
+            return 1
         #positive calls
         if 'p' in recD.keys():
             for kix in recD['p']:
@@ -1023,21 +1034,10 @@ class Variant(object):
             if cnt_new_sups_subs > 0 and auto_nonsplits is False:
                 print("Found %s new sup-sub relations" % cnt_new_sups_subs)
 
-        #if dupe:
-        #    sql = "insert into mx_dupe_variants(vID,dupe_vID) values (%s,?);" % self.get_vid_by_vix(itm[1])
-        #print("kuc:%s"%kuc)
-        #if len(kuc) == 0:
-        #    sql = "delete from mx_sort_recommendations where vID=%s;"%self.vix)
-        #    self.dbo.sql_exec(sql)
-        #    self.proc_chk(allowImperfect=False)
-
         if auto_nonsplits is False:
-
             self.sort.mx_remove_dupes()
-
             self.sort.mx_vandh_sort()
             self.sort.save_mx()
-
             print("\nNum - matrix kits: %s" % len(self.sort.KITS))
             print("Num - perfect matrix variants: %s" % len(self.sort.get_perfect_variants_idx()))
             print("Num - total matrix variants: %s\n" % len(self.sort.VARIANTS))
@@ -1410,7 +1410,7 @@ class Sort(object):
                     break
         return(newKix)
         
-    def get_vid_by_vix(self,vix): #ok
+    def get_vid_by_vix(self,vix):
         intFlg = True
         try:
             value = int(vix)
@@ -1458,10 +1458,13 @@ class Sort(object):
             vix = [vix]
         vnList = []
         for vo in vix:
-            for itm in list(self.VARIANTS.items()):
-                if itm[1][1] == vo:
-                    vnList.append(itm[0])
-                    break
+            if vo == -999: #top handling
+                vnList.append('top')
+            else:
+                for itm in list(self.VARIANTS.items()):
+                    if itm[1][1] == vo:
+                        vnList.append(itm[0])
+                        break
         if intFlg:
             return vnList[0]
         else:
@@ -1544,7 +1547,12 @@ class Sort(object):
             vix = self.get_vix_by_name(vname)
         if vix is not None and overrideData is not None: # we're sending in a custom evaluation
             return list(np.argwhere(overrideData[0,] == val).T[1,]) #with override data, there's only one line evaluated - 1d datset
-        if vix is not None: #no override -- use self.NP (all data)
+        elif vix is not None: #no override -- use self.NP (all data)
+            if vix == -999: #top handling
+                if val == 1:
+                    return list(range(len(self.KITS)))
+                if val in [-1,0]:
+                    return []
             return list(np.argwhere(self.NP[vix,] == val).T[1,]) #default data, it's the entire matrix - 2d dataset 
         
     def get_vixs_by_val(self,val,kix=None,kname=None,overrideData=None):
@@ -1552,7 +1560,7 @@ class Sort(object):
             kix = self.get_kix_by_name(kname)
         if kix is not None and overrideData is not None:
             return np.argwhere(overrideData[:,0] == val).T[0,] #with override data, there's only one line evaluated - 1d dataset
-        if kix is not None: #no override -- use self.NP (all data)
+        elif kix is not None: #no override -- use self.NP (all data)
             return np.argwhere(self.NP[:,kix] == val).T[0,] #default data, it's the entire matrix - 2d dataset
         
     def get_knames_by_val(self,val,vix=None,vname=None,overrideData=None,toStr=True):
