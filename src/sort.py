@@ -30,6 +30,7 @@ class Variant(object):
         self.dbo = None
 
     def proc(self,vname):
+        #Note: just process one variant 
         self.sort.restore_mx_data()
         self.vix = self.proc_vname(vname)
         if self.vix is None:
@@ -38,6 +39,8 @@ class Variant(object):
         self.proc_chk(allowImperfect=False)
         
     def proc_nonsplits(self):
+        #Note: calls proc_chk on all imperfect_variants, and processes all
+        #variants that don't have any split inconsistencies
         self.sort.restore_mx_data()
         vixs = self.sort.get_imperfect_variants_idx()
         
@@ -72,8 +75,11 @@ class Variant(object):
         self.stdout_info()
         
     def matrix(self,argL,perfOnly=False):
+        #Note: calls stdout_matrix
+
         self.sort.restore_mx_data()
-        #perfects only matrix
+
+        #Note: perfects only matrix
         if perfOnly:
             vix = self.sort.get_perfect_variants_idx()
             if len(argL)>0:
@@ -88,7 +94,8 @@ class Variant(object):
                     sys.exit()
             else: #default (show everything)
                 kix = None
-        #col/row custom matrix (if applicable)
+
+        #Note: col/row custom matrix (if applicable)
         else:
             if len(argL)>0:
                 outV = argL[0]
@@ -117,6 +124,8 @@ class Variant(object):
             else: #default (show everything)
                 kix = None
         self.sort.stdout_matrix(vix=vix,kix=kix)
+
+    #TODO: these lib routines have a lot of redundant code, can be consolidated
 
     def lib_name(self,argL):
         argL = [x.upper() for x in argL]
@@ -493,7 +502,9 @@ class Variant(object):
         self.sort.save_mx()
         
     def unstash(self,vname):
-        #TODO
+        #TODO: need to set this up
+        print("Unstash isn't setup yet. Exiting.")
+        sys.exit() 
         self.sort.restore_mx_data()
         if vname.isdigit() and int(vname)<=len(self.sort.VARIANTS):
             print("\n** Assuming, you're providing a vix ID...")
@@ -531,9 +542,8 @@ class Variant(object):
         lev = lev-1
         if vix is not None:
             self.vix = vix
-
         self.name = self.sort.get_vname_by_vix(self.vix)
-        self.vixn = "%s - [%s]"%(self.name,self.vix)
+        self.vixn = "%s [%s]"%(self.name,self.vix)
         self.kpc = self.sort.get_kixs_by_val(val=1,vix=self.vix)
         self.knc = self.sort.get_kixs_by_val(val=-1,vix=self.vix)
         self.kuc = self.sort.get_kixs_by_val(val=0,vix=self.vix)
@@ -541,19 +551,8 @@ class Variant(object):
         self.kncn = "knc: %s [%s]"%(l2s(self.sort.get_kname_by_kix(self.knc)),l2s(self.knc))
         self.kucn = "kuc: %s [%s]"%(l2s(self.sort.get_kname_by_kix(self.kuc)),l2s(self.kuc))
         self.kpnc = sorted(self.kpc + self.knc)
-
-        chkKits = ['637069','510668','499807','163973','124134','293507','521793','122898']
-        chkKitsP = list(set(chkKits).intersection(set(self.sort.get_kname_by_kix(self.kpc))))
-        chkKitsN = list(set(chkKits).intersection(set(self.sort.get_kname_by_kix(self.knc))))
-        if len(chkKitsN):
-            self.chkKitsN = "chkKitsN: "+l2s(chkKitsN)
-            self.chkKitsP = "chkKitsP: "+l2s(chkKitsP)
-        else:
-            self.chkKitsN = ''
-            self.chkKitsP = ''
-
-        self.sups = self.get_rel(relType=1,allowImperfect=allowImperfect)
-        self.subs = self.get_rel(relType=-1,allowImperfect=allowImperfect)
+        self.sups = self.get_rel(relType=1,allowImperfect=allowImperfect) #not from cache
+        self.subs = self.get_rel(relType=-1,allowImperfect=allowImperfect) #not from cache
         self.eqv = self.get_rel(relType=0,allowImperfect=allowImperfect)
         self.subsn = "subs: %s [%s]" %(l2s(self.sort.get_vname_by_vix(self.subs)),l2s(self.subs))
         self.supsn = "sups: %s [%s]" %(l2s(self.sort.get_vname_by_vix(self.sups)),l2s(self.sups))
@@ -578,32 +577,9 @@ class Variant(object):
         print("%s%s" %(sp,self.kpcn))
         print("%s%s" %(sp,self.kncn))
         print("%s%s" %(sp,self.kucn))
-        if self.chkKitsN != '':
-            print("%s%s" %(sp,self.chkKitsN))
-            print("%s%s" %(sp,self.chkKitsP))
-
         print("%s%s" %(sp,self.supsn))
         print("%s%s" %(sp,self.subsn))
         print("%s%s" %(sp,self.eqvn))
-
-        noSupOs = 0
-        noSubOs = 0
-        try:
-            self.supOs
-        except:
-            noSupOs = 1
-        try:
-            self.subOs
-        except:
-            noSubOs = 1
-
-        if noSupOs == 0:
-            for sup in self.supOs:
-                if sup.name != 'top':
-                    sup.stdout_info(tp=1)
-        if noSubOs == 0:
-            for sub in self.subOs:
-                sub.stdout_info(tp=-1)
 
         if tp is None:
             print("")
@@ -914,7 +890,7 @@ class Variant(object):
         #split inconsistency found
         if auto_nonsplits and 'spl' in recD.keys():
             print("split found! Not going to do anything.")
-            return 1
+            return 1 #TODO: need to set up processes to deal with splits
         #positive calls
         if 'p' in recD.keys():
             for kix in recD['p']:
@@ -1361,6 +1337,10 @@ class Sort(object):
         print("---------------------------------------------------------------------")
         print("")
         cnt = 1
+        if len(self.get_imperfect_variants_idx()) == 0:
+            print("There are no imperfect variants in this matrix.")
+            print("")
+
         for vix in self.get_imperfect_variants_idx():
             name = self.get_vname_by_vix(vix)
             kuc = self.get_kixs_by_val(val=0,vix=vix)
@@ -1429,7 +1409,7 @@ class Sort(object):
         else:
             return vidList
         
-    def get_kid_by_kix(self,kix): #ok
+    def get_kid_by_kix(self,kix):
         intFlg = True
         try:
             value = int(kix)
@@ -1448,7 +1428,7 @@ class Sort(object):
         else:
             return kidList
         
-    def get_vname_by_vix(self,vix): #ok
+    def get_vname_by_vix(self,vix):
         intFlg = True
         try:
             value = int(vix)
@@ -1470,7 +1450,7 @@ class Sort(object):
         else:
             return vnList
         
-    def get_kname_by_kix(self,kix): #ok
+    def get_kname_by_kix(self,kix):
         intFlg = True
         try:
             value = int(kix)
@@ -1563,42 +1543,40 @@ class Sort(object):
         elif kix is not None: #no override -- use self.NP (all data)
             return np.argwhere(self.NP[:,kix] == val).T[0,] #default data, it's the entire matrix - 2d dataset
         
-    def get_knames_by_val(self,val,vix=None,vname=None,overrideData=None,toStr=True):
-        if toStr:
-            return l2s(self.get_kname_by_kix(self.get_kix_by_val(val,vix,vname,overrideData)))
-        else:
-            return self.get_kname_by_kix(self.get_kix_by_val(val,vix,vname,overrideData))
+    def get_knames_by_val(self,val,vix=None,vname=None,overrideData=None):
+        return self.get_kname_by_kix(self.get_kix_by_val(val,vix,vname,overrideData))
         
-    def get_vnames_by_val(self,val,kix=None,kname=None,overrideData=None,toStr=True):
-        if toStr:
-            return l2s(self.get_vname_by_vix(self.get_vixs_by_val(val,kix,kname,overrideData)))
-        else:
-            return self.get_vname_by_vix(self.get_vixs_by_val(val,kix,kname,overrideData))
+    def get_vnames_by_val(self,val,kix=None,kname=None,overrideData=None):
+        return self.get_vname_by_vix(self.get_vixs_by_val(val,kix,kname,overrideData))
 
     def mx_vandh_sort(self):
-        if config['DBG_MATRIX']:
-            print("\n=================================")
-            print("inside vandh sort")
-            print("=================================\n")
+        #Note: vertical/horizontal sort of the matrix
+
         def return_counts(idx,inv):
             count = np.zeros(len(idx), np.int)
             np.add.at(count, inv, 1)
             return count
-        #debugging line outs
+
+        #Note: debugging line outs
         if config['DBG_MATRIX']:
+            print("\n=================================")
+            print("inside vandh sort")
+            print("=================================\n")
             print("\n---------------------------------------")
             print("Matrix: beg vandh sort")
             print("---------------------------------------")
             print(self.NP)
             print("")
-        #perfect variants
+
+        #Note: perfect variants
         prfVix = self.get_perfect_variants_idx()
+
         #Note: needs a certain amount of perfect vix (or it breaks)
         if len(prfVix) < 2:
             print("Only %s perfect vix found. Not enough. Exiting.\n" % len(prfVix))
             sys.exit()
 
-        #panda special handling to coord perfect vix + kix sorting
+        #Note: panda special handling to coord perfect vix + kix sorting
         C = pd.DataFrame(np.argwhere(self.NP[prfVix]==1),columns=['vix2','kix'])
         VX = pd.DataFrame(prfVix,columns=['vix1'])
         VX['vix2'] = range(len(VX))
@@ -1610,7 +1588,7 @@ class Sort(object):
         prfVixSorted = list(C_VX.groupby('vix1',as_index=False).head(1)['vix1'].as_matrix())
         KixSorted = list(C_VX.groupby('kix',as_index=False).head(1)['kix'].as_matrix())
 
-        #imperfect variants
+        #Note: imperfect variants
         impVix = self.get_imperfect_variants_idx()
         impVixPosV = np.argwhere(self.NP[impVix]==1)[:,0]
         unqIV, cntIV = np.unique(impVixPosV, return_counts=True)
@@ -1618,11 +1596,11 @@ class Sort(object):
         allIV = allIV[:,np.argsort(-allIV[1])] #vsort
         impVixSorted = allIV.T[:,0] #sorted vix
 
-        #vsort
+        #Note: vsort
         VixSorted = np.concatenate((prfVixSorted,impVixSorted))
         self.NP = self.NP[np.concatenate((prfVixSorted,impVixSorted)),]
 
-        #if there are any kits w/o positives, figure it out here
+        #Note: if there are any kits w/o positives, figure it out here
         cnts = return_counts(list(range(len(self.KITS))),KixSorted)
         if 0 in list(cnts):
             KixSorted = KixSorted + [i for i in list(range(len(self.KITS))) if cnts[i] == 0]
@@ -1638,6 +1616,7 @@ class Sort(object):
             print("Matrix: vandh - aft vsort")
             print("---------------------------------------")
             print(self.NP)
+
         #hsort
         self.NP = self.NP[:,KixSorted]
         if config['DBG_MATRIX']:
@@ -1646,10 +1625,12 @@ class Sort(object):
             print("---------------------------------------")
             print(self.NP)
             print("")
+
         #variants
         for ix,v in enumerate(vnamesL):
             #self.VARIANTS[v][1] = ix
             self.VARIANTS[v] = (self.VARIANTS[v][0],ix,self.VARIANTS[v][2])
+
         #kits
         for ix,k in enumerate(knamesL):
             #self.KITS[k][1] = ix
@@ -1665,16 +1646,13 @@ class Sort(object):
             else:
                 return sorted(SCH.items(), key=lambda e: e[1][1])
 
-    def get_mx_row_as_list(self,rownum,noneToStr=True,NP=None):
+    def get_mx_row_as_list(self,rownum,NP=None):
         #TODO: this NP override is a hack, need to work out why I need this
         if NP is not None:
             NP = self.NP
         else:
             NP = NP
-        if noneToStr:
-            return ['None' if v is None else v for v in NP[rownum,:].tolist()[0]]
-        else:
-            return NP[rownum,:].tolist()[0]
+        return NP[rownum,:].tolist()[0]
         
     def get_mx_kit_data(self,vix=None,vname=None):
         if vname is not None:
@@ -1730,7 +1708,7 @@ class Sort(object):
         return rowO
 
     def mx_remove_vix(self,vix):
-        #remove variant from self.VARIANTS
+        #Note: remove variant from self.VARIANTS
         idx = list(range(len(self.VARIANTS)))
         idx.pop(vix)
         vname = self.get_vname_by_vix(vix)
@@ -1749,12 +1727,13 @@ class Sort(object):
     # data 
 
     def sort_schema(self):
+        #Note: where the sort DDL schema is first run
         self.dbo.db = self.dbo.db_init()
         self.dbo.dc = self.dbo.cursor()
         self.dbo.sql_exec_file('sort-schema.sql')
         
     def save_mx(self):
-        #push kit/variant/numpy data into saved/matrix tbls + h5py file
+        #Note: push kit/variant/numpy data into saved/matrix tbls + h5py file
         #deletes
         sql = "delete from mx_variants;"
         self.dbo.sql_exec(sql)
@@ -1834,7 +1813,12 @@ class Sort(object):
 
         print("beg MatrixData create: %s" % format(time.clock()))
 
-        #bedranges - uses in_range routine
+        #Note: bedranges - uses in_range routine
+        #table tmp1 - the covered spots of the bedranges (for the known pos
+        #call areas) are pushed to this table; we're only really interested in
+        #those situations where a VCF positive call has been discovered along 
+        #a position for these -- since we need at least one POS and one NEG for 
+        #a variant to be placed in the matrix
         sql = "drop index if exists tmp1idx1;"
         self.dbo.sql_exec(sql)
         sql = "drop index if exists tmp1idx2;"
@@ -1843,15 +1827,15 @@ class Sort(object):
         self.dbo.sql_exec(sql)
         sql = "create table tmp1 (pid int,vid int,pos int,val bool);"
         self.dbo.sql_exec(sql)
-        sql = "CREATE INDEX tmp1idx1 ON tmp1(pid,vid);"
+        sql = "create index tmp1idx1 ON tmp1(pid,vid);" #needed?
         self.dbo.sql_exec(sql)
-        sql = "CREATE INDEX tmp1idx2 ON tmp1(pid,vid,val);"
+        sql = "create index tmp1idx2 ON tmp1(pid,vid,val);" #needed?
         self.dbo.sql_exec(sql)
-        sql = "SELECT DISTINCT C.pid FROM vcfcalls C"
+        sql = "select distinct C.PId FROM vcfcalls C"
         pids = self.dbo.sql_exec(sql)
         F = self.dbo.fetchall()
         for row in F:
-            sql = "SELECT * from v_pos_call_chk;"
+            sql = "select * from v_pos_call_chk;"
             calls = self.dbo.dc.execute(sql)
             self.dbo.rc = self.dbo.cursor()
             sql = '''select minaddr,maxaddr from bedranges r
@@ -1866,11 +1850,14 @@ class Sort(object):
             sql = "insert into tmp1 (pid,vid,pos,val) values (%s,?,?,?);"%row[0]
             self.dbo.sql_exec_many(sql,mergedList)
 
-        sql = "drop table if exists tmp2;"
-        self.dbo.sql_exec(sql)
-        #this is the data that correlates variants pos's to whether kits were
+        #Note: table tmp2 - this is the data that correlates variants pos's to whether kits were
         #tested for them or not (a neg is when it was covered, but it's not
         #showing up in the vcfcalls)
+        #the pidvid idea is a hack ... so we can isolate pid/vid combos for
+        #situations in the vcfcalls where a positive was uncovered, and compare
+        #those results to the covered bed positions
+        sql = "drop table if exists tmp2;"
+        self.dbo.sql_exec(sql)
         sql = '''
             CREATE TABLE tmp2 as 
             SELECT DISTINCT vid as vID, pid as pID,
@@ -1888,18 +1875,20 @@ class Sort(object):
         sql = "delete from tmp2 where pidvid in (select pidvid from v_unk_call_chk_with_kits);"
         self.dbo.sql_exec(sql)
 
-        #sql to fetch matrix variant data
+        #Note: sql to fetch matrix variant data; this targets variants that
+        #have at least one POS, one NEG across the known kits
         sql = "select * from v_imx_assignments_with_unk;"
         self.dbo.sql_exec(sql)
         F = self.dbo.fetchall()
 
-        #retrieve data from sqlite like so: [V][K] [x,x,x,x,x,x,...]
+        #Note: vars that will be used the loop coming up
         DATA = OrderedDict()
         self.KITS = {}
         self.VARIANTS = {}
         cntV = 0
         cntK = 0
 
+        #Note: retrieve data from sqlite like so: [V][K] [x,x,x,x,x,x,...]
         for row in F:
             if row[1] not in DATA:
                 DATA[row[1]] = []
@@ -1926,6 +1915,7 @@ class Sort(object):
                 self.VARIANTS[row[1]] = [row[4],cntV,row[3]]
                 cntV = cntV + 1
 
+        #debugging
         self.NP = np.matrix(list(DATA.values()))
         if config['DBG_MATRIX']:
             print("\n---------------------------------------")
@@ -1933,8 +1923,8 @@ class Sort(object):
             print("---------------------------------------")
             print(self.NP)
 
-        #mx_notused_variants - these are variants that don't have at least one
-        #neg and one positive
+        #Note: table mx_notused_variants - these are variants that don't have at least one
+        #NEG, one POS - they won't be put in the matrix
         sql = "delete from mx_notused_variants;"
         self.dbo.sql_exec(sql)
         sql = "insert into mx_notused_variants select vID,1 from v_only_pos_variants";
@@ -1952,26 +1942,25 @@ class Sort(object):
         print("\nThere are %s pos not-used variants" % nu_pos)
         print("There are %s neg not-used variants" % nu_neg)
 
-        #remove dupes
+        #Note: remove dupes - they aren't kept in the matrix either
         self.mx_remove_dupes()
 
+        #Note: counts for stdout
         print("Num - matrix kits: %s" % len(self.KITS))
         print("Num - perfect matrix variants: %s" % len(self.get_perfect_variants_idx()))
         print("Num - total matrix variants: %s\n" % len(self.VARIANTS))
 
+        #Note: done (stdout)
         print("end MatrixData create: %s" % format(time.clock()))
-        #self.stdout_matrix()
         if config['DBG_MATRIX']:
             print("\n---------------------------------------")
             print("Matrix: end of create data routine")
             print("---------------------------------------")
             print(self.NP)
-
-        #save matrix data
-        #self.save_mx()
         
     def mx_remove_dupes(self,auto_nonsplits=False):
-
+        #Note: this is where dupe variant profiles are removed from the matrix
+        #and stored in the DB
         def return_counts(idx, inv):
             count = np.zeros(len(idx), np.int)
             np.add.at(count, inv, 1)
@@ -2022,6 +2011,8 @@ class Sort(object):
             print("Total dupes removed: %s\n" % dupe_cnt)
         
     def reset_ss_data(self):
+        #Note: this is where sups and subs are assembled, cached, and put 
+        #into the DB
         #reset tbl
         sql = "delete from mx_sups_subs"
         self.dbo.sql_exec(sql)
