@@ -198,7 +198,7 @@ CREATE VIEW v_imx_assignments_with_unk AS
 
 CREATE VIEW v_ref_variants AS
   SELECT DISTINCT S.snpname, V.ID, V.pos, B.buildNm, AA.allele as
-  anc, DA.allele as der, IX.idx, D1.vID as vID1, D2.vID as vID2, NU.reasonId
+  anc, DA.allele as der, ifnull(IX.idx,9999999) as idx, D1.vID as vID1, D2.vID as vID2, NU.reasonId
   FROM build B, alleles AA, alleles DA, variants V
   LEFT JOIN mx_idxs IX
   ON IX.axis_id = V.ID and IX.type_id = 0

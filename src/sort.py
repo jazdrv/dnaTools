@@ -158,7 +158,7 @@ class Variant(object):
         sql = '''
             select distinct RV.snpname, RV.ID, RV.pos, RV.buildNm, RV.anc,
             RV.der, RV.idx, RV.vID1, RV.vID2, RV.reasonId
-            from v_ref_variants RV where %s order by 1;
+            from v_ref_variants RV where %s order by 7,1,3;
             ''' % sqlw
         self.dbo.sql_exec(sql)
         F = self.dbo.fetchall()
@@ -181,7 +181,7 @@ class Variant(object):
                 elif row[9] == -1:
                     nouse = 'N'
 
-                table.append_row([str(row[6]).replace('None','-')]+[str(row[3]).replace('None','-')]+[str(row[0]).replace('None','-')]+[str(row[1])]+[row[2]]+[row[4]]+[row[5]]+[dupeP]+[nouse])
+                table.append_row([str(row[6]).replace('9999999','-')]+[str(row[3]).replace('None','-')]+[str(row[0]).replace('None','-')]+[str(row[1])]+[row[2]]+[row[4]]+[row[5]]+[dupeP]+[nouse])
                 table.row_seperator_char = ''
                 table.column_seperator_char = ''
                 table.column_alignments['name'] = BeautifulTable.ALIGN_LEFT
@@ -215,30 +215,20 @@ class Variant(object):
         elif vix:
             sqlw = "IX.idx in (%s)" % sqlw_
         sql = '''
-            SELECT DISTINCT V.ID
-              FROM build B, variants V
-              LEFT JOIN mx_idxs IX
-              ON IX.axis_id = V.ID and IX.type_id = 0
-              LEFT JOIN snpnames S
-              ON S.vID = v.ID
-              WHERE
-              B.buildNm = 'hg38'
-              and V.buildID = B.ID
-              and %s
+            select distinct V.id from build B, variants V
+            left join mx_idxs IX on IX.axis_id = V.ID and IX.type_id = 0
+            left join snpnames S on S.vID = v.ID
+            where B.buildNm = 'hg38' and V.buildID = B.ID and %s
             ''' % (sqlw)
         self.dbo.sql_exec(sql)
         vids1 = [i[0] for i in list(self.dbo.fetchall())]
         sql = '''
-            SELECT DISTINCT vID
-            from mx_dupe_variants D
-            where dupe_vID in (%s)
+            select distinct vid from mx_dupe_variants D where dupe_vID in (%s)
             '''% l2s(vids1)
         self.dbo.sql_exec(sql)
         vids2 = [i[0] for i in list(self.dbo.fetchall())]
         sql = '''
-            SELECT DISTINCT dupe_vID
-            from mx_dupe_variants D
-            where vID in (%s)
+            select distinct dupe_vid from mx_dupe_variants D where vID in (%s)
             '''% l2s(vids1)
         self.dbo.sql_exec(sql)
         vids3 = [i[0] for i in list(self.dbo.fetchall())]
@@ -247,7 +237,7 @@ class Variant(object):
         sql = '''
             select distinct RV.snpname, RV.ID, RV.pos, RV.buildNm, RV.anc,
             RV.der, RV.idx, RV.vID1, RV.vID2, RV.reasonId
-            from v_ref_variants RV where RV.ID in (%s) order by 1;
+            from v_ref_variants RV where RV.ID in (%s) order by 7,1,3;
             ''' % l2s(vids)
         self.dbo.sql_exec(sql)
         F = self.dbo.fetchall()
@@ -270,7 +260,7 @@ class Variant(object):
                 elif row[9] == -1:
                     nouse = 'N'
 
-                table.append_row([str(row[6]).replace('None','-')]+[str(row[3]).replace('None','-')]+[str(row[0]).replace('None','-')]+[str(row[1])]+[row[2]]+[row[4]]+[row[5]]+[dupeP]+[nouse])
+                table.append_row([str(row[6]).replace('9999999','-')]+[str(row[3]).replace('None','-')]+[str(row[0]).replace('None','-')]+[str(row[1])]+[row[2]]+[row[4]]+[row[5]]+[dupeP]+[nouse])
                 table.row_seperator_char = ''
                 table.column_seperator_char = ''
                 table.column_alignments['name'] = BeautifulTable.ALIGN_LEFT
