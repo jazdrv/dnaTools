@@ -127,7 +127,7 @@ class Variant(object):
                 kix = None
         self.sort.stdout_matrix(vix=vix,kix=kix)
 
-    def ref(self,argL,name=False,pos=False,id=False,vix=False,strT=True):
+    def ref(self,argL,name=False,pos=False,id=False,vix=False,strT=False,clade=False,hg19=True):
         argL = [x.upper() for x in argL]
         for a in argL[:]:
             if a.find(','):
@@ -141,13 +141,19 @@ class Variant(object):
         else:
             sqlw_ = ",".join(str(x) for x in sorted(list(set(argL))))
         #build hg38
-        if name: sqlw = "snpname in (%s)" % sqlw_
-        elif pos: sqlw = "pos in (%s)" % sqlw_
-        elif id: sqlw = "ID in (%s)" %  sqlw_
-        elif vix: sqlw = "idx in (%s)" % sqlw_
+        if name: sqlw = "RV.snpname in (%s)" % sqlw_
+        elif pos: sqlw = "RV.pos in (%s)" % sqlw_
+        elif id: sqlw = "RV.ID in (%s)" %  sqlw_
+        elif vix: sqlw = "RV.idx in (%s)" % sqlw_
+
+        if clade:
+            self.ref_clade(sqlw)
+            return
+
         sql = '''
-            select distinct snpname, ID, pos, buildNm, anc, der, idx, vID1, vID2, reasonId
-            from v_ref_variants where %s order by 1;
+            select distinct RV.snpname, RV.ID, RV.pos, RV.buildNm, RV.anc,
+            RV.der, RV.idx, RV.vID1, RV.vID2, RV.reasonId
+            from v_ref_variants RV where %s order by 1;
             ''' % sqlw
         self.dbo.sql_exec(sql)
         F = self.dbo.fetchall()
@@ -178,9 +184,9 @@ class Variant(object):
             print("")
 
         #build hg19
-        if name or pos or id:
+        if hg19:
             sql = '''
-                select distinct snpname,ID,pos,buildNm from v_ref_variants_hg19
+                select distinct RV.snpname,RV.ID,RV.pos,RV.buildNm from v_ref_variants_hg19 RV
                 where %s order by 1;
                 ''' % sqlw
             self.dbo.sql_exec(sql)
@@ -194,17 +200,69 @@ class Variant(object):
                     table.column_seperator_char = ''
                 print(table)
         
-    def ref_name(self,argL,name=True,strT=True):
-        self.ref(argL,name=True,strT=True)
+    def ref_clade(self,sqlw):
+        sql = '''
+            select distinct
+            RV.snpname, RV.ID, RV.pos, RV.buildNm, RV.anc,
+            RV.der, RV.idx, RV.vID1, RV.vID2, RV.reasonId
+            from v_ref_variants RV
+            where %s
+            union
+            select distinct
+            RV2.snpname, RV2.ID, RV2.pos, RV2.buildNm, RV2.anc,
+            RV2.der, RV2.idx, RV2.vID1, RV2.vID2, RV2.reasonId
+            from v_ref_variants RV, v_ref_variants RV2, mx_dupe_variants DV
+            where
+            DV.vID = RV2.ID and DV.dupe_vID = RV.ID
+            and %s
+            union
+            select distinct
+            RV2.snpname, RV2.ID, RV2.pos, RV2.buildNm, RV2.anc,
+            RV2.der, RV2.idx, RV2.vID1, RV2.vID2, RV2.reasonId
+            from v_ref_variants RV, v_ref_variants RV2, mx_dupe_variants DV
+            where
+            DV.vID = RV.ID and DV.dupe_vID = RV2.ID
+            and %s order by 1;
+            ''' % (sqlw,sqlw,sqlw)
+        self.dbo.sql_exec(sql)
+        F = self.dbo.fetchall()
+
+        if len(F) > 0:
+            print("")
+            table = BeautifulTable(max_width=70)
+            table.column_headers = ['vix']+['build']+['name']+['id']+['pos']+['anc']+['der']+['dupeP']+['nouse']
+            for row in F:
+                if row[7] == None and row[8] == None:
+                    dupeP = 'N'
+                elif row[7] != None:
+                    dupeP = 'Y'
+                elif row[8] != 'None':
+                    dupeP = row[8]
+                if row[9] == None:
+                    nouse = '-'
+                elif row[9] == 1:
+                    nouse = 'P'
+                elif row[9] == -1:
+                    nouse = 'N'
+
+                table.append_row([str(row[6]).replace('None','-')]+[str(row[3]).replace('None','-')]+[str(row[0]).replace('None','-')]+[str(row[1])]+[row[2]]+[row[4]]+[row[5]]+[dupeP]+[nouse])
+                table.row_seperator_char = ''
+                table.column_seperator_char = ''
+                table.column_alignments['name'] = BeautifulTable.ALIGN_LEFT
+            print(table)
+            print("")
         
-    def ref_pos(self,argL):
-        self.ref(argL,pos=True)
+    def ref_name(self,argL,clade=False):
+        self.ref(argL,name=True,strT=True,clade=clade)
+        
+    def ref_pos(self,argL,clade=False):
+        self.ref(argL,pos=True,clade=clade)
                  
-    def ref_id(self,argL):
-        self.ref(argL,id=True)
+    def ref_id(self,argL,clade=False):
+        self.ref(argL,id=True,clade=clade)
         
-    def ref_vix(self,argL):
-        self.ref(argL,vix=True)
+    def ref_vix(self,argL,clade=False):
+        self.ref(argL,vix=True,clade=clade,hg19=False)
 
     def stash(self,vname):
         #TODO: setup the ability to stash multiple variants at once

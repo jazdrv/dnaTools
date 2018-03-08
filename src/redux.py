@@ -94,6 +94,11 @@ parser.add_argument('-vri', '--variant_ref_id', help='variant ref id')
 parser.add_argument('-vrp', '--variant_ref_pos', help='variant ref pos')
 parser.add_argument('-vrx', '--variant_ref_vix', help='variant ref vix')
 
+parser.add_argument('-vcn', '--variant_clade_name', help='variant clade name')
+parser.add_argument('-vci', '--variant_clade_id', help='variant clade id')
+parser.add_argument('-vcp', '--variant_clade_pos', help='variant clade pos')
+parser.add_argument('-vcx', '--variant_clade_vix', help='variant clade vix')
+
 parser.add_argument('rest', nargs=argparse.REMAINDER)
 
 # (end) sort prototype stuff
@@ -146,115 +151,92 @@ if args.all:
 
 # (beg) sort prototype stuff
 
-if args.sort:
+def init_vt(initSort=False):
+    vt = Variant()
+    vt.dbo = DB1()
+    vt.dbo.db = vt.dbo.db_init()
+    vt.dbo.dc = vt.dbo.cursor()
+    if initSort:
+        vt.sort = Sort()
+        vt.sort.dbo = vt.dbo
+    return vt
+
+def init_sort():
     sort = Sort()
     sort.dbo = DB1()
+    return sort
+
+if args.sort:
+    sort = init_sort()
     sort.sort_schema()
     sort.sort_matrix()
 
 if args.variant_info:
-    vt = Variant()
-    vt.dbo = DB1()
-    vt.dbo.db = vt.dbo.db_init()
-    vt.dbo.dc = vt.dbo.cursor()
-    vt.sort = Sort()
-    vt.sort.dbo = vt.dbo
+    vt = init_vt(initSort=True)
     vt.info(args.variant_info)
 
 if args.variant_proc:
-    vt = Variant()
-    vt.dbo = DB1()
-    vt.dbo.db = vt.dbo.db_init()
-    vt.dbo.dc = vt.dbo.cursor()
-    vt.sort = Sort()
-    vt.sort.dbo = vt.dbo
+    vt = init_vt(initSort=True)
     vt.proc(args.variant_proc)
 
 if args.variant_proc_nonsplits:
-    vt = Variant()
-    vt.dbo = DB1()
-    vt.dbo.db = vt.dbo.db_init()
-    vt.dbo.dc = vt.dbo.cursor()
-    vt.sort = Sort()
-    vt.sort.dbo = vt.dbo
+    vt = init_vt(initSort=True)
     vt.proc_nonsplits()
 
 if args.variant_stash:
-    vt = Variant()
-    vt.dbo = DB1()
-    vt.dbo.db = vt.dbo.db_init()
-    vt.dbo.dc = vt.dbo.cursor()
-    vt.sort = Sort()
-    vt.sort.dbo = vt.dbo
+    vt = init_vt(initSort=True)
     vt.stash(args.variant_stash)
 
 if args.variant_unstash:
-    vt = Variant()
-    vt.dbo = DB1()
-    vt.dbo.db = vt.dbo.db_init()
-    vt.dbo.dc = vt.dbo.cursor()
-    vt.sort = Sort()
-    vt.sort.dbo = vt.dbo
+    vt = init_vt(initSort=True)
     vt.unstash(args.variant_unstash)
 
 if args.matrix:
-    vt = Variant()
-    vt.dbo = DB1()
-    vt.dbo.db = vt.dbo.db_init()
-    vt.dbo.dc = vt.dbo.cursor()
-    vt.sort = Sort()
-    vt.sort.dbo = vt.dbo
+    vt = init_vt(initSort=True)
     vt.matrix(args.rest)
 
 if args.matrix_perf:
-    vt = Variant()
-    vt.dbo = DB1()
-    vt.dbo.db = vt.dbo.db_init()
-    vt.dbo.dc = vt.dbo.cursor()
-    vt.sort = Sort()
-    vt.sort.dbo = vt.dbo
+    vt = init_vt(initSort=True)
     vt.matrix(args.rest,perfOnly=True)
 
 if args.unknowns:
-    sort = Sort()
-    sort.dbo = DB1()
+    sort = init_sort()
     sort.stdout_unknowns()
 
 if args.variant_ref_name:
-    vt = Variant()
-    vt.dbo = DB1()
-    vt.dbo.db = vt.dbo.db_init()
-    vt.dbo.dc = vt.dbo.cursor()
+    vt = init_vt()
     vt.ref_name([args.variant_ref_name]+args.rest)
 
 if args.variant_ref_id:
-    vt = Variant()
-    vt.dbo = DB1()
-    vt.dbo.db = vt.dbo.db_init()
-    vt.dbo.dc = vt.dbo.cursor()
+    vt = init_vt()
     vt.ref_id([args.variant_ref_id]+args.rest)
 
 if args.variant_ref_pos:
-    vt = Variant()
-    vt.dbo = DB1()
-    vt.dbo.db = vt.dbo.db_init()
-    vt.dbo.dc = vt.dbo.cursor()
+    vt = init_vt()
     vt.ref_pos([args.variant_ref_pos]+args.rest)
 
 if args.variant_ref_vix:
-    vt = Variant()
-    vt.dbo = DB1()
-    vt.dbo.db = vt.dbo.db_init()
-    vt.dbo.dc = vt.dbo.cursor()
+    vt = init_vt()
     vt.ref_vix([args.variant_ref_vix]+args.rest)
 
+if args.variant_clade_name:
+    vt = init_vt()
+    vt.ref_name([args.variant_clade_name]+args.rest,clade=True)
+
+if args.variant_clade_id:
+    vt = init_vt()
+    vt.ref_id([args.variant_clade_id]+args.rest,clade=True)
+
+if args.variant_clade_pos:
+    vt = init_vt()
+    vt.ref_pos([args.variant_clade_pos]+args.rest,clade=True)
+
+if args.variant_clade_vix:
+    vt = init_vt()
+    vt.ref_vix([args.variant_clade_vix]+args.rest,clade=True)
+
 if args.variant_upd_unk:
-    vt = Variant()
-    vt.dbo = DB1()
-    vt.dbo.db = vt.dbo.db_init()
-    vt.dbo.dc = vt.dbo.cursor()
-    vt.sort = Sort()
-    vt.sort.dbo = vt.dbo
+    vt = init_vt(initSort=True)
     vt.upd_unk(args.variant_upd_unk)
 
 # (end) sort prototype stuff
