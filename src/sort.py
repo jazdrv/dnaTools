@@ -140,16 +140,18 @@ class Variant(object):
             sqlw_ = "'"+"','".join(str(x) for x in sorted(list(set(argL))))+"'"
         else:
             sqlw_ = ",".join(str(x) for x in sorted(list(set(argL))))
+
+        if clade:
+            self.ref_clade(name=name,pos=pos,id=id,vix=vix,sqlw_=sqlw_)
+            return
+
         #build hg38
         if name: sqlw = "RV.snpname in (%s)" % sqlw_
         elif pos: sqlw = "RV.pos in (%s)" % sqlw_
         elif id: sqlw = "RV.ID in (%s)" %  sqlw_
         elif vix: sqlw = "RV.idx in (%s)" % sqlw_
 
-        if clade:
-            self.ref_clade(sqlw)
-            return
-        elif calls:
+        if calls:
             self.ref_calls(sqlw)
             return
 
@@ -203,30 +205,50 @@ class Variant(object):
                     table.column_seperator_char = ''
                 print(table)
         
-    def ref_clade(self,sqlw):
+    def ref_clade(self,sqlw_,name=False,pos=False,id=False,vix=False):
+        if name:
+            sqlw = "S.snpname in (%s)" % sqlw_
+        elif pos:
+            sqlw = "V.pos in (%s)" % sqlw_
+        elif id:
+            sqlw = "V.ID in (%s)" %  sqlw_
+        elif vix:
+            sqlw = "IX.idx in (%s)" % sqlw_
         sql = '''
-            select distinct
-            RV.snpname, RV.ID, RV.pos, RV.buildNm, RV.anc,
+            SELECT DISTINCT V.ID
+              FROM build B, variants V
+              LEFT JOIN mx_idxs IX
+              ON IX.axis_id = V.ID and IX.type_id = 0
+              LEFT JOIN snpnames S
+              ON S.vID = v.ID
+              WHERE
+              B.buildNm = 'hg38'
+              and V.buildID = B.ID
+              and %s
+            ''' % (sqlw)
+        self.dbo.sql_exec(sql)
+        vids1 = [i[0] for i in list(self.dbo.fetchall())]
+        sql = '''
+            SELECT DISTINCT vID
+            from mx_dupe_variants D
+            where dupe_vID in (%s)
+            '''% l2s(vids1)
+        self.dbo.sql_exec(sql)
+        vids2 = [i[0] for i in list(self.dbo.fetchall())]
+        sql = '''
+            SELECT DISTINCT dupe_vID
+            from mx_dupe_variants D
+            where vID in (%s)
+            '''% l2s(vids1)
+        self.dbo.sql_exec(sql)
+        vids3 = [i[0] for i in list(self.dbo.fetchall())]
+        vids = list(set(vids1+vids2+vids3))
+
+        sql = '''
+            select distinct RV.snpname, RV.ID, RV.pos, RV.buildNm, RV.anc,
             RV.der, RV.idx, RV.vID1, RV.vID2, RV.reasonId
-            from v_ref_variants RV
-            where %s
-            union
-            select distinct
-            RV2.snpname, RV2.ID, RV2.pos, RV2.buildNm, RV2.anc,
-            RV2.der, RV2.idx, RV2.vID1, RV2.vID2, RV2.reasonId
-            from v_ref_variants RV, v_ref_variants RV2, mx_dupe_variants DV
-            where
-            DV.vID = RV2.ID and DV.dupe_vID = RV.ID
-            and %s
-            union
-            select distinct
-            RV2.snpname, RV2.ID, RV2.pos, RV2.buildNm, RV2.anc,
-            RV2.der, RV2.idx, RV2.vID1, RV2.vID2, RV2.reasonId
-            from v_ref_variants RV, v_ref_variants RV2, mx_dupe_variants DV
-            where
-            DV.vID = RV.ID and DV.dupe_vID = RV2.ID
-            and %s order by 1;
-            ''' % (sqlw,sqlw,sqlw)
+            from v_ref_variants RV where RV.ID in (%s) order by 1;
+            ''' % l2s(vids)
         self.dbo.sql_exec(sql)
         F = self.dbo.fetchall()
 
@@ -1769,12 +1791,13 @@ class Sort(object):
         F = self.dbo.fetchall()
         for row in F:
             sql = "select * from v_pos_call_chk;"
-            calls = self.dbo.dc.execute(sql)
-            self.dbo.rc = self.dbo.cursor()
+            dc = self.dbo.cursor()
+            calls = dc.execute(sql)
+            rc = self.dbo.cursor()
             sql = '''select minaddr,maxaddr from bedranges r
                 inner join bed b on b.bID=r.id
                 where b.pid=%s order by 1'''%row[0]
-            ranges = self.dbo.rc.execute(sql)
+            ranges = rc.execute(sql)
             xl = list([(v[0],v[1]) for v in calls])
             pv = [v[1] for v in xl]
             rv = [v for v in ranges]

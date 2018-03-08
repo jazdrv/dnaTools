@@ -212,31 +212,9 @@ CREATE VIEW v_ref_variants AS
   ON NU.vID = V.ID
   WHERE
   V.anc = AA.ID and V.der = DA.ID
-  -- and V.pos in (%s)
   and B.buildNm = 'hg38'
   and V.buildID = B.ID
   ORDER BY 1;
-
--- CREATE VIEW v_ref_calls AS
---   SELECT DISTINCT S.snpname, V.ID as ID, T.pos, B.buildNm, AA.allele as
---  anc, DA.allele as der, IX.idx, D1.vID as vID1, D2.vID as vID2, NU.reasonId
---  FROM build B, alleles AA, alleles DA, tmp1 T, variants V
---  LEFT JOIN mx_idxs IX
---  ON IX.axis_id = V.ID and IX.type_id = 0
---  LEFT JOIN snpnames S
---  ON S.vID = V.ID
---  LEFT JOIN mx_dupe_variants D1 -- #is a parent to dupe "children"
---  ON D1.vID = V.ID
---  LEFT JOIN mx_dupe_variants D2 -- #is a dupe "child" of another vix
---  ON D2.dupe_vID = V.ID
---  LEFT JOIN mx_notused_variants NU
---  ON NU.vID = V.ID
---  WHERE
---  T.vID = V.ID and V.anc = AA.ID and V.der = DA.ID
---  -- and V.pos in (%s)
---  and B.buildNm = 'hg38'
---  and V.buildID = B.ID
---  ORDER BY 1;
 
 CREATE VIEW v_ref_variants_hg19 AS
   SELECT DISTINCT S.snpname,V.ID,V.pos, B.buildNm
