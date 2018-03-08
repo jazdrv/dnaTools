@@ -130,29 +130,28 @@ class Variant(object):
     #TODO: these lib routines have a lot of redundant code, can be consolidated
 
 
-    def lib(self,name=None,pos=None,id=None,vix=None):
+    def lib(self,argL,name=False,pos=False,id=False,vix=False,strT=True):
+        argL = [x.upper() for x in argL]
+        for a in argL[:]:
+            if a.find(','):
+                argL = argL + a.split(",")
+                argL.remove(a)
+            if a.find('/'):
+                argL = argL + a.split("/")
+                argL.remove(a)
+        if strT:
+            sqlw_ = "'"+"','".join(str(x) for x in sorted(list(set(argL))))+"'"
+        else:
+            sqlw_ = ",".join(str(x) for x in sorted(list(set(argL))))
         #build hg38
-        if name is not None:
-            sql = '''
-                select distinct snpname, ID, pos, buildNm, anc, der, idx, vID1, vID2, reasonId
-                from v_ref_variants where snpname in (%s) order by 1;
-                ''' % name
-        elif pos is not None:
-            sql = '''
-                select distinct snpname, ID, pos, buildNm, anc, der, idx, vID1, vID2, reasonId
-                from v_ref_variants where pos in (%s) order by 1;
-                ''' % pos
-
-        elif id is not None:
-            sql = '''
-                select distinct snpname, ID, pos, buildNm, anc, der, idx, vID1, vID2, reasonId
-                from v_ref_variants where ID in (%s) order by 1;
-                ''' % id
-        elif vix is not None:
-            sql = '''
-                select distinct snpname, ID, pos, buildNm, anc, der, idx, vID1, vID2, reasonId
-                from v_ref_variants where idx in (%s) order by 1;
-                ''' % vix
+        if name: sqlw = "snpname in (%s)" % sqlw_
+        elif pos: sqlw = "pos in (%s)" % sqlw_
+        elif id: sqlw = "ID in (%s)" %  sqlw_
+        elif vix: sqlw = "idx in (%s)" % sqlw_
+        sql = '''
+            select distinct snpname, ID, pos, buildNm, anc, der, idx, vID1, vID2, reasonId
+            from v_ref_variants where %s order by 1;
+            ''' % sqlw
         self.dbo.sql_exec(sql)
         F = self.dbo.fetchall()
 
@@ -182,82 +181,33 @@ class Variant(object):
             print("")
 
         #build hg19
-        if name is not None:
+        if name or pos or id:
             sql = '''
                 select distinct snpname,ID,pos,buildNm from v_ref_variants_hg19
-                where snpname in (%s) order by 1;
-                ''' % name
-        elif pos is not None:
-            sql = '''
-                select distinct snpname,ID,pos,buildNm from v_ref_variants_hg19
-                where pos in (%s) order by 1;
-                ''' % pos
-        elif id is not None:
-            sql = '''
-                select distinct snpname,ID,pos,buildNm from v_ref_variants_hg19
-                where ID in (%s) order by 1;
-                ''' % id
-        else:
-            return
-        self.dbo.sql_exec(sql)
-        F = self.dbo.fetchall()
-
-        if len(F) > 0:
-            table = BeautifulTable()
-            table.column_headers = ['build']+['name']+['id']+['pos']
-            for row in F:
-                table.append_row([row[3]]+[row[0]]+[row[1]]+[row[2]])
-                table.row_seperator_char = ''
-                table.column_seperator_char = ''
-            print(table)
+                where %s order by 1;
+                ''' % sqlw
+            self.dbo.sql_exec(sql)
+            F = self.dbo.fetchall()
+            if len(F) > 0:
+                table = BeautifulTable()
+                table.column_headers = ['build']+['name']+['id']+['pos']
+                for row in F:
+                    table.append_row([row[3]]+[row[0]]+[row[1]]+[row[2]])
+                    table.row_seperator_char = ''
+                    table.column_seperator_char = ''
+                print(table)
         
-    def lib_name(self,argL):
-        argL = [x.upper() for x in argL]
-        for a in argL[:]:
-            if a.find(','):
-                argL = argL + a.split(",")
-                argL.remove(a)
-            if a.find('/'):
-                argL = argL + a.split("/")
-                argL.remove(a)
-        sqlw = "'"+"','".join(str(x) for x in sorted(list(set(argL))))+"'"
-        self.lib(name=sqlw)
+    def lib_name(self,argL,name=True,strT=True):
+        self.lib(argL,name=True,strT=True)
         
     def lib_pos(self,argL):
-        argL = [x.upper() for x in argL]
-        for a in argL[:]:
-            if a.find(','):
-                argL = argL + a.split(",")
-                argL.remove(a)
-            if a.find('/'):
-                argL = argL + a.split("/")
-                argL.remove(a)
-        sqlw = ",".join(str(x) for x in sorted(list(set(argL))))
-        self.lib(pos=sqlw)
+        self.lib(argL,pos=True)
                  
     def lib_id(self,argL):
-        argL = [x.upper() for x in argL]
-        for a in argL[:]:
-            if a.find(','):
-                argL = argL + a.split(",")
-                argL.remove(a)
-            if a.find('/'):
-                argL = argL + a.split("/")
-                argL.remove(a)
-        sqlw = ",".join(str(x) for x in sorted(list(set(argL))))
-        self.lib(id=sqlw)
+        self.lib(argL,id=True)
         
     def lib_vix(self,argL):
-        argL = [x.upper() for x in argL]
-        for a in argL[:]:
-            if a.find(','):
-                argL = argL + a.split(",")
-                argL.remove(a)
-            if a.find('/'):
-                argL = argL + a.split("/")
-                argL.remove(a)
-        sqlw = ",".join(str(x) for x in sorted(list(set(argL))))
-        self.lib(vix=sqlw)
+        self.lib(argL,vix=True)
 
     def stash(self,vname):
         #TODO: setup the ability to stash multiple variants at once
