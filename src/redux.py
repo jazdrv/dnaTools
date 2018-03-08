@@ -8,7 +8,6 @@
 # version 3 (29 June 2007)
 # https://www.gnu.org/licenses/gpl.html
 
-
 import sys
 import argparse
 import yaml
@@ -65,7 +64,6 @@ sys.path.append(config['REDUX_PATH'])
 #  -maintenance: backup, cleanup, diagnostics, tools
 #  -output: controlling type of output files
 
-
 # arg parser
 parser = argparse.ArgumentParser()
 # running
@@ -110,9 +108,6 @@ parser.add_argument('-b', '--backup', help='do a "backup"', action='store_true')
 
 args = parser.parse_args()
 
-
-
-
 # main program
 
 # drop database and have a clean start
@@ -148,7 +143,6 @@ if args.all:
     go_prep()
     go_db()
 
-
 # (beg) sort prototype stuff
 
 def init_vt(initSort=False):
@@ -160,7 +154,7 @@ def init_vt(initSort=False):
         vt.sort = Sort()
         vt.sort.dbo = vt.dbo
     return vt
-
+    
 def init_sort():
     sort = Sort()
     sort.dbo = DB1()
