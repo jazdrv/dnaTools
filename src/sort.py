@@ -127,9 +127,6 @@ class Variant(object):
                 kix = None
         self.sort.stdout_matrix(vix=vix,kix=kix)
 
-    #TODO: these lib routines have a lot of redundant code, can be consolidated
-
-
     def lib(self,argL,name=False,pos=False,id=False,vix=False,strT=True):
         argL = [x.upper() for x in argL]
         for a in argL[:]:
