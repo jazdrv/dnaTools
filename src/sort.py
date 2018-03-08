@@ -30,7 +30,6 @@ class Variant(object):
 
     def proc(self,vname):
         #Note: just process one variant 
-
         self.sort.restore_mx_data()
         self.vix = self.proc_vname(vname)
         if self.vix is None:
@@ -126,6 +125,96 @@ class Variant(object):
             else: #default (show everything)
                 kix = None
         self.sort.stdout_matrix(vix=vix,kix=kix)
+    def clade_priority(self,argL):
+
+        #argL parsing
+        argL = [x.upper() for x in argL]
+        for a in argL[:]:
+            if a.find(','):
+                argL = argL + a.split(",")
+                argL.remove(a)
+            if a.find('/'):
+                argL = argL + a.split("/")
+                argL.remove(a)
+
+        if len(argL) > 0:
+            self.sort.restore_mx_data()
+            for x in argL:
+
+                #get relevant values out of argL
+                argA = x.split("^")
+                if len(argA) != 2 or argA[1].isdigit() is False or argA[0].isdigit() is True:
+                    print("\nImproper format. Exiting.\n")
+                    sys.exit()
+                new_snpname = argA[0]
+                new_vID = int(argA[1])
+
+                #delete any old mx_clade_priorities refs  (this tbl might not be necessary)
+                sql = "delete from mx_clade_priorities where snpname = '%s' and vID = %s " % (new_snpname,new_vID)
+                self.dbo.sql_exec(sql)
+                sql = '''
+                    insert into mx_clade_priorities (ID,snpname,vID) select
+                    null,snpname,vID from snpnames where snpname = '%s' and vID='%s';
+                    ''' % (new_snpname,new_vID)
+                self.dbo.sql_exec(sql)
+
+                #get old variant info + new pos
+                sql = '''
+                    select distinct D.vID,V.pos as dupe_pos
+                    from snpnames S, mx_dupe_variants D,variants V
+                    where D.dupe_vID=S.vID and S.snpname = '%s' and S.vID = %s
+                    and V.ID = D.dupe_vID
+                    ''' % (new_snpname,new_vID)
+                self.dbo.sql_exec(sql)
+                F = self.dbo.fetchall()
+
+                if len(F) > 0:
+
+                    #vars
+                    old_vID = F[0][0]
+                    new_vpos = F[0][1]
+                    vix = self.sort.get_vixs_by_vids(old_vID)
+                    old_snpname = self.sort.get_vname_by_vix(vix)
+
+                    #update self.sort.VARIANTS
+                    self.sort.VARIANTS.pop(old_snpname,None)
+                    self.sort.VARIANTS[new_snpname] = (int(new_vID),vix,new_vpos)
+
+                    #TODO: perhaps this sups/subs code should really be refreshing all
+                    #the relations from scratch for this clade
+                    #update mx_sups_subs - sup references
+                    sql = "update mx_sups_subs set sup = %s where sup = %s" % (new_vID,old_vID)
+                    self.dbo.sql_exec(sql)
+
+                    #update mx_sups_subs - sub references
+                    sql = "update mx_sups_subs set sub = %s where sub = %s" % (old_vID,new_vID)
+                    self.dbo.sql_exec(sql)
+
+                    #update panda version of mx_sups_subs
+                    sql3 = "select distinct * from mx_sups_subs;"
+                    self.dbo.sql_exec(sql3)
+                    sups_ = self.dbo.fetchall()
+                    self.SS = pd.DataFrame(sups_,columns=['sup','sub'])
+
+                    #update mx_dupe_variants - vID references
+                    sql = "update mx_dupe_variants set vID = %s where vID = %s" % (new_vID,old_vID)
+                    self.dbo.sql_exec(sql)
+
+                    #update mx_dupe_variants - dupe_vID references
+                    sql = "update mx_dupe_variants set dupe_vID = %s where dupe_vID = %s" % (old_vID,new_vID)
+                    self.dbo.sql_exec(sql)
+
+                    #update mx_variants table
+                    sql4 = "delete from mx_variants;"
+                    self.dbo.sql_exec(sql4)
+                    sql5 = "insert into mx_variants (ID,name,pos) values (?,?,?);"
+                    self.dbo.sql_exec_many(sql5,[(tuple([vid,nm,pos])) for (n,(nm,(vid,idx,pos))) in enumerate(self.sort.get_axis('variants'))])
+
+                    #update mx_idxs table
+                    sql = "update mx_idxs set axis_id = %s where axis_id= %s and type_id=0" % (new_vID,old_vID)
+                    self.dbo.sql_exec(sql)
+
+                    print("Done making changes. Check the matrix to make sure it worked!")
 
     def ref(self,argL,name=False,pos=False,id=False,vix=False,strT=False,clade=False,calls=False,hg19=True):
         argL = [x.upper() for x in argL]
@@ -1401,8 +1490,8 @@ class Sort(object):
         if strFlg:
             vnames = [vnames]
         for vn in vnames:
-            if vn in self.VARIANTS.keys():
-                vixs.append(self.VARIANTS[vn][1])
+            if vn.upper() in self.VARIANTS.keys():
+                vixs.append(self.VARIANTS[vn.upper()][1])
         if strFlg:
             if len(vixs):
                 return vixs[0]

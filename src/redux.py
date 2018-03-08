@@ -102,6 +102,8 @@ parser.add_argument('-vai', '--variant_calls_id', help='variant calls id')
 parser.add_argument('-vap', '--variant_calls_pos', help='variant calls pos')
 parser.add_argument('-vax', '--variant_calls_vix', help='variant calls vix')
 
+parser.add_argument('-cp', '--clade_priority', help='clade priority')
+
 parser.add_argument('rest', nargs=argparse.REMAINDER)
 
 # (end) sort prototype stuff
@@ -253,6 +255,10 @@ if args.variant_calls_vix:
 if args.variant_upd_unk:
     vt = init_vt(initSort=True)
     vt.upd_unk(args.variant_upd_unk)
+
+if args.clade_priority:
+    vt = init_vt(initSort=True)
+    vt.clade_priority([args.clade_priority]+args.rest)
 
 # (end) sort prototype stuff
 
