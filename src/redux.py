@@ -89,10 +89,10 @@ parser.add_argument('-mp', '--matrix_perf', help='matrix_perf', action='store_tr
 parser.add_argument('-u', '--unknowns', help='unknowns', action='store_true')
 parser.add_argument('-o', '--sort', help='sort matrix data prototype (s_ schema currently)', action='store_true')
 
-parser.add_argument('-vln', '--variant_lib_name', help='variant lib name reference')
-parser.add_argument('-vli', '--variant_lib_id', help='variant lib id reference')
-parser.add_argument('-vlp', '--variant_lib_pos', help='variant lib pos reference')
-parser.add_argument('-vlx', '--variant_lib_vix', help='variant lib vix reference')
+parser.add_argument('-vrn', '--variant_ref_name', help='variant ref name')
+parser.add_argument('-vri', '--variant_ref_id', help='variant ref id')
+parser.add_argument('-vrp', '--variant_ref_pos', help='variant ref pos')
+parser.add_argument('-vrx', '--variant_ref_vix', help='variant ref vix')
 
 parser.add_argument('rest', nargs=argparse.REMAINDER)
 
@@ -220,33 +220,33 @@ if args.unknowns:
     sort.dbo = DB1()
     sort.stdout_unknowns()
 
-if args.variant_lib_name:
+if args.variant_ref_name:
     vt = Variant()
     vt.dbo = DB1()
     vt.dbo.db = vt.dbo.db_init()
     vt.dbo.dc = vt.dbo.cursor()
-    vt.lib_name([args.variant_lib_name]+args.rest)
+    vt.ref_name([args.variant_ref_name]+args.rest)
 
-if args.variant_lib_id:
+if args.variant_ref_id:
     vt = Variant()
     vt.dbo = DB1()
     vt.dbo.db = vt.dbo.db_init()
     vt.dbo.dc = vt.dbo.cursor()
-    vt.lib_id([args.variant_lib_id]+args.rest)
+    vt.ref_id([args.variant_ref_id]+args.rest)
 
-if args.variant_lib_pos:
+if args.variant_ref_pos:
     vt = Variant()
     vt.dbo = DB1()
     vt.dbo.db = vt.dbo.db_init()
     vt.dbo.dc = vt.dbo.cursor()
-    vt.lib_pos([args.variant_lib_pos]+args.rest)
+    vt.ref_pos([args.variant_ref_pos]+args.rest)
 
-if args.variant_lib_vix:
+if args.variant_ref_vix:
     vt = Variant()
     vt.dbo = DB1()
     vt.dbo.db = vt.dbo.db_init()
     vt.dbo.dc = vt.dbo.cursor()
-    vt.lib_vix([args.variant_lib_vix]+args.rest)
+    vt.ref_vix([args.variant_ref_vix]+args.rest)
 
 if args.variant_upd_unk:
     vt = Variant()

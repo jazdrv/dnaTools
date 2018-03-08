@@ -127,7 +127,7 @@ class Variant(object):
                 kix = None
         self.sort.stdout_matrix(vix=vix,kix=kix)
 
-    def lib(self,argL,name=False,pos=False,id=False,vix=False,strT=True):
+    def ref(self,argL,name=False,pos=False,id=False,vix=False,strT=True):
         argL = [x.upper() for x in argL]
         for a in argL[:]:
             if a.find(','):
@@ -194,17 +194,17 @@ class Variant(object):
                     table.column_seperator_char = ''
                 print(table)
         
-    def lib_name(self,argL,name=True,strT=True):
-        self.lib(argL,name=True,strT=True)
+    def ref_name(self,argL,name=True,strT=True):
+        self.ref(argL,name=True,strT=True)
         
-    def lib_pos(self,argL):
-        self.lib(argL,pos=True)
+    def ref_pos(self,argL):
+        self.ref(argL,pos=True)
                  
-    def lib_id(self,argL):
-        self.lib(argL,id=True)
+    def ref_id(self,argL):
+        self.ref(argL,id=True)
         
-    def lib_vix(self,argL):
-        self.lib(argL,vix=True)
+    def ref_vix(self,argL):
+        self.ref(argL,vix=True)
 
     def stash(self,vname):
         #TODO: setup the ability to stash multiple variants at once
