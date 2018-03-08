@@ -276,7 +276,7 @@ class Variant(object):
             table = BeautifulTable(max_width=100)
             cols = ['vix'] + ['build'] + ['name']
             cols = cols + ['id'] + ['pos'] + ['anc'] + ['der'] + ['dupeP'] + ['nouse']
-            cols = cols + ['pID'] + ['assign'] + ['geno'] + ['bed'] + ['mxval']
+            cols = cols + ['pID'] + ['kix'] + ['assign'] + ['geno'] + ['bed'] + ['mxval']
             table.column_headers = cols
             for row in F:
                 if row[7] == None and row[8] == None:
@@ -292,16 +292,17 @@ class Variant(object):
                 elif row[9] == -1:
                     nouse = 'N'
                
+                if isinstance(row[10],int):
+                    kix = self.sort.get_kixs_by_kids(row[10])
+                else:
+                    kix = '-'
+                if isinstance(row[6],int) and isinstance(row[10],int):
+                    coord = self.sort.NP[row[6],kix]
+                else:
+                    coord = '-'
                 row_ = [str(row[6]).replace('None','-')] + [str(row[3]).replace('None','-')] + [str(row[0]).replace('None','-')]
                 row_ = row_ + [str(row[1])] + [row[2]] + [row[4]] + [row[5]] + [dupeP] + [nouse]
-                row_ = row_ + [str(row[10])] + [str(row[11])] + [str(row[12])] + [str(row[13])]
-                if isinstance(row[6],int) and isinstance(row[10],int):
-                    coord = self.sort.NP[row[6],self.sort.get_kixs_by_kids(row[10])]
-                    #if coord == 1: coord = 'P'
-                    #elif coord == -1: coord = 'F'
-                    #elif coord == 0: coord = 'U'
-                else: coord = '-'
-                row_ = row_ + [coord]
+                row_ = row_ + [str(row[10])] + [str(kix)] + [str(row[11])] + [str(row[12])] + [str(row[13])] + [coord]
                 table.append_row(row_)
                 table.row_seperator_char = ''
                 table.column_seperator_char = ''
