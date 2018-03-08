@@ -289,11 +289,12 @@ class Variant(object):
                 if isinstance(row[10],int):
                     kix = self.sort.get_kixs_by_kids(row[10])
                 else:
-                    kix = 99999999 #just make a big value for sorting purposes
+                    kix = 9999999 #just make a big value for sorting purposes
                 F[cnt] = tuple(list(row) + [kix])
                 cnt = cnt + 1        
                 
             F.sort(key=lambda x: x[14])
+            F.sort(key=lambda x: x[6])
 
             print("")
             table = BeautifulTable(max_width=100)
@@ -315,14 +316,19 @@ class Variant(object):
                 elif row[9] == -1:
                     nouse = 'N'
                
-                if kix == 99999999:
+                if row[6] == 9999999:
+                    vix = '-'
+                else:
+                    vix = row[6]
+                if kix == 9999999:
                     kix = '-'
+                else:
                     kix = self.sort.get_kixs_by_kids(row[10])
-                if isinstance(row[6],int) and isinstance(kix,int):
-                    coord = self.sort.NP[row[6],kix]
+                if isinstance(vix,int) and isinstance(kix,int):
+                    coord = self.sort.NP[vix,kix]
                 else:
                     coord = '-'
-                row_ = [str(row[6]).replace('None','-')] + [str(row[3]).replace('None','-')] + [str(row[0]).replace('None','-')]
+                row_ = [str(vix).replace('None','-')] + [str(row[3]).replace('None','-')] + [str(row[0]).replace('None','-')]
                 row_ = row_ + [str(row[1])] + [row[2]] + [row[4]] + [row[5]] + [dupeP] + [nouse]
                 row_ = row_ + [str(row[10])] + [str(row[14])] + [str(row[11])] + [str(row[12])] + [str(row[13])] + [coord]
                 table.append_row(row_)
