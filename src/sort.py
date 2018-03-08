@@ -129,23 +129,30 @@ class Variant(object):
 
     #TODO: these lib routines have a lot of redundant code, can be consolidated
 
-    def lib_name(self,argL):
-        argL = [x.upper() for x in argL]
-        for a in argL[:]:
-            if a.find(','):
-                argL = argL + a.split(",")
-                argL.remove(a)
-            if a.find('/'):
-                argL = argL + a.split("/")
-                argL.remove(a)
 
-        sqlw = "'"+"','".join(str(x) for x in sorted(list(set(argL))))+"'"
-
+    def lib(self,name=None,pos=None,id=None,vix=None):
         #build hg38
-        sql = '''
-            select distinct snpname, ID, pos, buildNm, anc, der, idx, vID1, vID2, reasonId
-            from v_ref_variants where snpname in (%s) order by 1;
-            ''' % sqlw
+        if name is not None:
+            sql = '''
+                select distinct snpname, ID, pos, buildNm, anc, der, idx, vID1, vID2, reasonId
+                from v_ref_variants where snpname in (%s) order by 1;
+                ''' % name
+        elif pos is not None:
+            sql = '''
+                select distinct snpname, ID, pos, buildNm, anc, der, idx, vID1, vID2, reasonId
+                from v_ref_variants where pos in (%s) order by 1;
+                ''' % pos
+
+        elif id is not None:
+            sql = '''
+                select distinct snpname, ID, pos, buildNm, anc, der, idx, vID1, vID2, reasonId
+                from v_ref_variants where ID in (%s) order by 1;
+                ''' % id
+        elif vix is not None:
+            sql = '''
+                select distinct snpname, ID, pos, buildNm, anc, der, idx, vID1, vID2, reasonId
+                from v_ref_variants where idx in (%s) order by 1;
+                ''' % vix
         self.dbo.sql_exec(sql)
         F = self.dbo.fetchall()
 
@@ -167,7 +174,7 @@ class Variant(object):
                 elif row[9] == -1:
                     nouse = 'N'
 
-                table.append_row([str(row[6]).replace('None','-')]+[row[3]]+[row[0]]+[row[1]]+[row[2]]+[row[4]]+[row[5]]+[dupeP]+[nouse])
+                table.append_row([str(row[6]).replace('None','-')]+[str(row[3]).replace('None','-')]+[str(row[0]).replace('None','-')]+[str(row[1])]+[row[2]]+[row[4]]+[row[5]]+[dupeP]+[nouse])
                 table.row_seperator_char = ''
                 table.column_seperator_char = ''
                 table.column_alignments['name'] = BeautifulTable.ALIGN_LEFT
@@ -175,10 +182,23 @@ class Variant(object):
             print("")
 
         #build hg19
-        sql = '''
-            select distinct snpname,ID,pos,buildNm from v_ref_variants_hg19
-            where snpname in (%s) order by 1;
-            ''' % sqlw
+        if name is not None:
+            sql = '''
+                select distinct snpname,ID,pos,buildNm from v_ref_variants_hg19
+                where snpname in (%s) order by 1;
+                ''' % name
+        elif pos is not None:
+            sql = '''
+                select distinct snpname,ID,pos,buildNm from v_ref_variants_hg19
+                where pos in (%s) order by 1;
+                ''' % pos
+        elif id is not None:
+            sql = '''
+                select distinct snpname,ID,pos,buildNm from v_ref_variants_hg19
+                where ID in (%s) order by 1;
+                ''' % id
+        else:
+            return
         self.dbo.sql_exec(sql)
         F = self.dbo.fetchall()
 
@@ -190,10 +210,18 @@ class Variant(object):
                 table.row_seperator_char = ''
                 table.column_seperator_char = ''
             print(table)
-
-        sql = "SELECT DISTINCT axis_id from mx_idxs where type_id=1;"
-        self.dbo.sql_exec(sql)
-        F = self.dbo.fetchall()
+        
+    def lib_name(self,argL):
+        argL = [x.upper() for x in argL]
+        for a in argL[:]:
+            if a.find(','):
+                argL = argL + a.split(",")
+                argL.remove(a)
+            if a.find('/'):
+                argL = argL + a.split("/")
+                argL.remove(a)
+        sqlw = "'"+"','".join(str(x) for x in sorted(list(set(argL))))+"'"
+        self.lib(name=sqlw)
         
     def lib_pos(self,argL):
         argL = [x.upper() for x in argL]
@@ -204,57 +232,8 @@ class Variant(object):
             if a.find('/'):
                 argL = argL + a.split("/")
                 argL.remove(a)
-
         sqlw = ",".join(str(x) for x in sorted(list(set(argL))))
-
-        #build hg38
-        sql = '''
-            select distinct snpname, ID, pos, buildNm, anc, der, idx, vID1, vID2, reasonId
-            from v_ref_variants where pos in (%s) order by 1;
-            ''' % sqlw
-        self.dbo.sql_exec(sql)
-        F = self.dbo.fetchall()
-
-        if len(F) > 0:
-            print("")
-            table = BeautifulTable(max_width=70)
-            table.column_headers = ['vix']+['build']+['name']+['id']+['pos']+['anc']+['der']+['dupeP']+['nouse']
-            for row in F:
-                if row[7] == None and row[8] == None:
-                    dupeP = 'N'
-                elif row[7] != None:
-                    dupeP = 'Y'
-                elif row[8] != 'None':
-                    dupeP = row[8]
-                if row[9] == None:
-                    nouse = '-'
-                elif row[9] == 1:
-                    nouse = 'P'
-                elif row[9] == -1:
-                    nouse = 'N'
-                table.append_row([str(row[6]).replace('None','-')]+[row[3]]+[str(row[0]).replace('None','-')]+[row[1]]+[row[2]]+[row[4]]+[row[5]]+[dupeP]+[nouse])
-                table.row_seperator_char = ''
-                table.column_seperator_char = ''
-                table.column_alignments['name'] = BeautifulTable.ALIGN_LEFT
-            print(table)
-            print("")
-
-        #build hg19
-        sql = '''
-            select distinct snpname,ID,pos,buildNm from v_ref_variants_hg19
-            where pos in (%s) order by 1;
-            ''' % sqlw
-        self.dbo.sql_exec(sql)
-        F = self.dbo.fetchall()
-
-        if len(F) > 0:
-            table = BeautifulTable()
-            table.column_headers = ['build']+['name']+['id']+['pos']
-            for row in F:
-                table.append_row([row[3]]+[row[0]]+[str(row[1]).replace('None','-')]+[row[2]])
-                table.row_seperator_char = ''
-                table.column_seperator_char = ''
-            print(table)
+        self.lib(pos=sqlw)
                  
     def lib_id(self,argL):
         argL = [x.upper() for x in argL]
@@ -265,57 +244,8 @@ class Variant(object):
             if a.find('/'):
                 argL = argL + a.split("/")
                 argL.remove(a)
-
         sqlw = ",".join(str(x) for x in sorted(list(set(argL))))
-
-        #build hg38
-        sql = '''
-            select distinct snpname, ID, pos, buildNm, anc, der, idx, vID1, vID2, reasonId
-            from v_ref_variants where ID in (%s) order by 1;
-            ''' % sqlw
-        self.dbo.sql_exec(sql)
-        F = self.dbo.fetchall()
-
-        if len(F) > 0:
-            print("")
-            table = BeautifulTable(max_width=70)
-            table.column_headers = ['vix']+['build']+['name']+['id']+['pos']+['anc']+['der']+['dupeP']+['nouse']
-            for row in F:
-                if row[7] == None and row[8] == None:
-                    dupeP = 'N'
-                elif row[7] != None:
-                    dupeP = 'Y'
-                elif row[8] != 'None':
-                    dupeP = row[8]
-                if row[9] == None:
-                    nouse = '-'
-                elif row[9] == 1:
-                    nouse = 'P'
-                elif row[9] == -1:
-                    nouse = 'N'
-                table.append_row([str(row[6]).replace('None','-')]+[row[3]]+[str(row[0]).replace('None','-')]+[row[1]]+[row[2]]+[row[4]]+[row[5]]+[dupeP]+[nouse])
-                table.row_seperator_char = ''
-                table.column_seperator_char = ''
-                table.column_alignments['name'] = BeautifulTable.ALIGN_LEFT
-            print(table)
-            print("")
-
-        #build hg19
-        sql = '''
-            select distinct snpname,ID,pos,buildNm from v_ref_variants_hg19
-            where ID in (%s) order by 1;
-            ''' % sqlw
-        self.dbo.sql_exec(sql)
-        F = self.dbo.fetchall()
-
-        if len(F) > 0:
-            table = BeautifulTable()
-            table.column_headers = ['build']+['name']+['id']+['pos']
-            for row in F:
-                table.append_row([row[3]]+[row[0]]+[row[1]]+[row[2]])
-                table.row_seperator_char = ''
-                table.column_seperator_char = ''
-            print(table)
+        self.lib(id=sqlw)
         
     def lib_vix(self,argL):
         argL = [x.upper() for x in argL]
@@ -326,40 +256,8 @@ class Variant(object):
             if a.find('/'):
                 argL = argL + a.split("/")
                 argL.remove(a)
-
         sqlw = ",".join(str(x) for x in sorted(list(set(argL))))
-
-        #build hg38
-        sql = '''
-            select distinct snpname, ID, pos, buildNm, anc, der, idx, vID1, vID2, reasonId
-            from v_ref_variants where idx in (%s) order by 1;
-            ''' % sqlw
-        self.dbo.sql_exec(sql)
-        F = self.dbo.fetchall()
-
-        if len(F) > 0:
-            print("")
-            table = BeautifulTable(max_width=70)
-            table.column_headers = ['vix']+['build']+['name']+['id']+['pos']+['anc']+['der']+['dupeP']+['nouse']
-            for row in F:
-                if row[7] == None and row[8] == None:
-                    dupeP = 'N'
-                elif row[7] != None:
-                    dupeP = 'Y'
-                elif row[8] != 'None':
-                    dupeP = row[8]
-                if row[9] == None:
-                    nouse = '-'
-                elif row[9] == 1:
-                    nouse = 'P'
-                elif row[9] == -1:
-                    nouse = 'N'
-                table.append_row([row[6]]+[row[3]]+[str(row[0]).replace('None','-')]+[row[1]]+[row[2]]+[row[4]]+[row[5]]+[dupeP]+[nouse])
-                table.row_seperator_char = ''
-                table.column_seperator_char = ''
-                table.column_alignments['name'] = BeautifulTable.ALIGN_LEFT
-            print(table)
-            print("")
+        self.lib(vix=sqlw)
 
     def stash(self,vname):
         #TODO: setup the ability to stash multiple variants at once
