@@ -97,6 +97,11 @@ parser.add_argument('-vci', '--variant_clade_id', help='variant clade id')
 parser.add_argument('-vcp', '--variant_clade_pos', help='variant clade pos')
 parser.add_argument('-vcx', '--variant_clade_vix', help='variant clade vix')
 
+parser.add_argument('-van', '--variant_calls_name', help='variant calls name')
+parser.add_argument('-vai', '--variant_calls_id', help='variant calls id')
+parser.add_argument('-vap', '--variant_calls_pos', help='variant calls pos')
+parser.add_argument('-vax', '--variant_calls_vix', help='variant calls vix')
+
 parser.add_argument('rest', nargs=argparse.REMAINDER)
 
 # (end) sort prototype stuff
@@ -228,6 +233,22 @@ if args.variant_clade_pos:
 if args.variant_clade_vix:
     vt = init_vt()
     vt.ref_vix([args.variant_clade_vix]+args.rest,clade=True)
+
+if args.variant_calls_name:
+    vt = init_vt(initSort=True)
+    vt.ref_name([args.variant_calls_name]+args.rest,calls=True)
+
+if args.variant_calls_id:
+    vt = init_vt(initSort=True)
+    vt.ref_id([args.variant_calls_id]+args.rest,calls=True)
+
+if args.variant_calls_pos:
+    vt = init_vt(initSort=True)
+    vt.ref_pos([args.variant_calls_pos]+args.rest,calls=True)
+
+if args.variant_calls_vix:
+    vt = init_vt(initSort=True)
+    vt.ref_vix([args.variant_calls_vix]+args.rest,calls=True)
 
 if args.variant_upd_unk:
     vt = init_vt(initSort=True)

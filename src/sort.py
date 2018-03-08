@@ -127,7 +127,7 @@ class Variant(object):
                 kix = None
         self.sort.stdout_matrix(vix=vix,kix=kix)
 
-    def ref(self,argL,name=False,pos=False,id=False,vix=False,strT=False,clade=False,hg19=True):
+    def ref(self,argL,name=False,pos=False,id=False,vix=False,strT=False,clade=False,calls=False,hg19=True):
         argL = [x.upper() for x in argL]
         for a in argL[:]:
             if a.find(','):
@@ -149,6 +149,9 @@ class Variant(object):
         if clade:
             self.ref_clade(sqlw)
             return
+        elif calls:
+            self.ref_calls(sqlw)
+            return
 
         sql = '''
             select distinct RV.snpname, RV.ID, RV.pos, RV.buildNm, RV.anc,
@@ -160,7 +163,7 @@ class Variant(object):
 
         if len(F) > 0:
             print("")
-            table = BeautifulTable(max_width=70)
+            table = BeautifulTable(max_width=80)
             table.column_headers = ['vix']+['build']+['name']+['id']+['pos']+['anc']+['der']+['dupeP']+['nouse']
             for row in F:
                 if row[7] == None and row[8] == None:
@@ -252,17 +255,71 @@ class Variant(object):
             print(table)
             print("")
         
-    def ref_name(self,argL,clade=False):
-        self.ref(argL,name=True,strT=True,clade=clade)
+    def ref_calls(self,sqlw):
+        self.sort.restore_mx_data()
+        sql = '''
+            select distinct
+            RV.snpname, RV.ID, RV.pos, RV.buildNm, RV.anc,
+            RV.der, RV.idx, RV.vID1, RV.vID2, RV.reasonId,
+            T.pID, C.assigned, C.genotype, T.val
+            from v_ref_variants RV, tmp1 T
+            left join vcfcalls C
+            on C.vID = RV.ID and C.pID = T.pID
+            where RV.pos = T.pos and %s -- and T.pID is not None
+            order by 1
+            ''' % (sqlw)
+        self.dbo.sql_exec(sql)
+        F = self.dbo.fetchall()
+
+        if len(F) > 0:
+            print("")
+            table = BeautifulTable(max_width=100)
+            cols = ['vix'] + ['build'] + ['name']
+            cols = cols + ['id'] + ['pos'] + ['anc'] + ['der'] + ['dupeP'] + ['nouse']
+            cols = cols + ['pID'] + ['assign'] + ['geno'] + ['bed'] + ['mxval']
+            table.column_headers = cols
+            for row in F:
+                if row[7] == None and row[8] == None:
+                    dupeP = 'N'
+                elif row[7] != None:
+                    dupeP = 'Y'
+                elif row[8] != 'None':
+                    dupeP = row[8]
+                if row[9] == None:
+                    nouse = '-'
+                elif row[9] == 1:
+                    nouse = 'P'
+                elif row[9] == -1:
+                    nouse = 'N'
+               
+                row_ = [str(row[6]).replace('None','-')] + [str(row[3]).replace('None','-')] + [str(row[0]).replace('None','-')]
+                row_ = row_ + [str(row[1])] + [row[2]] + [row[4]] + [row[5]] + [dupeP] + [nouse]
+                row_ = row_ + [str(row[10])] + [str(row[11])] + [str(row[12])] + [str(row[13])]
+                if isinstance(row[6],int) and isinstance(row[10],int):
+                    coord = self.sort.NP[row[6],self.sort.get_kixs_by_kids(row[10])]
+                    #if coord == 1: coord = 'P'
+                    #elif coord == -1: coord = 'F'
+                    #elif coord == 0: coord = 'U'
+                else: coord = '-'
+                row_ = row_ + [coord]
+                table.append_row(row_)
+                table.row_seperator_char = ''
+                table.column_seperator_char = ''
+                table.column_alignments['name'] = BeautifulTable.ALIGN_LEFT
+            print(table)
+            print("")
         
-    def ref_pos(self,argL,clade=False):
-        self.ref(argL,pos=True,clade=clade)
+    def ref_name(self,argL,clade=False,calls=False):
+        self.ref(argL,name=True,strT=True,clade=clade,calls=calls)
+        
+    def ref_pos(self,argL,clade=False,calls=False):
+        self.ref(argL,pos=True,clade=clade,calls=calls)
                  
-    def ref_id(self,argL,clade=False):
-        self.ref(argL,id=True,clade=clade)
+    def ref_id(self,argL,clade=False,calls=False):
+        self.ref(argL,id=True,clade=clade,calls=calls)
         
-    def ref_vix(self,argL,clade=False):
-        self.ref(argL,vix=True,clade=clade,hg19=False)
+    def ref_vix(self,argL,clade=False,calls=False):
+        self.ref(argL,vix=True,clade=clade,calls=calls,hg19=False)
 
     def stash(self,vname):
         #TODO: setup the ability to stash multiple variants at once
@@ -1361,6 +1418,24 @@ class Sort(object):
             return vixs[0]
         else:
             return vixs
+    def get_kixs_by_kids(self,kids):
+        intFlg = True
+        try:
+            value = int(kids)
+        except:
+            intFlg = False
+        if intFlg:
+            kids = [kids]
+        kixs = []
+        for k in kids:
+            for itm in list(self.KITS.items()):
+                if itm[1][0] == k:
+                    kixs.append(itm[1][1])
+                    break
+        if intFlg:
+            return kixs[0]
+        else:
+            return kixs
 
     def get_kixs_by_val(self,val,vix=None,vname=None,overrideData=None):
         if vname is not None:
