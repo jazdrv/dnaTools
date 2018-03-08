@@ -32,6 +32,9 @@ DROP VIEW IF EXISTS v_unk_call_chk_with_kits;
 DROP VIEW IF EXISTS v_only_pos_variants;
 DROP VIEW IF EXISTS v_only_neg_variants;
 
+DROP VIEW IF EXISTS v_ref_variants;
+DROP VIEW IF EXISTS v_ref_variants_hg19;
+
 -- }}}
 -- DROP TABLES {{{
 
@@ -192,6 +195,38 @@ CREATE VIEW v_imx_assignments_with_unk AS
   LEFT JOIN v_imx_assignments PVKA
   ON PVK.vID = PVKA.vID AND PVK.pID = PVKA.pID 
   WHERE T.pid = PVK.pID and T.vID = PVK.vID;
+
+CREATE VIEW v_ref_variants AS
+  SELECT DISTINCT S.snpname, V.ID, V.pos, B.buildNm, AA.allele as
+  anc, DA.allele as der, IX.idx, D1.vID as vID1, D2.vID as vID2, NU.reasonId
+  FROM build B, alleles AA, alleles DA, variants V
+  LEFT JOIN mx_idxs IX
+  ON IX.axis_id = V.ID and IX.type_id = 0
+  LEFT JOIN snpnames S
+  ON S.vID = v.ID
+  LEFT JOIN mx_dupe_variants D1 -- #is a parent to dupe "children"
+  ON D1.vID = V.ID
+  LEFT JOIN mx_dupe_variants D2 -- #is a dupe "child" of another vix
+  ON D2.dupe_vID = V.ID
+  LEFT JOIN mx_notused_variants NU
+  ON NU.vID = V.ID
+  WHERE
+  V.anc = AA.ID and V.der = DA.ID
+  -- and V.pos in (%s)
+  and B.buildNm = 'hg38'
+  and V.buildID = B.ID
+  ORDER BY 1;
+
+CREATE VIEW v_ref_variants_hg19 AS
+  SELECT DISTINCT S.snpname,V.ID,V.pos, B.buildNm
+  FROM build B, variants V
+  LEFT JOIN snpnames S
+  ON S.vID = v.ID
+  WHERE
+  -- V.pos in (%s)
+  B.buildNm = 'hg19'
+  and V.buildID = B.ID
+  ORDER BY 1;
 
 -- }}}
 -- CREATE VIEWS (inside matrix) {{{

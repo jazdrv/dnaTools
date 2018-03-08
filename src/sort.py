@@ -143,24 +143,8 @@ class Variant(object):
 
         #build hg38
         sql = '''
-            SELECT DISTINCT S.snpname, V.ID, V.pos, B.buildNm, AA.allele as anc,
-            DA.allele as der, IX.idx, D1.vID, D2.vID, NU.reasonId
-            FROM snpnames S, build B,
-            alleles AA, alleles DA, variants V
-            LEFT JOIN mx_idxs IX
-            ON IX.axis_id = V.ID and IX.type_id=0
-            LEFT JOIN mx_dupe_variants D1 -- #is a parent to dupe "children"
-            ON D1.vID = V.ID
-            LEFT JOIN mx_dupe_variants D2 -- #is a dupe "child" of another vix
-            ON D2.dupe_vID = V.ID
-            LEFT JOIN mx_notused_variants NU
-            ON NU.vID = V.ID
-            WHERE
-            V.anc = AA.ID and V.der = DA.ID
-            and S.snpname in (%s) and V.ID = S.vID
-            and B.buildNm = 'hg38'
-            and V.buildID = B.ID
-            ORDER BY 1;
+            select distinct snpname, ID, pos, buildNm, anc, der, idx, vID1, vID2, reasonId
+            from v_ref_variants where snpname in (%s) order by 1;
             ''' % sqlw
         self.dbo.sql_exec(sql)
         F = self.dbo.fetchall()
@@ -192,14 +176,8 @@ class Variant(object):
 
         #build hg19
         sql = '''
-            SELECT DISTINCT S.snpname,V.ID,V.pos, B.buildNm
-            FROM snpnames S, build B, variants V
-            WHERE
-            S.snpname in (%s)
-            and V.ID = S.vID
-            and B.buildNm = 'hg19'
-            and V.buildID = B.ID
-            ORDER BY 1;
+            select distinct snpname,ID,pos,buildNm from v_ref_variants_hg19
+            where snpname in (%s) order by 1;
             ''' % sqlw
         self.dbo.sql_exec(sql)
         F = self.dbo.fetchall()
@@ -231,25 +209,8 @@ class Variant(object):
 
         #build hg38
         sql = '''
-            SELECT DISTINCT S.snpname, V.ID, V.pos, B.buildNm, AA.allele as
-            anc, DA.allele as der, IX.idx, D1.vID, D2.vID, NU.reasonId
-            FROM build B, alleles AA, alleles DA, variants V
-            LEFT JOIN mx_idxs IX
-            ON IX.axis_id = V.ID and IX.type_id = 0
-            LEFT JOIN snpnames S
-            ON S.vID = v.ID
-            LEFT JOIN mx_dupe_variants D1 -- #is a parent to dupe "children"
-            ON D1.vID = V.ID
-            LEFT JOIN mx_dupe_variants D2 -- #is a dupe "child" of another vix
-            ON D2.dupe_vID = V.ID
-            LEFT JOIN mx_notused_variants NU
-            ON NU.vID = V.ID
-            WHERE
-            V.anc = AA.ID and V.der = DA.ID
-            and V.pos in (%s)
-            and B.buildNm = 'hg38'
-            and V.buildID = B.ID
-            ORDER BY 1;
+            select distinct snpname, ID, pos, buildNm, anc, der, idx, vID1, vID2, reasonId
+            from v_ref_variants where pos in (%s) order by 1;
             ''' % sqlw
         self.dbo.sql_exec(sql)
         F = self.dbo.fetchall()
@@ -280,15 +241,8 @@ class Variant(object):
 
         #build hg19
         sql = '''
-            SELECT DISTINCT S.snpname,V.ID,V.pos, B.buildNm
-            FROM build B, variants V
-            LEFT JOIN snpnames S
-            ON S.vID = v.ID
-            WHERE
-            V.pos in (%s)
-            and B.buildNm = 'hg19'
-            and V.buildID = B.ID
-            ORDER BY 1;
+            select distinct snpname,ID,pos,buildNm from v_ref_variants_hg19
+            where pos in (%s) order by 1;
             ''' % sqlw
         self.dbo.sql_exec(sql)
         F = self.dbo.fetchall()
@@ -316,25 +270,8 @@ class Variant(object):
 
         #build hg38
         sql = '''
-            SELECT DISTINCT S.snpname, V.ID, V.pos, B.buildNm,
-            AA.allele as anc, DA.allele as der , IX.idx, D1.vID, D2.vID, NU.reasonId
-            FROM build B, alleles AA, alleles DA, variants V
-            LEFT JOIN mx_idxs IX
-            ON IX.axis_id = V.ID and IX.type_id = 0
-            LEFT JOIN snpnames S
-            ON S.vID = V.ID
-            LEFT JOIN mx_dupe_variants D1 -- #is a parent to dupe "children"
-            ON D1.vID = V.ID
-            LEFT JOIN mx_dupe_variants D2 -- #is a dupe "child" of another vix
-            ON D2.dupe_vID = V.ID
-            LEFT JOIN mx_notused_variants NU
-            ON NU.vID = V.ID
-            WHERE
-            V.anc = AA.ID and V.der = DA.ID
-            and V.ID in (%s)
-            and B.buildNm = 'hg38'
-            and V.buildID = B.ID
-            ORDER BY 1;
+            select distinct snpname, ID, pos, buildNm, anc, der, idx, vID1, vID2, reasonId
+            from v_ref_variants where ID in (%s) order by 1;
             ''' % sqlw
         self.dbo.sql_exec(sql)
         F = self.dbo.fetchall()
@@ -365,15 +302,8 @@ class Variant(object):
 
         #build hg19
         sql = '''
-            SELECT DISTINCT S.snpname,V.ID,V.pos, B.buildNm
-            FROM build B, variants V
-            LEFT JOIN snpnames S
-            ON S.vID = V.ID
-            WHERE
-            V.id in (%s)
-            and B.buildNm = 'hg19'
-            and V.buildID = B.ID
-            ORDER BY 1;
+            select distinct snpname,ID,pos,buildNm from v_ref_variants_hg19
+            where ID in (%s) order by 1;
             ''' % sqlw
         self.dbo.sql_exec(sql)
         F = self.dbo.fetchall()
@@ -401,24 +331,8 @@ class Variant(object):
 
         #build hg38
         sql = '''
-            SELECT DISTINCT S.snpname,V.ID,V.pos, B.buildNm, AA.allele as anc, DA.allele
-            as der, IX.idx, D1.vID, D2.vID, NU.reasonId
-            FROM build B, alleles AA, alleles DA, mx_idxs IX, variants V
-            LEFT JOIN snpnames S
-            ON V.ID = S.vID
-            LEFT JOIN mx_dupe_variants D1 -- #is a parent to dupe "children"
-            ON D1.vID = V.ID
-            LEFT JOIN mx_dupe_variants D2 -- #is a dupe "child" of another vix
-            ON D2.dupe_vID = V.ID
-            LEFT JOIN mx_notused_variants NU
-            ON NU.vID = V.ID
-            WHERE
-            IX.axis_id = V.ID and IX.type_id=0
-            and V.anc = AA.ID and V.der = DA.ID
-            and IX.idx in (%s)
-            and B.buildNm = 'hg38'
-            and V.buildID = B.ID
-            ORDER BY 1;
+            select distinct snpname, ID, pos, buildNm, anc, der, idx, vID1, vID2, reasonId
+            from v_ref_variants where idx in (%s) order by 1;
             ''' % sqlw
         self.dbo.sql_exec(sql)
         F = self.dbo.fetchall()
