@@ -284,6 +284,17 @@ class Variant(object):
         F = self.dbo.fetchall()
 
         if len(F) > 0:
+            cnt = 0
+            for row in F:
+                if isinstance(row[10],int):
+                    kix = self.sort.get_kixs_by_kids(row[10])
+                else:
+                    kix = 99999999 #just make a big value for sorting purposes
+                F[cnt] = tuple(list(row) + [kix])
+                cnt = cnt + 1        
+                
+            F.sort(key=lambda x: x[14])
+
             print("")
             table = BeautifulTable(max_width=100)
             cols = ['vix'] + ['build'] + ['name']
@@ -304,17 +315,16 @@ class Variant(object):
                 elif row[9] == -1:
                     nouse = 'N'
                
-                if isinstance(row[10],int):
-                    kix = self.sort.get_kixs_by_kids(row[10])
-                else:
+                if kix == 99999999:
                     kix = '-'
-                if isinstance(row[6],int) and isinstance(row[10],int):
+                    kix = self.sort.get_kixs_by_kids(row[10])
+                if isinstance(row[6],int) and isinstance(kix,int):
                     coord = self.sort.NP[row[6],kix]
                 else:
                     coord = '-'
                 row_ = [str(row[6]).replace('None','-')] + [str(row[3]).replace('None','-')] + [str(row[0]).replace('None','-')]
                 row_ = row_ + [str(row[1])] + [row[2]] + [row[4]] + [row[5]] + [dupeP] + [nouse]
-                row_ = row_ + [str(row[10])] + [str(kix)] + [str(row[11])] + [str(row[12])] + [str(row[13])] + [coord]
+                row_ = row_ + [str(row[10])] + [str(row[14])] + [str(row[11])] + [str(row[12])] + [str(row[13])] + [coord]
                 table.append_row(row_)
                 table.row_seperator_char = ''
                 table.column_seperator_char = ''
