@@ -75,14 +75,17 @@ class Variant(object):
         self.set_info(lev=2,allowImperfect=allowImperfect)
         self.stdout_info()
         
-    def matrix(self,argL,perfOnly=False):
+    def matrix(self,argL,perfOnly=False,imperfOnly=False):
         #Note: calls stdout_matrix
 
         self.sort.restore_mx_data()
 
-        #Note: perfects only matrix
+        #Note: perfect/imperfect only matrix
         if perfOnly:
             vix = self.sort.get_perfect_variants_idx()
+        elif imperfOnly:
+            vix = self.sort.get_imperfect_variants_idx()
+        if perfOnly or imperfOnly:
             if len(argL)>0:
                 outK = argL[0]
                 outKA = outK.split(",")

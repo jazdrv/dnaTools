@@ -84,6 +84,7 @@ parser.add_argument('-vss', '--variant_stash', help='variant stash')
 parser.add_argument('-vsu', '--variant_unstash', help='variant unstash')
 parser.add_argument('-m', '--matrix', help='matrix', action='store_true')
 parser.add_argument('-mp', '--matrix_perf', help='matrix_perf', action='store_true')
+parser.add_argument('-mi', '--matrix_imperf', help='matrix_imperf', action='store_true')
 parser.add_argument('-u', '--unknowns', help='unknowns', action='store_true')
 parser.add_argument('-o', '--sort', help='sort matrix data prototype (s_ schema currently)', action='store_true')
 
@@ -199,6 +200,10 @@ if args.matrix:
 if args.matrix_perf:
     vt = init_vt(initSort=True)
     vt.matrix(args.rest,perfOnly=True)
+
+if args.matrix_imperf:
+    vt = init_vt(initSort=True)
+    vt.matrix(args.rest,imperfOnly=True)
 
 if args.unknowns:
     sort = init_sort()
