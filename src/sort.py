@@ -362,7 +362,7 @@ class Variant(object):
             select distinct
             RV.snpname, RV.ID, RV.pos, RV.buildNm, RV.anc,
             RV.der, RV.idx, RV.vID1, RV.vID2, RV.reasonId,
-            T.pID, C.assigned, C.genotype, T.val
+            T.pID, C.assigned, C.genotype, T.val, RV.name
             from v_ref_variants RV, tmp1 T
             left join vcfcalls C
             on C.vID = RV.ID and C.pID = T.pID
@@ -375,18 +375,35 @@ class Variant(object):
         if len(F) > 0:
             cnt = 0
             for row in F:
+
+                row = list(F[cnt])
+
+                #some hacking to get the sorting right
+
+                #kix
                 if isinstance(row[10],int):
                     kix = self.sort.get_kixs_by_kids(row[10])
                 else:
                     kix = 9999999 #just make a big value for sorting purposes
-                F[cnt] = tuple(list(row) + [kix])
+                #coord
+                if isinstance(row[6],int) and isinstance(kix,int) and row[6] != 9999999 and kix != 9999999:
+                    coord = self.sort.NP[row[6],kix]
+                else:
+                    coord = '-'
+                #vix handling
+                if isinstance(row[6],int) and row[6] != 9999999 and row[0] is not None and self.sort.get_vname_by_vix(row[6]) != row[0]:
+                    row[6] = 9999999
+
+                F[cnt] = tuple(list(row) + [kix]+[coord]) #15,16
                 cnt = cnt + 1        
                 
-            F.sort(key=lambda x: x[14])
+            #sorting
+            F.sort(key=lambda x: x[15])
+            F.sort(key=lambda x: x[0])
             F.sort(key=lambda x: x[6])
 
             print("")
-            table = BeautifulTable(max_width=100)
+            table = BeautifulTable(max_width=105)
             cols = ['vix'] + ['build'] + ['name']
             cols = cols + ['id'] + ['pos'] + ['anc'] + ['der'] + ['dupeP'] + ['nouse']
             cols = cols + ['pID'] + ['kix'] + ['assign'] + ['geno'] + ['bed'] + ['mxval']
@@ -404,22 +421,17 @@ class Variant(object):
                     nouse = 'P'
                 elif row[9] == -1:
                     nouse = 'N'
-               
                 if row[6] == 9999999:
                     vix = '-'
                 else:
                     vix = row[6]
-                if kix == 9999999:
+                if row[15] == 9999999:
                     kix = '-'
                 else:
-                    kix = self.sort.get_kixs_by_kids(row[10])
-                if isinstance(vix,int) and isinstance(kix,int):
-                    coord = self.sort.NP[vix,kix]
-                else:
-                    coord = '-'
-                row_ = [str(vix).replace('None','-')] + [str(row[3]).replace('None','-')] + [str(row[0]).replace('None','-')]
+                    kix = row[15]
+                row_ = [str(vix)] + [str(row[3]).replace('None','-')] + [str(row[0]).replace('None','-')]
                 row_ = row_ + [str(row[1])] + [row[2]] + [row[4]] + [row[5]] + [dupeP] + [nouse]
-                row_ = row_ + [str(row[10])] + [str(row[14])] + [str(row[11])] + [str(row[12])] + [str(row[13])] + [coord]
+                row_ = row_ + [str(row[10])] + [str(kix)] + [str(row[11])] + [str(row[12])] + [str(row[13])] + [row[16]]
                 table.append_row(row_)
                 table.row_seperator_char = ''
                 table.column_seperator_char = ''
