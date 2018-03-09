@@ -214,7 +214,7 @@ class Variant(object):
                     sql = "update mx_idxs set axis_id = %s where axis_id= %s and type_id=0" % (new_vID,old_vID)
                     self.dbo.sql_exec(sql)
 
-                    print("Done making changes. Check the matrix to make sure it worked!")
+                    print("Done making changes. Check the matrix and clade detail views to make sure it worked!")
 
     def ref(self,argL,name=False,pos=False,id=False,vix=False,strT=False,clade=False,calls=False,hg19=True):
         argL = [x.upper() for x in argL]
