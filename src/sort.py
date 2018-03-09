@@ -2046,6 +2046,8 @@ class Sort(object):
             if config['DBG_DUPE_MSGS']:
                 print("removing %s dupes (total: %s)" % (len(dupe_itms),dupe_cnt))
             self.dbo.sql_exec_many(sql,dupe_itms)
+            sql = "update mx_dupe_variants set vID = %s where vID in (%s);" %(self.get_vid_by_vix(itm[1]),l2s(self.get_vid_by_vix(itms)))
+            self.dbo.sql_exec(sql)
             #remove dupe variants from the self.VARIANTS var
             for k in self.get_vname_by_vix(itms):
                 self.VARIANTS.pop(k,None)
