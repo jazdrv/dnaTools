@@ -851,6 +851,7 @@ class Variant(object):
                 print("[SPLIT ISSUE] splits: %s [%s]" % (l2s(self.sort.get_kname_by_kix(spl)),l2s(spl)))
                 rec.update({"spl":spl})
 
+        vid = self.sort.get_vid_by_vix(self.vix)
         if auto_perfVariants is False:
             if len(pos):
                 print("pos: %s [%s]" % (l2s(self.sort.get_kname_by_kix(pos)),l2s(pos)))
@@ -867,10 +868,10 @@ class Variant(object):
             if len(self.subs):
                 print("subs: %s [%s]" % (l2s(self.sort.get_vname_by_vix(self.subs)),l2s(self.subs)))
                 rec.update({"subs":self.subs})
-            sql = "delete from mx_sort_recommendations where vID=%s"%self.vix
+            sql = "delete from mx_sort_recommendations where vID=%s"%vid
             self.dbo.sql_exec(sql)
             if len(rec.items()):
-                sql = '''insert into mx_sort_recommendations (vID,instructions) values (%s,"%s");'''%(self.vix,str(rec).replace(" ",""))
+                sql = '''insert into mx_sort_recommendations (vID,instructions) values (%s,"%s");'''%(vid,str(rec).replace(" ",""))
                 self.dbo.sql_exec(sql)
 
         if len(spl) > 0:
@@ -895,7 +896,8 @@ class Variant(object):
                 sys.exit()
 
         #Note: retrieve insructions for this variant (or exit, if nothing)
-        sql = "select instructions from mx_sort_recommendations where vID=%s"%self.vix
+        vid = self.sort.get_vid_by_vix(self.vix)
+        sql = "select instructions from mx_sort_recommendations where vID=%s"%vid
         self.dbo.sql_exec(sql)
         row = self.dbo.fetchone()
         if row is None:
@@ -920,16 +922,16 @@ class Variant(object):
                 if auto_nonsplits is False:
                     print("Changing: coord (%s:%s) to POS"%(self.sort.get_vname_by_vix(self.vix),self.sort.get_kname_by_kix(kix)))
                 kid = self.sort.get_kid_by_kix(kix)
-                sql = "select * from mx_calls where vID=%s and pID=%s"%(self.vix,kid)
+                sql = "select * from mx_calls where vID=%s and pID=%s"%(vid,kid)
                 self.dbo.sql_exec(sql)
                 row = self.dbo.fetchone()
                 if row is not None:
                     oldval = row[4]
-                    sql = "update mx_calls set assigned=1,confidence=2,changed=%s where pID=%s and vID=%s;"%(oldval,kid,self.vix)
+                    sql = "update mx_calls set assigned=1,confidence=2,changed=%s where pID=%s and vID=%s;"%(oldval,kid,vid)
                     self.dbo.sql_exec(sql)
                 else:
                     oldval = self.sort.NP[self.vix,kix]
-                    sql = "insert into mx_calls (pID,vID,assigned,confidence,changed) values (%s,%s,%s,%s,%s);"%(kid,self.vix,1,2,oldval)
+                    sql = "insert into mx_calls (pID,vID,assigned,confidence,changed) values (%s,%s,%s,%s,%s);"%(kid,vid,1,2,oldval)
                     self.dbo.sql_exec(sql)
                 self.sort.NP[self.vix,kix] = 1
 
@@ -940,16 +942,16 @@ class Variant(object):
                     print("Changing: coord (%s:%s) to POS-A"%(self.sort.get_vname_by_vix(self.vix),self.sort.get_kname_by_kix(kix)))
                 self.sort.NP[self.vix,kix] = 1
                 kid = self.sort.get_kid_by_kix(kix)
-                sql = "select * from mx_calls where vID=%s and pID=%s"%(self.vix,kid)
+                sql = "select * from mx_calls where vID=%s and pID=%s"%(vid,kid)
                 self.dbo.sql_exec(sql)
                 row = self.dbo.fetchone()
                 if row is not None:
                     oldval = row[4]
-                    sql = "update mx_calls set assigned=1,confidence=1,changed=%s where pID=%s and vID=%s;"%(oldval,kid,self.vix)
+                    sql = "update mx_calls set assigned=1,confidence=1,changed=%s where pID=%s and vID=%s;"%(oldval,kid,vid)
                     self.dbo.sql_exec(sql)
                 else:
                     oldval = self.sort.NP[self.vix,kix]
-                    sql = "insert into mx_calls (pID,vID,assigned,confidence,changed) values (%s,%s,%s,%s,%s);"%(kid,self.vix,1,1,oldval)
+                    sql = "insert into mx_calls (pID,vID,assigned,confidence,changed) values (%s,%s,%s,%s,%s);"%(kid,vid,1,1,oldval)
                     self.dbo.sql_exec(sql)
                 self.sort.NP[self.vix,kix] = 1
 
@@ -959,16 +961,16 @@ class Variant(object):
                 if auto_nonsplits is False:
                     print("Changing: coord (%s:%s) to NEG"%(self.sort.get_vname_by_vix(self.vix),self.sort.get_kname_by_kix(kix)))
                 kid = self.sort.get_kid_by_kix(kix)
-                sql = "select * from mx_calls where vID=%s and pID=%s"%(self.vix,kid)
+                sql = "select * from mx_calls where vID=%s and pID=%s"%(vid,kid)
                 self.dbo.sql_exec(sql)
                 row = self.dbo.fetchone()
                 if row is not None:
                     oldval = row[4]
-                    sql = "update mx_calls set assigned=-1,confidence=2,changed=%s where pID=%s and vID=%s;"%(oldval,kid,self.vix)
+                    sql = "update mx_calls set assigned=-1,confidence=2,changed=%s where pID=%s and vID=%s;"%(oldval,kid,vid)
                     self.dbo.sql_exec(sql)
                 else:
                     oldval = self.sort.NP[self.vix,kix]
-                    sql = "insert into mx_calls (pID,vID,assigned,confidence,changed) values (%s,%s,%s,%s,%s);"%(kid,self.vix,-1,2,oldval)
+                    sql = "insert into mx_calls (pID,vID,assigned,confidence,changed) values (%s,%s,%s,%s,%s);"%(kid,vid,-1,2,oldval)
                     self.dbo.sql_exec(sql)
                 self.sort.NP[self.vix,kix] = -1
 
@@ -993,11 +995,11 @@ class Variant(object):
             self.sort.mx_remove_vix(self.vix)
             #not used variants
             if len(knc) == 0:
-                sql1 = "update mx_calls set removal=1 where vid=%s;"%self.vix
-                sql2 = "insert into mx_notused_variants(vId,reasonId) values(%s,1);"%self.vix
+                sql1 = "update mx_calls set removal=1 where vid=%s;"%vid
+                sql2 = "insert into mx_notused_variants(vId,reasonId) values(%s,1);"%vid
             elif len(kpc) == 0:
-                sql1 = "update mx_calls set removal=2 where vid=%s;"%self.vix
-                sql2 = "insert into mx_notused_variants(vId,reasonId) values(%s,2);"%self.vix
+                sql1 = "update mx_calls set removal=2 where vid=%s;"%vid
+                sql2 = "insert into mx_notused_variants(vId,reasonId) values(%s,2);"%vid
             self.dbo.sql_exec(sql1)
             self.dbo.sql_exec(sql2)
             #reset mx_sort_recommendations
