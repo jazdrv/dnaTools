@@ -338,6 +338,8 @@ class Variant(object):
                 print(table)
         
     def ref_clade(self,sqlw_,name=False,pos=False,id=False,vix=False):
+        self.sort.restore_mx_data()
+
         #sqlw clause
         if name:
             sqlw = "S.snpname in (%s)" % sqlw_
@@ -376,7 +378,7 @@ class Variant(object):
         vids = list(set(vids1+vids2+vids3))
         sql = '''
             select distinct RV.snpname, RV.ID, RV.pos, RV.buildNm, RV.anc,
-            RV.der, RV.idx, RV.vID1, RV.vID2, RV.reasonId
+            RV.der, RV.idx, RV.vID1, RV.vID2, RV.reasonId, RV.name
             from v_ref_variants RV where RV.ID in (%s) order by 7,1,3;
             ''' % l2s(vids)
         self.dbo.sql_exec(sql)
@@ -384,9 +386,24 @@ class Variant(object):
 
         #stdout tbl
         if len(F) > 0:
+
+            cnt = 0
+            for row in F:
+                row = list(F[cnt])
+                #vix handling
+                if isinstance(row[6],int) and row[6] != 9999999 and row[0] is not None and self.sort.get_vname_by_vix(row[6]) != row[0]:
+                    row[6] = 9999999
+                F[cnt] = tuple(list(row))
+                cnt = cnt + 1        
+            #F.sort(key=lambda x: x[0])
+            F.sort(key=lambda x: x[6])
+
             print("")
-            table = BeautifulTable(max_width=70)
-            table.column_headers = ['vix']+['build']+['name']+['id']+['pos']+['anc']+['der']+['dupeP']+['nouse']
+            table = BeautifulTable(max_width=80)
+            cols = ['vix'] + ['build'] + ['name'] + ['id']
+            cols = cols + ['pos'] + ['anc'] + ['der'] + ['dupeP'] + ['nouse']
+            table.column_headers = cols
+
             for row in F:
                 if row[7] == None and row[8] == None:
                     dupeP = 'N'
@@ -400,7 +417,10 @@ class Variant(object):
                     nouse = 'P'
                 elif row[9] == -1:
                     nouse = 'N'
-                table.append_row([str(row[6]).replace('9999999','-')]+[str(row[3]).replace('None','-')]+[str(row[0]).replace('None','-')]+[str(row[1])]+[row[2]]+[row[4]]+[row[5]]+[dupeP]+[nouse])
+                row_ = [str(row[6]).replace('9999999','-')] + [str(row[3]).replace('None','-')]
+                row_ = row_ + [str(row[0]).replace('None','-')] + [str(row[1])]
+                row_ = row_ + [row[2]] + [row[4]] + [row[5]] + [dupeP] + [nouse]
+                table.append_row(row_)
                 table.row_seperator_char = ''
                 table.column_seperator_char = ''
                 table.column_alignments['name'] = BeautifulTable.ALIGN_LEFT

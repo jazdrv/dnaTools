@@ -226,19 +226,19 @@ if args.variant_ref_vix:
     vt.ref_vix([args.variant_ref_vix]+args.rest)
 
 if args.variant_clade_name:
-    vt = init_vt()
+    vt = init_vt(initSort=True)
     vt.ref_name([args.variant_clade_name]+args.rest,clade=True)
 
 if args.variant_clade_id:
-    vt = init_vt()
+    vt = init_vt(initSort=True)
     vt.ref_id([args.variant_clade_id]+args.rest,clade=True)
 
 if args.variant_clade_pos:
-    vt = init_vt()
+    vt = init_vt(initSort=True)
     vt.ref_pos([args.variant_clade_pos]+args.rest,clade=True)
 
 if args.variant_clade_vix:
-    vt = init_vt()
+    vt = init_vt(initSort=True)
     vt.ref_vix([args.variant_clade_vix]+args.rest,clade=True)
 
 if args.variant_calls_name:
