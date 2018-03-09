@@ -284,7 +284,7 @@ class Variant(object):
 
         if len(F) > 0:
             print("")
-            table = BeautifulTable(max_width=80)
+            table = BeautifulTable(max_width=90)
             table.column_headers = ['vix']+['build']+['name']+['id']+['pos']+['anc']+['der']+['dupeP']+['nouse']
             for row in F:
                 if row[7] == None and row[8] == None:
@@ -433,7 +433,7 @@ class Variant(object):
             F.sort(key=lambda x: x[6])
 
             print("")
-            table = BeautifulTable(max_width=105)
+            table = BeautifulTable(max_width=110)
             cols = ['vix'] + ['build'] + ['name']
             cols = cols + ['id'] + ['pos'] + ['anc'] + ['der'] + ['dupeP'] + ['nouse']
             cols = cols + ['pID'] + ['kix'] + ['kit'] + ['assign'] + ['geno'] + ['bed'] + ['mxval']
@@ -735,9 +735,11 @@ class Variant(object):
                 kpc_ = sorted(self.kpc + pos_)
                 subs_ = self.get_rel(relType=-1,kpc=kpc_,allowImperfect=allowImperfect) #not from cache
                 eqvs_ = self.get_rel(relType=0,kpc=kpc_,allowImperfect=allowImperfect) #not from cache
-                print(kpc_)
-                print(subs_)
-                print(eqvs_)
+                #print("===")
+                #print(kpc_)
+                #print(subs_)
+                #print(eqvs_)
+                #print("===")
 
                 #debugging - kpc and temp kpc
                 if config['SHOW_PROC_CHK_DETAILS']:
@@ -887,9 +889,13 @@ class Variant(object):
             elif auto_perfVariants is False:
                 print("[SPLIT ISSUE] splits: %s [%s]" % (l2s(self.sort.get_kname_by_kix(spl)),l2s(spl)))
                 rec.update({"spl":spl})
-
         vid = self.sort.get_vid_by_vix(self.vix)
         if auto_perfVariants is False:
+            #deterine new subs + sups (based on conclusions)
+            kpc_ = sorted(list(set(self.kpc + pos + pos_a)))
+            sups_ = self.get_rel(relType=1,kpc=kpc_,allowImperfect=allowImperfect) #not from cache
+            subs_ = self.get_rel(relType=-1,kpc=kpc_,allowImperfect=allowImperfect) #not from cache
+            #prep data for mx_sort_recommendations
             if len(pos):
                 print("pos: %s [%s]" % (l2s(self.sort.get_kname_by_kix(pos)),l2s(pos)))
                 rec.update({"p":pos})
@@ -899,12 +905,13 @@ class Variant(object):
             if len(neg):
                 print("neg: %s [%s]" %  (l2s(self.sort.get_kname_by_kix(neg)),l2s(neg)))
                 rec.update({"n":neg})
-            if len(self.sups):
-                print("sups: %s [%s]" % (l2s(self.sort.get_vname_by_vix(self.sups)),l2s(self.sups)))
-                rec.update({"sups":self.sups})
-            if len(self.subs):
-                print("subs: %s [%s]" % (l2s(self.sort.get_vname_by_vix(self.subs)),l2s(self.subs)))
-                rec.update({"subs":self.subs})
+            if len(sups_):
+                print("sups: %s [%s]" % (l2s(self.sort.get_vname_by_vix(sups_)),l2s(sups_)))
+                rec.update({"sups":sups_})
+            if len(subs_):
+                print("subs: %s [%s]" % (l2s(self.sort.get_vname_by_vix(subs_)),l2s(subs_)))
+                rec.update({"subs":subs_})
+            #reset mx_sort_recommendations with new instructions
             sql = "delete from mx_sort_recommendations where vID=%s"%vid
             self.dbo.sql_exec(sql)
             if len(rec.items()):
@@ -1228,15 +1235,16 @@ class Variant(object):
 
         #the subset variant counts
         VAR6 = out2b[list(VAR4.T[0])]
-        if config['DBG_SUBS_IN']: print("[subin.12] VAR6: %s"%VAR6) #slow
+        if config['DBG_SUBS_IN']: print("[subin.12] VAR6: %s"%VAR6)
 
         #subsets shouldn't have diff intersecting positives with common supersets
         subsc = list(VAR5)
         invalid_subs = []
-        self.sups = self.get_rel(relType=1,allowImperfect=False)
+        self.sups = self.get_rel(relType=1,kpc=kpc,allowImperfect=False)
         if len(self.sups) == 0:
             self.sups.append(-999) #top handling
-        self.kpc = self.sort.get_kixs_by_val(val=1,vix=self.vix)
+        #self.kpc = self.sort.get_kixs_by_val(val=1,vix=self.vix)
+        self.kpc = kpc
         for v in subsc:
             vid = self.sort.get_vid_by_vix(v)
             try:
@@ -1248,6 +1256,10 @@ class Variant(object):
                 v1sups.append(-999) #top handling
             if len(v1sups):
                 common_sups = set(v1sups).intersection(set(self.sups))
+                if config['DBG_SUBS_IN']:
+                    print("[subin.10a] self_sups: %s"%self.sups)
+                    print("[subin.10b] v1sups: %s"%v1sups)
+                    print("[subin.10c] common_sups: %s"%common_sups)
                 v1kpc = self.sort.get_kixs_by_val(val=1,vix=v)
                 for sup in common_sups:
                     v2 = Variant()
