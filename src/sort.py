@@ -158,7 +158,7 @@ class Variant(object):
                     ''' % (new_snpname,new_vID)
                 self.dbo.sql_exec(sql)
 
-                #get old variant info + new pos
+                #this checks for a different snpname/vID combo
                 sql = '''
                     select distinct D.vID,V.pos as dupe_pos
                     from snpnames S, mx_dupe_variants D,variants V
@@ -167,6 +167,25 @@ class Variant(object):
                     ''' % (new_snpname,new_vID)
                 self.dbo.sql_exec(sql)
                 F = self.dbo.fetchall()
+                if len(F) > 0:
+                    new_vid = True
+                else:
+                    #this checks for same vID, but different snpname
+                    vix = self.sort.get_vixs_by_vids(new_vID)
+                    vn = self.sort.get_vname_by_vix(vix)
+                    if vn == new_snpname:
+                        #Nothing to do, this is the existing setting 
+                        return 
+                    sql = '''
+                        select distinct D.vID,V.pos as new_pos
+                        from snpnames S, mx_dupe_variants D,variants V
+                        where D.vID=S.vID and S.snpname = '%s' and S.vID = %s
+                        and V.ID = D.vID
+                        ''' % (new_snpname,new_vID)
+                    self.dbo.sql_exec(sql)
+                    F = self.dbo.fetchall()
+                    if len(F) > 0:
+                        new_vid = False
 
                 if len(F) > 0:
 
@@ -183,26 +202,31 @@ class Variant(object):
                     #TODO: perhaps this sups/subs code should really be refreshing all
                     #the relations from scratch for this clade
                     #update mx_sups_subs - sup references
-                    sql = "update mx_sups_subs set sup = %s where sup = %s" % (new_vID,old_vID)
-                    self.dbo.sql_exec(sql)
+                    if new_vid:
+                        sql = "update mx_sups_subs set sup = %s where sup = %s" % (new_vID,old_vID)
+                        self.dbo.sql_exec(sql)
 
                     #update mx_sups_subs - sub references
-                    sql = "update mx_sups_subs set sub = %s where sub = %s" % (old_vID,new_vID)
-                    self.dbo.sql_exec(sql)
+                    if new_vid:
+                        sql = "update mx_sups_subs set sub = %s where sub = %s" % (old_vID,new_vID)
+                        self.dbo.sql_exec(sql)
 
                     #update panda version of mx_sups_subs
-                    sql3 = "select distinct * from mx_sups_subs;"
-                    self.dbo.sql_exec(sql3)
-                    sups_ = self.dbo.fetchall()
-                    self.SS = pd.DataFrame(sups_,columns=['sup','sub'])
+                    if new_vid:
+                        sql3 = "select distinct * from mx_sups_subs;"
+                        self.dbo.sql_exec(sql3)
+                        sups_ = self.dbo.fetchall()
+                        self.SS = pd.DataFrame(sups_,columns=['sup','sub'])
 
                     #update mx_dupe_variants - vID references
-                    sql = "update mx_dupe_variants set vID = %s where vID = %s" % (new_vID,old_vID)
-                    self.dbo.sql_exec(sql)
+                    if new_vid:
+                        sql = "update mx_dupe_variants set vID = %s where vID = %s" % (new_vID,old_vID)
+                        self.dbo.sql_exec(sql)
 
                     #update mx_dupe_variants - dupe_vID references
-                    sql = "update mx_dupe_variants set dupe_vID = %s where dupe_vID = %s" % (old_vID,new_vID)
-                    self.dbo.sql_exec(sql)
+                    if new_vid:
+                        sql = "update mx_dupe_variants set dupe_vID = %s where dupe_vID = %s" % (old_vID,new_vID)
+                        self.dbo.sql_exec(sql)
 
                     #update mx_variants table
                     sql4 = "delete from mx_variants;"
@@ -211,8 +235,9 @@ class Variant(object):
                     self.dbo.sql_exec_many(sql5,[(tuple([vid,nm,pos])) for (n,(nm,(vid,idx,pos))) in enumerate(self.sort.get_axis('variants'))])
 
                     #update mx_idxs table
-                    sql = "update mx_idxs set axis_id = %s where axis_id= %s and type_id=0" % (new_vID,old_vID)
-                    self.dbo.sql_exec(sql)
+                    if new_vid:
+                        sql = "update mx_idxs set axis_id = %s where axis_id= %s and type_id=0" % (new_vID,old_vID)
+                        self.dbo.sql_exec(sql)
 
                     print("Done making changes. Check the matrix and clade detail views to make sure it worked!")
 
