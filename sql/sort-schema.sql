@@ -14,6 +14,7 @@ DROP VIEW IF EXISTS v_unq_pos_variants;
 DROP VIEW IF EXISTS v_unq_pos_variants_to_kits;
 DROP VIEW IF EXISTS v_imx_variants_pos;
 DROP VIEW IF EXISTS v_imx_variants_with_kits;
+DROP VIEW IF EXISTS v_all_calls_with_kit;
 
 DROP VIEW IF EXISTS v_mx_kits;
 DROP VIEW IF EXISTS v_mx_variants;
@@ -146,6 +147,12 @@ CREATE VIEW v_unk_call_chk_with_kits as
   FROM vcfcalls C 
   INNER JOIN variants V
   ON C.vID  = V.ID and C.assigned = -1;
+
+CREATE VIEW v_all_calls_with_kits as 
+  SELECT DISTINCT C.vID, V.pos, C.pID, cast(C.pID as varchar(15))||'|'||cast(C.vID as varchar(15)) as pidvid
+  FROM vcfcalls C 
+  INNER JOIN variants V
+  ON C.vID  = V.ID; 
 
 CREATE VIEW v_neg_call_chk1 as 
   SELECT DISTINCT C.vID

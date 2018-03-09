@@ -1931,13 +1931,15 @@ class Sort(object):
         self.dbo.sql_exec(sql)
         #we don't need to chk for variants we already know have negs (that we
         #can see in the vcfs)
-        sql = "delete from tmp2 where vid in (select distinct vID from v_neg_call_chk1);"
-        self.dbo.sql_exec(sql)
+        #sql = "delete from tmp2 where vid in (select distinct vID from v_neg_call_chk1);"
+        #self.dbo.sql_exec(sql)
         #Note: this needs to be done because some pos variant/kit combos in the vcf's are missing in the beds
-        sql = "delete from tmp2 where pidvid in (select pidvid from v_pos_call_chk_with_kits);"
-        self.dbo.sql_exec(sql)
+        #sql = "delete from tmp2 where pidvid in (select pidvid from v_pos_call_chk_with_kits);"
+        #self.dbo.sql_exec(sql)
         #Note: I believe this also needs to be done, since there are some ambiguous calls
-        sql = "delete from tmp2 where pidvid in (select pidvid from v_unk_call_chk_with_kits);"
+        #sql = "delete from tmp2 where pidvid in (select pidvid from v_unk_call_chk_with_kits);"
+        #self.dbo.sql_exec(sql)
+        sql = "delete from tmp2 where pidvid in (select pidvid from v_all_calls_with_kits);"
         self.dbo.sql_exec(sql)
 
         #Note: sql to fetch matrix variant data; this targets variants that
