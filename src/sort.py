@@ -45,24 +45,28 @@ class Variant(object):
         vixs = self.sort.get_imperfect_variants_idx()
         
         if len(vixs):
+
             #need to push to something to something other than vix here...
             vids = self.sort.get_vid_by_vix(vixs)
             cntErr = 0
+
+            #and then convert it back, because the loop will keep chopping away vixes
             for v in vids:
-                #and then convert it back, because the loop will keep chopping away vixes
                 self.vix = self.sort.get_vixs_by_vids(v)
                 newErr = self.proc_chk(allowImperfect=False,auto_nonsplits=True)
-                if newErr == 0:
-                    self.upd_unk(auto_nonsplits=True)
                 cntErr = cntErr + newErr
-                self.sort.mx_remove_dupes()
-                self.sort.mx_vandh_sort()
-                self.sort.save_mx()
+                if newErr == 0:
+                    print("No errors - so running: upd_unk, remove_dupes, vandh_sort, save_mx")
+                    self.upd_unk(auto_nonsplits=True)
+                    self.sort.mx_remove_dupes()
+                    self.sort.mx_vandh_sort()
+                    self.sort.save_mx()
             if cntErr>0:
                 print("\n%s consistency problem(s) seen. Please resolve.\n"%cntErr)
             else:
                 print("Consistency check: OK.\n")
 
+            #matrix counts
             print("\nTotal matrix kits: %s" % len(self.sort.KITS))
             print("Total perfect matrix variants: %s" % len(self.sort.get_perfect_variants_idx()))
             print("Total imperfect matrix variants: %s" % len(self.sort.get_imperfect_variants_idx()))
@@ -129,7 +133,6 @@ class Variant(object):
                 kix = None
         self.sort.stdout_matrix(vix=vix,kix=kix)
     def clade_priority(self,argL):
-
         #argL parsing
         argL = [x.upper() for x in argL]
         for a in argL[:]:
@@ -173,6 +176,7 @@ class Variant(object):
                 if len(F) > 0:
                     new_vid = True
                 else:
+
                     #this checks for same vID, but different snpname
                     vix = self.sort.get_vixs_by_vids(new_vID)
                     vn = self.sort.get_vname_by_vix(vix)
@@ -250,6 +254,7 @@ class Variant(object):
                     print("Done making changes. Check the matrix and clade detail views to make sure it worked!")
 
     def ref(self,argL,name=False,pos=False,id=False,vix=False,strT=False,clade=False,calls=False,hg19=True):
+        #argL parsing
         argL = [x.upper() for x in argL]
         for a in argL[:]:
             if a.find(','):
@@ -258,25 +263,30 @@ class Variant(object):
             if a.find('/'):
                 argL = argL + a.split("/")
                 argL.remove(a)
+
+        #strT/sqlw clause
         if strT:
             sqlw_ = "'"+"','".join(str(x) for x in sorted(list(set(argL))))+"'"
         else:
             sqlw_ = ",".join(str(x) for x in sorted(list(set(argL))))
 
+        #ref_clade (if applicable)
         if clade:
             self.ref_clade(name=name,pos=pos,id=id,vix=vix,sqlw_=sqlw_)
             return
 
-        #build hg38
+        #sqlw clause
         if name: sqlw = "RV.snpname in (%s)" % sqlw_
         elif pos: sqlw = "RV.pos in (%s)" % sqlw_
         elif id: sqlw = "RV.ID in (%s)" %  sqlw_
         elif vix: sqlw = "RV.idx in (%s)" % sqlw_
 
+        #ref_calls (if applicable)
         if calls:
             self.ref_calls(sqlw)
             return
 
+        #get the data
         sql = '''
             select distinct RV.snpname, RV.ID, RV.pos, RV.buildNm, RV.anc,
             RV.der, RV.idx, RV.vID1, RV.vID2, RV.reasonId
@@ -285,6 +295,7 @@ class Variant(object):
         self.dbo.sql_exec(sql)
         F = self.dbo.fetchall()
 
+        #stdout hg38 tbl data
         if len(F) > 0:
             print("")
             table = BeautifulTable(max_width=90)
@@ -302,7 +313,6 @@ class Variant(object):
                     nouse = 'P'
                 elif row[9] == -1:
                     nouse = 'N'
-
                 table.append_row([str(row[6]).replace('9999999','-')]+[str(row[3]).replace('None','-')]+[str(row[0]).replace('None','-')]+[str(row[1])]+[row[2]]+[row[4]]+[row[5]]+[dupeP]+[nouse])
                 table.row_seperator_char = ''
                 table.column_seperator_char = ''
@@ -310,7 +320,7 @@ class Variant(object):
             print(table)
             print("")
 
-        #build hg19
+        #stdout hg19 tbl
         if hg19:
             sql = '''
                 select distinct RV.snpname,RV.ID,RV.pos,RV.buildNm from v_ref_variants_hg19 RV
@@ -328,6 +338,7 @@ class Variant(object):
                 print(table)
         
     def ref_clade(self,sqlw_,name=False,pos=False,id=False,vix=False):
+        #sqlw clause
         if name:
             sqlw = "S.snpname in (%s)" % sqlw_
         elif pos:
@@ -336,6 +347,8 @@ class Variant(object):
             sqlw = "V.ID in (%s)" %  sqlw_
         elif vix:
             sqlw = "IX.idx in (%s)" % sqlw_
+
+        #get vid - base ref
         sql = '''
             select distinct V.id from build B, variants V
             left join mx_idxs IX on IX.axis_id = V.ID and IX.type_id = 0
@@ -344,18 +357,23 @@ class Variant(object):
             ''' % (sqlw)
         self.dbo.sql_exec(sql)
         vids1 = [i[0] for i in list(self.dbo.fetchall())]
+
+        #get vid - imx_dupe_variants (dupe_vId ref)
         sql = '''
             select distinct vid from mx_dupe_variants D where dupe_vID in (%s)
             '''% l2s(vids1)
         self.dbo.sql_exec(sql)
         vids2 = [i[0] for i in list(self.dbo.fetchall())]
+
+        #get vid - imx_dupe_variants (vId ref)
         sql = '''
             select distinct dupe_vid from mx_dupe_variants D where vID in (%s)
             '''% l2s(vids1)
         self.dbo.sql_exec(sql)
         vids3 = [i[0] for i in list(self.dbo.fetchall())]
-        vids = list(set(vids1+vids2+vids3))
 
+        #get all vid supporting details
+        vids = list(set(vids1+vids2+vids3))
         sql = '''
             select distinct RV.snpname, RV.ID, RV.pos, RV.buildNm, RV.anc,
             RV.der, RV.idx, RV.vID1, RV.vID2, RV.reasonId
@@ -364,6 +382,7 @@ class Variant(object):
         self.dbo.sql_exec(sql)
         F = self.dbo.fetchall()
 
+        #stdout tbl
         if len(F) > 0:
             print("")
             table = BeautifulTable(max_width=70)
@@ -381,7 +400,6 @@ class Variant(object):
                     nouse = 'P'
                 elif row[9] == -1:
                     nouse = 'N'
-
                 table.append_row([str(row[6]).replace('9999999','-')]+[str(row[3]).replace('None','-')]+[str(row[0]).replace('None','-')]+[str(row[1])]+[row[2]]+[row[4]]+[row[5]]+[dupeP]+[nouse])
                 table.row_seperator_char = ''
                 table.column_seperator_char = ''
@@ -391,6 +409,8 @@ class Variant(object):
         
     def ref_calls(self,sqlw):
         self.sort.restore_mx_data()
+
+        #get call data
         sql = '''
             select distinct
             RV.snpname, RV.ID, RV.pos, RV.buildNm, RV.anc,
@@ -407,11 +427,10 @@ class Variant(object):
 
         if len(F) > 0:
             cnt = 0
+
+            #some pre-sort hacking to get the sort setup
             for row in F:
-
                 row = list(F[cnt])
-
-                #some hacking to get the sorting right
 
                 #kix
                 if isinstance(row[10],int):
@@ -435,6 +454,7 @@ class Variant(object):
             F.sort(key=lambda x: x[0])
             F.sort(key=lambda x: x[6])
 
+            #stdout tbl
             print("")
             table = BeautifulTable(max_width=110)
             cols = ['vix'] + ['build'] + ['name']
@@ -486,7 +506,6 @@ class Variant(object):
 
     def stash(self,vname):
         #TODO: setup the ability to stash multiple variants at once
-
         self.sort.restore_mx_data()
         if vname.isdigit() and int(vname)<=len(self.sort.VARIANTS):
             print("\n** Assuming, you're providing a vix ID...")
@@ -498,23 +517,23 @@ class Variant(object):
         if vix is None:
             print("Invalid variant given. Exiting.")
             sys.exit()
+
+        #vars
         vid = self.sort.get_vid_by_vix(vix)
         vname = self.sort.get_vname_by_vix(vix)
-        sql = "insert into mx_variant_stash (ID) values (%s)" % vid
-        self.dbo.sql_exec(sql)
-        #move this variant to a stash tbl 
-        self.sort.mx_remove_vix(vix)
-        print("Moved to stash: %s [%s]"%(vname,vix))
-        #rerun sups+subs and consistency chk 
-        self.sort.reset_ss_data()
-        #sort
-        self.sort.mx_vandh_sort()
-        #save data
-        self.sort.save_mx()
+
+        if vid:
+
+            #move vid to stash table
+            sql = "insert into mx_variant_stash (ID) values (%s)" % vid
+            self.dbo.sql_exec(sql)
+
+            #mx_remove_vix routine
+            self.sort.mx_remove_vix(vix)
+            print("Moved to stash: %s [%s]"%(vname,vix))
         
     def unstash(self,vname):
         #TODO: need to set this up
-
         print("Unstash isn't setup yet. Exiting.")
         sys.exit()
 
@@ -573,7 +592,6 @@ class Variant(object):
         if tp is None:
             print("---------------------------------------------------------------------")
             print("")
-
         if tp==1:
             print("[+] %s" %self.vixn)
             sp = "    "
@@ -589,7 +607,6 @@ class Variant(object):
         print("%s%s" %(sp,self.supsn))
         print("%s%s" %(sp,self.subsn))
         print("%s%s" %(sp,self.eqvn))
-
         if tp is None:
             print("")
             print("---------------------------------------------------------------------")
@@ -738,11 +755,6 @@ class Variant(object):
                 kpc_ = sorted(self.kpc + pos_)
                 subs_ = self.get_rel(relType=-1,kpc=kpc_,allowImperfect=allowImperfect) #not from cache
                 eqvs_ = self.get_rel(relType=0,kpc=kpc_,allowImperfect=allowImperfect) #not from cache
-                #print("===")
-                #print(kpc_)
-                #print(subs_)
-                #print(eqvs_)
-                #print("===")
 
                 #debugging - kpc and temp kpc
                 if config['SHOW_PROC_CHK_DETAILS']:
@@ -884,6 +896,7 @@ class Variant(object):
         if auto_perfVariants is True and len(spl) == 0:
             return 0 #no split errors for perfect variant chk
 
+        #split found
         if len(spl) > 0:
             if auto_perfVariants is True:
                 print("[SPLIT ISSUE] vix: %s [%s] - splits: %s [%s]"%(self.sort.get_vname_by_vix(self.vix),self.vix,l2s(self.sort.get_kname_by_kix(spl)),l2s(spl)))
@@ -892,12 +905,16 @@ class Variant(object):
             elif auto_perfVariants is False:
                 print("[SPLIT ISSUE] splits: %s [%s]" % (l2s(self.sort.get_kname_by_kix(spl)),l2s(spl)))
                 rec.update({"spl":spl})
+
         vid = self.sort.get_vid_by_vix(self.vix)
+
         if auto_perfVariants is False:
+
             #deterine new subs + sups (based on conclusions)
             kpc_ = sorted(list(set(self.kpc + pos + pos_a)))
             sups_ = self.get_rel(relType=1,kpc=kpc_,allowImperfect=allowImperfect) #not from cache
             subs_ = self.get_rel(relType=-1,kpc=kpc_,allowImperfect=allowImperfect) #not from cache
+
             #prep data for mx_sort_recommendations
             if len(pos):
                 print("pos: %s [%s]" % (l2s(self.sort.get_kname_by_kix(pos)),l2s(pos)))
@@ -914,6 +931,7 @@ class Variant(object):
             if len(subs_):
                 print("subs: %s [%s]" % (l2s(self.sort.get_vname_by_vix(subs_)),l2s(subs_)))
                 rec.update({"subs":subs_})
+
             #reset mx_sort_recommendations with new instructions
             sql = "delete from mx_sort_recommendations where vID=%s"%vid
             self.dbo.sql_exec(sql)
@@ -1038,8 +1056,7 @@ class Variant(object):
             if auto_nonsplits is False:
                 if len(kpc) == 0 : print("Updated unks for this variant reveals no positives. Achiving.")
                 if len(knc) == 0 : print("Updated unks for this variant reveals no negatives. Achiving.")
-            #remove variant from self.VARIANTS + matrix
-            self.sort.mx_remove_vix(self.vix)
+
             #not used variants
             if len(knc) == 0:
                 sql1 = "update mx_calls set removal=1 where vid=%s;"%vid
@@ -1049,15 +1066,9 @@ class Variant(object):
                 sql2 = "insert into mx_notused_variants(vId,reasonId) values(%s,2);"%vid
             self.dbo.sql_exec(sql1)
             self.dbo.sql_exec(sql2)
-            #drop any references in the mx_dupe_variants table for removed variants
-            sql = "delete from mx_dupe_variants where vID = %s or dupe_vID = %s;" %(vid,vid)
-            self.dbo.sql_exec(sql)
-            #drop any references in the mx_sups_subs table for removed variants
-            sql = "delete from mx_sups_subs where sup = %s or sub = %s;" %(vid,vid)
-            self.dbo.sql_exec(sql)
-            #reset mx_sort_recommendations
-            sql = "delete from mx_sort_recommendations;"
-            self.dbo.sql_exec(sql)
+
+            #remove variant from self.VARIANTS + matrix
+            self.sort.mx_remove_vix(self.vix)
 
         #Note: it is usable
         else:
@@ -1449,7 +1460,6 @@ class Sort(object):
     # matrix 
 
     def sort_matrix(self):
-
         #db
         self.dbo.db = self.dbo.db_init()
         self.dbo.dc = self.dbo.cursor()
@@ -1822,19 +1832,42 @@ class Sort(object):
         return rowO
 
     def mx_remove_vix(self,vix):
-        #Note: remove variant from self.VARIANTS
-
-        idx = list(range(len(self.VARIANTS)))
-        idx.pop(vix)
+        vid_ = self.get_vid_by_vix(vix)
         vname = self.get_vname_by_vix(vix)
+
+        #TODO: need to check if there are other dupes to represent the missing variant. 
+
+        #remove variant from self.VARIANTS
+        idx_ = list(range(len(self.VARIANTS)))
+        idx_.pop(vix)
         self.VARIANTS.pop(vname,None)
 
         #reset the matrix idxs
-        for ix,vn in enumerate(self.get_vname_by_vix(idx)):
+        for ix,vn in enumerate(self.get_vname_by_vix(idx_)):
             self.VARIANTS[vn] = (self.VARIANTS[vn][0],ix,self.VARIANTS[vn][2])
 
+        #update mx_variants table
+        sql = "delete from mx_variants;"
+        self.dbo.sql_exec(sql)
+        sql = "insert into mx_variants (ID,name,pos) values (?,?,?);"
+        self.dbo.sql_exec_many(sql,[(tuple([vid,nm,pos])) for (n,(nm,(vid,idx,pos))) in enumerate(self.get_axis('variants'))])
+
+        #remove vid from mx_sups_subs
+        sql = "delete from mx_sups_subs where sup = %s or sub = %s" % (vid_,vid_)
+        self.dbo.sql_exec(sql)
+
+        #update panda version of mx_sups_subs
+        sql = "select distinct * from mx_sups_subs;"
+        self.dbo.sql_exec(sql)
+        sups_ = self.dbo.fetchall()
+        self.SS = pd.DataFrame(sups_,columns=['sup','sub'])
+
+        #remove vid from mx_dupe_variants
+        sql = "delete from mx_dupe_variants where vID = %s or dupe_vID = %s" % (vid_,vid_)
+        self.dbo.sql_exec(sql)
+
         #reset the matrix
-        self.NP = self.NP[idx,]
+        self.NP = self.NP[idx_,]
         self.mx_vandh_sort()
         self.save_mx()
 
@@ -1846,7 +1879,6 @@ class Sort(object):
 
     def sort_schema(self):
         #Note: where the sort DDL schema is first run
-
         self.dbo.db = self.dbo.db_init()
         self.dbo.dc = self.dbo.cursor()
         self.dbo.sql_exec_file('sort-schema.sql')
@@ -1948,6 +1980,7 @@ class Sort(object):
         #those situations where a VCF positive call has been discovered along 
         #a position for these -- since we need at least one POS and one NEG for 
         #a variant to be placed in the matrix
+
         sql = "drop index if exists tmp1idx1;"
         self.dbo.sql_exec(sql)
         sql = "drop index if exists tmp1idx2;"
@@ -1986,6 +2019,7 @@ class Sort(object):
         #the pidvid idea is a hack ... so we can isolate pid/vid combos for
         #situations in the vcfcalls where a positive was uncovered, and compare
         #those results to the covered bed positions
+
         sql = "drop table if exists tmp2;"
         self.dbo.sql_exec(sql)
         sql = '''
@@ -1994,6 +2028,7 @@ class Sort(object):
             cast(pid as varchar(15))||'|'||cast(vid as varchar(15)) as pidvid
             FROM tmp1 WHERE val=1;'''
         self.dbo.sql_exec(sql)
+
         #Note: anything that is already in VCF's can't be a newly discovered bed NEG
         sql = "delete from tmp2 where pidvid in (select pidvid from v_all_calls_with_kits);"
         self.dbo.sql_exec(sql)
@@ -2015,23 +2050,29 @@ class Sort(object):
         for row in F:
             if row[1] not in DATA:
                 DATA[row[1]] = []
+
             #calls
             PF = 0
+
             #the vcf positives
             if row[2] == 1 and row[7] == '1/1':
                 PF = 1
+
             #the vcf negatives
             elif row[2] == 1 and row[7] == '0/0':
                 PF = -1
+
             #the additional negs discovered by checking the beds
             elif row[6] == 1 and row[7] == None:
                 PF = -1
             DATA[row[1]].append(PF)
+
             #kits
             if row[5] not in self.KITS.keys():
                 #what this is doing: self.KITS[name] = (pID,idx)
                 self.KITS[row[5]] = [row[0],cntK]
                 cntK = cntK + 1
+
             #variants
             if row[1] not in self.VARIANTS.keys():
                 #what this is doing: self.VARIANTS[name] = (vID,idx,pos)
@@ -2109,27 +2150,34 @@ class Sort(object):
 
         dupe_cnt = 0
         for itm in dupes:
+
             #this gets the duplicate variants (based on idx order) 
             itms = list(np.delete(np.argwhere(inv==itm[0]),0))
             new_vid = self.get_vid_by_vix(itm[1])
             old_vids = self.get_vid_by_vix(itms)
+
             #add new dupe variants to mx_dupe_variants table
             sql = "insert into mx_dupe_variants(vID,dupe_vID) values (%s,?);" % new_vid
             dupe_itms = [tuple([l]) for l in old_vids]
             self.dbo.sql_exec_many(sql,dupe_itms)
+
             #track what's been changed
             dupe_cnt = dupe_cnt + len(dupe_itms)
             if config['DBG_DUPE_MSGS']:
                 print("removing %s dupes (total: %s)" % (len(dupe_itms),dupe_cnt))
+
             #reset primary vID in the mx_dupe_variants table when there are dupe removals
             sql = "update mx_dupe_variants set vID = %s where vID in (%s);" % (new_vid,l2s(old_vids))
             self.dbo.sql_exec(sql)
+
             #reset any sup references in the mx_sups_subs table for removed variants
             sql = "update mx_sups_subs set sup = %s where sup in (%s);" % (new_vid,l2s(old_vids))
             self.dbo.sql_exec(sql)
+
             #reset any sub references in the mx_sups_subs table for removed variants
             sql = "update mx_sups_subs set sub = %s where sub in (%s);" % (new_vid,l2s(old_vids))
             self.dbo.sql_exec(sql)
+
             #remove dupe variants from the self.VARIANTS var
             for k in self.get_vname_by_vix(itms):
                 self.VARIANTS.pop(k,None)
@@ -2152,6 +2200,7 @@ class Sort(object):
         #reset tbl
         sql = "delete from mx_sups_subs"
         self.dbo.sql_exec(sql)
+
         #perfect variants only
         NP = self.NP[self.get_perfect_variants_idx()]
         nrows, ncols = NP.shape
@@ -2165,11 +2214,14 @@ class Sort(object):
             if len(sups):
                 for sup_i in self.get_vid_by_vix(sups):
                     sups_.append((sup_i,vid))
+
         #sqlite tbl
         sql = "insert into mx_sups_subs (sup,sub) values (?,?);"
         self.dbo.sql_exec_many(sql,sups_)
+
         #panda tbl
         self.SS = pd.DataFrame(sups_,columns=['sup','sub'])
+
         #check consistencies of perfect variants (this needs to be after self.SS created)
         print("\nChecking consistencies for perfect variants...")
         cntErr = 0
