@@ -213,8 +213,8 @@ class Variant(object):
 
                     #update panda version of mx_sups_subs
                     if new_vid:
-                        sql3 = "select distinct * from mx_sups_subs;"
-                        self.dbo.sql_exec(sql3)
+                        sql = "select distinct * from mx_sups_subs;"
+                        self.dbo.sql_exec(sql)
                         sups_ = self.dbo.fetchall()
                         self.SS = pd.DataFrame(sups_,columns=['sup','sub'])
 
@@ -229,14 +229,19 @@ class Variant(object):
                         self.dbo.sql_exec(sql)
 
                     #update mx_variants table
-                    sql4 = "delete from mx_variants;"
-                    self.dbo.sql_exec(sql4)
-                    sql5 = "insert into mx_variants (ID,name,pos) values (?,?,?);"
-                    self.dbo.sql_exec_many(sql5,[(tuple([vid,nm,pos])) for (n,(nm,(vid,idx,pos))) in enumerate(self.sort.get_axis('variants'))])
+                    sql = "delete from mx_variants;"
+                    self.dbo.sql_exec(sql)
+                    sql = "insert into mx_variants (ID,name,pos) values (?,?,?);"
+                    self.dbo.sql_exec_many(sql,[(tuple([vid,nm,pos])) for (n,(nm,(vid,idx,pos))) in enumerate(self.sort.get_axis('variants'))])
 
                     #update mx_idxs table
                     if new_vid:
                         sql = "update mx_idxs set axis_id = %s where axis_id= %s and type_id=0" % (new_vID,old_vID)
+                        self.dbo.sql_exec(sql)
+
+                    #reset mx_sort_recommendations
+                    if new_vid:
+                        sql = "delete from mx_sort_recommendations;"
                         self.dbo.sql_exec(sql)
 
                     print("Done making changes. Check the matrix and clade detail views to make sure it worked!")
@@ -728,6 +733,11 @@ class Variant(object):
                     elif v[0] == 1:
                         pos_.append(k) #pos ambiguous
                 kpc_ = sorted(self.kpc + pos_)
+                subs_ = self.get_rel(relType=-1,kpc=kpc_,allowImperfect=allowImperfect) #not from cache
+                eqvs_ = self.get_rel(relType=0,kpc=kpc_,allowImperfect=allowImperfect) #not from cache
+                print(kpc_)
+                print(subs_)
+                print(eqvs_)
 
                 #debugging - kpc and temp kpc
                 if config['SHOW_PROC_CHK_DETAILS']:
@@ -740,7 +750,7 @@ class Variant(object):
                 if kpc_ != supkpc: #no sense in doing consistency check, if target variant is looking to be a dupe of its sup
 
                     #remove any target subs or target equivalent variants from consideration (use cache)
-                    supsubs = list(set(supsubs_)-set(self.subs)-set(self.eqvs))
+                    supsubs = list(set(supsubs_)-set(subs_)-set(eqvs_))
 
                     #do consistency checks on remaining variants
                     if config['SHOW_PROC_CHK_DETAILS']:
@@ -749,7 +759,9 @@ class Variant(object):
                         if config['SHOW_PROC_CHK_DETAILS']:
                             print("")
 
-                        VAR1a = np.argwhere(self.sort.NP[:,kpc_] == 1) #find self.kpc overlaps
+                        #self.sort.get_perfect_variants_idx()
+                        perfNP = self.sort.NP[self.sort.get_perfect_variants_idx()]
+                        VAR1a = np.argwhere(perfNP[:,kpc_] == 1) #find self.kpc overlaps
                         mask = np.isin(VAR1a[:,0], supsubs)
                         idx = list(list(np.where(mask))[0])
                         VAR2a = np.unique(VAR1a[:,0][idx]) #these are the overlapping supsubs with target v
@@ -1027,40 +1039,53 @@ class Variant(object):
                 sql2 = "insert into mx_notused_variants(vId,reasonId) values(%s,2);"%vid
             self.dbo.sql_exec(sql1)
             self.dbo.sql_exec(sql2)
+            #drop any references in the mx_dupe_variants table for removed variants
+            sql = "delete from mx_dupe_variants where vID = %s or dupe_vID = %s;" %(vid,vid)
+            self.dbo.sql_exec(sql)
+            #drop any references in the mx_sups_subs table for removed variants
+            sql = "delete from mx_sups_subs where sup = %s or sub = %s;" %(vid,vid)
+            self.dbo.sql_exec(sql)
             #reset mx_sort_recommendations
             sql = "delete from mx_sort_recommendations;"
             self.dbo.sql_exec(sql)
+
+        #Note: it is usable
         else:
             #if not a dupe and not a notused variant, then ...
             vid = self.sort.get_vid_by_vix(self.vix)
-            #drop any prior sup/sub definitions for this variant
+
+            #Note: drop any prior sup/sub definitions for this variant
             sql = "delete from mx_sups_subs where sup = %s or sub = %s;"%(vid,vid)
             self.dbo.sql_exec(sql)
             cnt_new_sups_subs = 0
+
             #new sups
             if 'sups' in recD.keys():
                 sups_ = []
                 for sup_i in self.sort.get_vid_by_vix(recD['sups']):
                     sups_.append((sup_i,vid))
-                #sqlite tbl
+                #insert new sup info
                 sql = "insert into mx_sups_subs (sup,sub) values (?,?);"
                 self.dbo.sql_exec_many(sql,sups_)
                 cnt_new_sups_subs = cnt_new_sups_subs + len(recD['sups'])
+
             #new subs
             if 'subs' in recD.keys():
                 subs_ = []
                 for sub_i in self.sort.get_vid_by_vix(recD['subs']):
                     subs_.append((vid,sub_i))
-                #sqlite tbl
+                #insert new sub info
                 sql = "insert into mx_sups_subs (sup,sub) values (?,?);"
                 self.dbo.sql_exec_many(sql,subs_)
                 cnt_new_sups_subs = cnt_new_sups_subs + len(recD['subs'])
-            #recreate panda sups/subs cache
+
+            #Note: recreate panda sups/subs cache
             sql = "select distinct * from mx_sups_subs;"
             self.dbo.sql_exec(sql)
             sups_ = self.dbo.fetchall()
             self.SS = pd.DataFrame(sups_,columns=['sup','sub'])
-            #stdout about what's new
+
+            #Note: stdout about what's new
             if cnt_new_sups_subs > 0 and auto_nonsplits is False:
                 print("Found %s new sup-sub relations" % cnt_new_sups_subs)
 
@@ -1954,16 +1979,7 @@ class Sort(object):
             cast(pid as varchar(15))||'|'||cast(vid as varchar(15)) as pidvid
             FROM tmp1 WHERE val=1;'''
         self.dbo.sql_exec(sql)
-        #we don't need to chk for variants we already know have negs (that we
-        #can see in the vcfs)
-        #sql = "delete from tmp2 where vid in (select distinct vID from v_neg_call_chk1);"
-        #self.dbo.sql_exec(sql)
-        #Note: this needs to be done because some pos variant/kit combos in the vcf's are missing in the beds
-        #sql = "delete from tmp2 where pidvid in (select pidvid from v_pos_call_chk_with_kits);"
-        #self.dbo.sql_exec(sql)
-        #Note: I believe this also needs to be done, since there are some ambiguous calls
-        #sql = "delete from tmp2 where pidvid in (select pidvid from v_unk_call_chk_with_kits);"
-        #self.dbo.sql_exec(sql)
+        #Note: anything that is already in VCF's can't be a newly discovered bed NEG
         sql = "delete from tmp2 where pidvid in (select pidvid from v_all_calls_with_kits);"
         self.dbo.sql_exec(sql)
 
@@ -2080,14 +2096,24 @@ class Sort(object):
         for itm in dupes:
             #this gets the duplicate variants (based on idx order) 
             itms = list(np.delete(np.argwhere(inv==itm[0]),0))
-            #this puts these duplicate variants into the dupes tbl next to the one in their series we're keeping
-            sql = "insert into mx_dupe_variants(vID,dupe_vID) values (%s,?);" % self.get_vid_by_vix(itm[1])
-            dupe_itms = [tuple([l]) for l in self.get_vid_by_vix(itms)]
-            dupe_cnt = dupe_cnt+len(dupe_itms)
+            new_vid = self.get_vid_by_vix(itm[1])
+            old_vids = self.get_vid_by_vix(itms)
+            #add new dupe variants to mx_dupe_variants table
+            sql = "insert into mx_dupe_variants(vID,dupe_vID) values (%s,?);" % new_vid
+            dupe_itms = [tuple([l]) for l in old_vids]
+            self.dbo.sql_exec_many(sql,dupe_itms)
+            #track what's been changed
+            dupe_cnt = dupe_cnt + len(dupe_itms)
             if config['DBG_DUPE_MSGS']:
                 print("removing %s dupes (total: %s)" % (len(dupe_itms),dupe_cnt))
-            self.dbo.sql_exec_many(sql,dupe_itms)
-            sql = "update mx_dupe_variants set vID = %s where vID in (%s);" %(self.get_vid_by_vix(itm[1]),l2s(self.get_vid_by_vix(itms)))
+            #reset primary vID in the mx_dupe_variants table when there are dupe removals
+            sql = "update mx_dupe_variants set vID = %s where vID in (%s);" % (new_vid,l2s(old_vids))
+            self.dbo.sql_exec(sql)
+            #reset any sup references in the mx_sups_subs table for removed variants
+            sql = "update mx_sups_subs set sup = %s where sup in (%s);" % (new_vid,l2s(old_vids))
+            self.dbo.sql_exec(sql)
+            #reset any sub references in the mx_sups_subs table for removed variants
+            sql = "update mx_sups_subs set sub = %s where sub in (%s);" % (new_vid,l2s(old_vids))
             self.dbo.sql_exec(sql)
             #remove dupe variants from the self.VARIANTS var
             for k in self.get_vname_by_vix(itms):
