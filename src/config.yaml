@@ -227,7 +227,7 @@ SHOW_PROC_CHK_DETAILS: False #True #False
 GEN_ALL_DATA: all # options: test1, test2, all
 ALL_DATA_MATRIX_AFT_SORT: False
 TEST_DATA_MATRIX_AFT_SORT: True
-DBG_SQL: False #True #False
+DBG_SQL: False
 COMMITS_ON: True
 
 # (end) sort - prototype

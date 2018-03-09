@@ -387,11 +387,11 @@ class Variant(object):
             select distinct
             RV.snpname, RV.ID, RV.pos, RV.buildNm, RV.anc,
             RV.der, RV.idx, RV.vID1, RV.vID2, RV.reasonId,
-            T.pID, C.assigned, C.genotype, T.val, RV.name
-            from v_ref_variants RV, tmp1 T
+            T.pID, C.assigned, C.genotype, T.val, RV.name, D.kitId
+            from v_ref_variants RV, tmp1 T, dataset D
             left join vcfcalls C
             on C.vID = RV.ID and C.pID = T.pID
-            where RV.pos = T.pos and %s -- and T.pID is not None
+            where D.ID = T.pID and RV.pos = T.pos and %s -- and T.pID is not None
             order by 1
             ''' % (sqlw)
         self.dbo.sql_exec(sql)
@@ -419,11 +419,11 @@ class Variant(object):
                 if isinstance(row[6],int) and row[6] != 9999999 and row[0] is not None and self.sort.get_vname_by_vix(row[6]) != row[0]:
                     row[6] = 9999999
 
-                F[cnt] = tuple(list(row) + [kix]+[coord]) #15,16
+                F[cnt] = tuple(list(row) + [kix]+[coord]) #16,17
                 cnt = cnt + 1        
                 
             #sorting
-            F.sort(key=lambda x: x[15])
+            F.sort(key=lambda x: x[16])
             F.sort(key=lambda x: x[0])
             F.sort(key=lambda x: x[6])
 
@@ -431,7 +431,7 @@ class Variant(object):
             table = BeautifulTable(max_width=105)
             cols = ['vix'] + ['build'] + ['name']
             cols = cols + ['id'] + ['pos'] + ['anc'] + ['der'] + ['dupeP'] + ['nouse']
-            cols = cols + ['pID'] + ['kix'] + ['assign'] + ['geno'] + ['bed'] + ['mxval']
+            cols = cols + ['pID'] + ['kix'] + ['kit'] + ['assign'] + ['geno'] + ['bed'] + ['mxval']
             table.column_headers = cols
             for row in F:
                 if row[7] == None and row[8] == None:
@@ -450,13 +450,13 @@ class Variant(object):
                     vix = '-'
                 else:
                     vix = row[6]
-                if row[15] == 9999999:
+                if row[16] == 9999999:
                     kix = '-'
                 else:
-                    kix = row[15]
+                    kix = row[16]
                 row_ = [str(vix)] + [str(row[3]).replace('None','-')] + [str(row[0]).replace('None','-')]
                 row_ = row_ + [str(row[1])] + [row[2]] + [row[4]] + [row[5]] + [dupeP] + [nouse]
-                row_ = row_ + [str(row[10])] + [str(kix)] + [str(row[11])] + [str(row[12])] + [str(row[13])] + [row[16]]
+                row_ = row_ + [str(row[10])] + [str(kix)] + [str(row[15])] + [str(row[11])] + [str(row[12])] + [str(row[13])] + [row[17]]
                 table.append_row(row_)
                 table.row_seperator_char = ''
                 table.column_seperator_char = ''
