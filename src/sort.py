@@ -466,6 +466,9 @@ class Variant(object):
                 if isinstance(row[6],int) and row[6] != 9999999 and row[0] is not None and self.sort.get_vname_by_vix(row[6]) != row[0]:
                     row[6] = 9999999
 
+                if row[0] is None:
+                    row[0] = '-'
+
                 F[cnt] = tuple(list(row) + [kix]+[coord]) #16,17
                 cnt = cnt + 1        
                 
