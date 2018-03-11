@@ -15,6 +15,7 @@ DROP VIEW IF EXISTS v_unq_pos_variants_to_kits;
 DROP VIEW IF EXISTS v_imx_variants_pos;
 DROP VIEW IF EXISTS v_imx_variants_with_kits;
 DROP VIEW IF EXISTS v_all_calls_with_kit;
+DROP VIEW IF EXISTS v_all_calls_with_kits;
 
 DROP VIEW IF EXISTS v_mx_kits;
 DROP VIEW IF EXISTS v_mx_variants;

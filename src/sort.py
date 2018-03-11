@@ -2048,8 +2048,8 @@ class Sort(object):
         #situations in the vcfcalls where a positive was uncovered, and compare
         #those results to the covered bed positions
 
-        sql = "drop table if exists tmp2;"
-        self.dbo.sql_exec(sql)
+        #sql = "drop table if exists tmp2;"
+        #self.dbo.sql_exec(sql)
         sql = '''
             INSERT INTO tmp2 (vid,pid,pidvid) 
             SELECT DISTINCT vid as vID, pid as pID,
