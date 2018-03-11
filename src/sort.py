@@ -790,9 +790,10 @@ class Variant(object):
                 if kpc_ != supkpc: #no sense in doing consistency check, if target variant is looking to be a dupe of its sup
 
                     #remove any target subs or target equivalent variants from consideration (use cache)
-                    print("supsubs: %s"%supsubs_)
-                    print("subs: %s"%subs_)
-                    print("eqvs: %s"%eqvs_)
+                    if config['SHOW_PROC_CHK_DETAILS']:
+                        print("supsubs: %s"%supsubs_)
+                        print("subs: %s"%subs_)
+                        print("eqvs: %s"%eqvs_)
                     supsubs = list(set(supsubs_)-set(subs_)-set(eqvs_))
 
                     #do consistency checks on remaining variants
@@ -900,9 +901,10 @@ class Variant(object):
                 if len(s) > 1 : lenS = len(s)
                 else: s_.append(s[0])
             if len(uniq_splits)>1: #has to be over 1 for it to be a true split
-                print(split_intersects)
-                print(uniq_splits)
-                print("splits: %s [%s]" % (l2s(self.sort.get_kname_by_kix(s_)),l2s(s_)))
+                if config['SHOW_PROC_CHK_DETAILS']:
+                    print(split_intersects)
+                    print(uniq_splits)
+                    print("splits: %s [%s]" % (l2s(self.sort.get_kname_by_kix(s_)),l2s(s_)))
                 spl = s_
             #else:
             #    print("splits: %s" % l2s(uniq_splits))
@@ -928,7 +930,8 @@ class Variant(object):
         if len(spl) > 0:
             if auto_perfVariants is True:
                 print("[SPLIT ISSUE] vix: %s [%s] - splits: %s [%s]"%(self.sort.get_vname_by_vix(self.vix),self.vix,l2s(self.sort.get_kname_by_kix(spl)),l2s(spl)))
-                print(uniq_splits)
+                if config['SHOW_PROC_CHK_DETAILS']:
+                    print(uniq_splits)
                 return 1 #split errors for perfect variant chk
             elif auto_perfVariants is False:
                 print("[SPLIT ISSUE] splits: %s [%s]" % (l2s(self.sort.get_kname_by_kix(spl)),l2s(spl)))

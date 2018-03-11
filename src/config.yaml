@@ -220,7 +220,7 @@ DBG_DUPE_MSGS: True #False #True
 
 allowImperfectWithVInfo: True
 SHOW_STDOUT_MATRIX_OVER_50_ROWS: True
-SHOW_PROC_CHK_DETAILS: True #False
+SHOW_PROC_CHK_DETAILS: False #True #False
 
 # db
 
