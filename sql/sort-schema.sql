@@ -185,7 +185,7 @@ CREATE VIEW v_imx_variants_pos AS
   FROM vcfcalls C, v_pos_call_chk P, variants V
   LEFT JOIN v_max_snpnames S
   ON S.vID = V.ID
-  WHERE N.vID = V.ID AND P.vID = V.ID AND V.ID = C.vID;
+  WHERE P.vID = V.ID AND V.ID = C.vID;
 
 CREATE VIEW v_only_pos_variants AS
   SELECT DISTINCT P.vID from v_pos_call_chk P 
