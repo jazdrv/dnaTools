@@ -2012,18 +2012,6 @@ class Sort(object):
         #a position for these -- since we need at least one POS and one NEG for 
         #a variant to be placed in the matrix
 
-        sql = "drop index if exists tmp1idx1;"
-        self.dbo.sql_exec(sql)
-        sql = "drop index if exists tmp1idx2;"
-        self.dbo.sql_exec(sql)
-        sql = "drop table if exists tmp1;"
-        self.dbo.sql_exec(sql)
-        sql = "create table tmp1 (pid int,vid int,pos int,val bool);"
-        self.dbo.sql_exec(sql)
-        sql = "create index tmp1idx1 ON tmp1(pid,vid);" #needed?
-        self.dbo.sql_exec(sql)
-        sql = "create index tmp1idx2 ON tmp1(pid,vid,val);" #needed?
-        self.dbo.sql_exec(sql)
         sql = "select distinct C.PId FROM vcfcalls C"
         pids = self.dbo.sql_exec(sql)
         F = self.dbo.fetchall()
@@ -2051,10 +2039,8 @@ class Sort(object):
         #situations in the vcfcalls where a positive was uncovered, and compare
         #those results to the covered bed positions
 
-        #sql = "drop table if exists tmp2;"
-        #self.dbo.sql_exec(sql)
         sql = '''
-            INSERT INTO tmp2 (vid,pid,pidvid) 
+            INSERT INTO tmp2 (vid,pid,pidvid)
             SELECT DISTINCT vid as vID, pid as pID,
             cast(pid as varchar(15))||'|'||cast(vid as varchar(15)) as pidvid
             FROM tmp1 WHERE val=1;'''

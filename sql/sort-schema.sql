@@ -50,6 +50,7 @@ DROP TABLE IF EXISTS mx_sort_recommendations;
 DROP TABLE IF EXISTS mx_sups_subs;
 DROP TABLE IF EXISTS mx_variant_stash;
 DROP TABLE IF EXISTS mx_clade_priorities;
+DROP TABLE IF EXISTS tmp1;
 DROP TABLE IF EXISTS tmp2;
 
 -- }}}
@@ -57,9 +58,18 @@ DROP TABLE IF EXISTS tmp2;
 
 DROP INDEX IF EXISTS snpidx;
 DROP INDEX IF EXISTS vcfcallsidx;
+DROP INDEX IF EXISTS tmp1idx1;
+DROP INDEX IF EXISTS tmp1idx2;
 
 -- }}}
 -- CREATE TABLES {{{
+
+create table tmp1 (
+    pid int,
+    vid int,
+    pos int,
+    val bool
+);
 
 CREATE TABLE tmp2 (
     vid int,
@@ -265,7 +275,7 @@ CREATE VIEW v_mx_variants AS
 
 CREATE INDEX snpidx on snpnames(snpname);
 CREATE INDEX vcfcallsidx on vcfcalls(assigned,genotype);
--- CREATE INDEX tmp1idx1 on tmp1(pid,vid);
--- CREATE INDEX tmp1idx2 on tmp1(pid,vid,val);
+CREATE INDEX tmp1idx1 on tmp1(pid,vid);
+CREATE INDEX tmp1idx2 on tmp1(pid,vid,val);
 
 /*}}}*/
