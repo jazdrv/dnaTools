@@ -49,6 +49,7 @@ DROP TABLE IF EXISTS mx_sort_recommendations;
 DROP TABLE IF EXISTS mx_sups_subs;
 DROP TABLE IF EXISTS mx_variant_stash;
 DROP TABLE IF EXISTS mx_clade_priorities;
+DROP TABLE IF EXISTS tmp2;
 
 -- }}}
 -- DROP INDEXES {{{
@@ -58,6 +59,12 @@ DROP INDEX IF EXISTS vcfcallsidx;
 
 -- }}}
 -- CREATE TABLES {{{
+
+CREATE TABLE tmp2 (
+    vid int,
+    pid int,
+    pidvid text
+);
 
 CREATE TABLE mx_kits(
  ID int,

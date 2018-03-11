@@ -790,6 +790,9 @@ class Variant(object):
                 if kpc_ != supkpc: #no sense in doing consistency check, if target variant is looking to be a dupe of its sup
 
                     #remove any target subs or target equivalent variants from consideration (use cache)
+                    print("supsubs: %s"%supsubs_)
+                    print("subs: %s"%subs_)
+                    print("eqvs: %s"%eqvs_)
                     supsubs = list(set(supsubs_)-set(subs_)-set(eqvs_))
 
                     #do consistency checks on remaining variants
@@ -807,6 +810,7 @@ class Variant(object):
                         VAR2a = np.unique(VAR1a[:,0][idx]) #these are the overlapping supsubs with target v
                         if config['SHOW_PROC_CHK_DETAILS']:
                             print("Overlapping supsubs: [%s]\n"%(l2s(VAR2a)))
+
                         for v in VAR2a:
                             supsubkpc = self.sort.get_kixs_by_val(val=1,vix=v)
                             #(mtP) common kpc btw supsub and target variant
@@ -859,6 +863,7 @@ class Variant(object):
                                 splitL.append(diff_common_kpc2)
                             if config['SHOW_PROC_CHK_DETAILS']:
                                 print("       splitL after commkpc2 checks: %s"%splitL)
+                                print("")
                         
                     #splits
                     uniq_splits = [list(x) for x in set(tuple(x) for x in splitL)]
@@ -895,9 +900,9 @@ class Variant(object):
                 if len(s) > 1 : lenS = len(s)
                 else: s_.append(s[0])
             if len(uniq_splits)>1: #has to be over 1 for it to be a true split
-                #print(split_intersects)
-                #print(uniq_splits)
-                #print("splits: %s [%s]" % (l2s(self.sort.get_kname_by_kix(s_)),l2s(s_)))
+                print(split_intersects)
+                print(uniq_splits)
+                print("splits: %s [%s]" % (l2s(self.sort.get_kname_by_kix(s_)),l2s(s_)))
                 spl = s_
             #else:
             #    print("splits: %s" % l2s(uniq_splits))
@@ -2046,7 +2051,7 @@ class Sort(object):
         sql = "drop table if exists tmp2;"
         self.dbo.sql_exec(sql)
         sql = '''
-            CREATE TABLE tmp2 as 
+            INSERT INTO tmp2 (vid,pid,pidvid) 
             SELECT DISTINCT vid as vID, pid as pID,
             cast(pid as varchar(15))||'|'||cast(vid as varchar(15)) as pidvid
             FROM tmp1 WHERE val=1;'''
