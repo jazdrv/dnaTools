@@ -12,7 +12,7 @@ DROP VIEW IF EXISTS v_imx_assignments;
 DROP VIEW IF EXISTS v_imx_assignments_with_unk;
 DROP VIEW IF EXISTS v_unq_pos_variants;
 DROP VIEW IF EXISTS v_unq_pos_variants_to_kits;
-DROP VIEW IF EXISTS v_imx_variants_pos;
+-- DROP VIEW IF EXISTS v_imx_variants_pos;
 DROP VIEW IF EXISTS v_imx_variants_with_kits;
 DROP VIEW IF EXISTS v_all_calls_with_kit;
 DROP VIEW IF EXISTS v_all_calls_with_kits;
@@ -180,12 +180,12 @@ CREATE VIEW v_imx_variants AS
   ON S.vID = V.ID
   WHERE N.vID = V.ID AND P.vID = V.ID AND V.ID = C.vID;
 
-CREATE VIEW v_imx_variants_pos AS
-  SELECT DISTINCT ifnull(S.snpname,V.ID) as name, V.pos, V.ID 
-  FROM vcfcalls C, v_pos_call_chk P, variants V
-  LEFT JOIN v_max_snpnames S
-  ON S.vID = V.ID
-  WHERE P.vID = V.ID AND V.ID = C.vID;
+-- CREATE VIEW v_imx_variants_pos AS
+--   SELECT DISTINCT ifnull(S.snpname,V.ID) as name, V.pos, V.ID 
+--   FROM vcfcalls C, v_pos_call_chk P, variants V
+--   LEFT JOIN v_max_snpnames S
+--   ON S.vID = V.ID
+--   WHERE P.vID = V.ID AND V.ID = C.vID;
 
 CREATE VIEW v_only_pos_variants AS
   SELECT DISTINCT P.vID from v_pos_call_chk P 
