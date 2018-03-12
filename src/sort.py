@@ -1942,14 +1942,19 @@ class Sort(object):
         self.dbo.sql_exec_many(sql,[(tuple([kid,idx])) for (n,(nm,(kid,idx))) in enumerate(self.get_axis('kits'))])
 
         #save numpy data
-        devnull = open(os.devnull, 'w')
-        from mock import patch
-        with patch('sys.stdout', devnull):
-            with patch('sys.stderr', devnull):
-                import h5py
-        h5f = h5py.File('data.h5', 'w')
-        h5f.create_dataset('dataset_1', data=self.NP)
-        h5f.close()
+        if 1==2:
+            devnull = open(os.devnull, 'w')
+            from mock import patch
+            with patch('sys.stdout', devnull):
+                with patch('sys.stderr', devnull):
+                    import h5py
+            h5f = h5py.File('data.h5', 'w')
+            h5f.create_dataset('dataset_1', data=self.NP)
+            h5f.close()
+
+        if 1==1:
+            with open('data.pickle', 'wb') as handle:
+                pickle.dump(self.NP, handle, protocol=pickle.HIGHEST_PROTOCOL)
         
     def restore_mx_data(self):
         print("beg MatrixData restore: %s" % format(time.clock()))
@@ -1985,14 +1990,18 @@ class Sort(object):
             self.KITS[row[0]] = (row[1],row[2]) #self.VARIANTS[name] = [vID,idx]
 
         #numpy data
-        devnull = open(os.devnull, 'w')
-        from mock import patch
-        with patch('sys.stdout', devnull):
-            with patch('sys.stderr', devnull):
-                import h5py
-        h5f = h5py.File('data.h5','r')
-        self.NP = np.asmatrix(h5f['dataset_1'][:])
-        h5f.close()
+        if 1==2:
+            devnull = open(os.devnull, 'w')
+            from mock import patch
+            with patch('sys.stdout', devnull):
+                with patch('sys.stderr', devnull):
+                    import h5py
+            h5f = h5py.File('data.h5','r')
+            self.NP = np.asmatrix(h5f['dataset_1'][:])
+            h5f.close()
+        if 1==1:
+            with open('data.pickle', 'rb') as handle:
+                self.NP = pickle.load(handle)
 
         #sups+subs
         sql = "SELECT DISTINCT * FROM mx_sups_subs;"

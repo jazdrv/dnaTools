@@ -547,6 +547,9 @@ def populate_from_VCF_file(dbo, bid, pid, fileobj):
         return
     # parse output of getVCFvariants(fname)
     parsed = getVCFvariants(fileobj)
+    #if pid == 1040:
+    #    print(parsed)
+    #    sys.exit()
     tups = []
     for line in parsed.splitlines():
         # pos, anc, der, passfail, q1, q2, nreads, passrate
@@ -570,6 +573,14 @@ def populate_from_VCF_file(dbo, bid, pid, fileobj):
     # save the call quality info - experimental
     call_info = [t + [pack_call(t)] for t in passes]
 
+    cnt=0
+    chk=0
+    for p_ in passes:
+        if p_[0] == '21450311':
+            print("THE CNT IS: %s" % cnt)
+            chk = cnt
+        cnt = cnt+1
+
     # execute sql on results to save in vcfcalls
     dc.execute('drop table if exists tmpt')
 
@@ -577,14 +588,24 @@ def populate_from_VCF_file(dbo, bid, pid, fileobj):
     #              c text, d text, e integer, f integer)''')
 
     #(beg) hack - for sort prototype
+    dc.execute('''create table if not exists tmpta(a int, b int, c text, d text, g text, e int, f int, h text)''')
     dc.execute('''create temporary table tmpt(a int, b int, c text, d text, g text, e int, f int, h text)''')
     #(end) hack - for sort prototype
 
     #dc.executemany('insert into tmpt values(?,?,?,?,?,?)',
     #                      [[bid]+v[0:3]+[pid]+[v[-1]] for v in call_info])
 
+    #if pid == 1040:
+    #    print(len(passes))
+    #    print(len(call_info))
+    #    print(passes[chk])
+    #    print(call_info[chk])
+    #    sys.exit()
+
     #(beg) hack - for sort prototype
     dc.executemany("insert into tmpt values(?,?,?,?,?,?,?,?)",
+                          [[bid]+v[0:4]+[pid]+[v[-1]]+[v[-2]] for v in call_info])
+    dc.executemany("insert into tmpta values(?,?,?,?,?,?,?,?)",
                           [[bid]+v[0:4]+[pid]+[v[-1]]+[v[-2]] for v in call_info])
     #(end) hack - for sort prototype
 
