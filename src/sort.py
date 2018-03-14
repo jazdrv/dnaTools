@@ -435,10 +435,13 @@ class Variant(object):
             select distinct
             RV.snpname, RV.ID, RV.pos, RV.buildNm, RV.anc,
             RV.der, RV.idx, RV.vID1, RV.vID2, RV.reasonId,
-            T.pID, C.assigned, C.genotype, T.val, RV.name, D.kitId
+            T.pID, C.assigned, C.genotype, T.val, RV.name, D.kitId,
+            NC.assigned, NC.genotype
             from v_ref_variants RV, tmp1 T, dataset D
             left join vcfcalls C
             on C.vID = RV.ID and C.pID = T.pID
+            left join mx_call_negs NC
+            on NC.pos = RV.pos and NC.vid2 = RV.ID and NC.pID = T.pID
             where D.ID = T.pID and RV.pos = T.pos and %s -- and T.pID is not None
             order by 1
             ''' % (sqlw)
@@ -452,6 +455,10 @@ class Variant(object):
             for row in F:
                 row = list(F[cnt])
 
+                #.der overrides
+                if row[16] is not None and row[17] is not None:
+                    row[11] = row[16]
+                    row[12] = row[17]
                 #kix
                 if isinstance(row[10],int):
                     kix = self.sort.get_kixs_by_kids(row[10])
@@ -469,11 +476,11 @@ class Variant(object):
                 if row[0] is None:
                     row[0] = '-'
 
-                F[cnt] = tuple(list(row) + [kix]+[coord]) #16,17
+                F[cnt] = tuple(list(row) + [kix]+[coord]) #18,19
                 cnt = cnt + 1        
                 
             #sorting
-            F.sort(key=lambda x: x[16])
+            F.sort(key=lambda x: x[18])
             F.sort(key=lambda x: x[0])
             F.sort(key=lambda x: x[6])
 
@@ -501,13 +508,13 @@ class Variant(object):
                     vix = '-'
                 else:
                     vix = row[6]
-                if row[16] == 9999999:
+                if row[18] == 9999999:
                     kix = '-'
                 else:
                     kix = row[16]
                 row_ = [str(vix)] + [str(row[3]).replace('None','-')] + [str(row[0]).replace('None','-')]
                 row_ = row_ + [str(row[1])] + [row[2]] + [row[4]] + [row[5]] + [dupeP] + [nouse]
-                row_ = row_ + [str(row[10])] + [str(kix)] + [str(row[15])] + [str(row[11])] + [str(row[12])] + [str(row[13])] + [row[17]]
+                row_ = row_ + [str(row[10])] + [str(row[18])] + [str(row[15])] + [str(row[11])] + [str(row[12])] + [str(row[13])] + [row[19]]
                 table.append_row(row_)
                 table.row_seperator_char = ''
                 table.column_seperator_char = ''
@@ -2014,6 +2021,32 @@ class Sort(object):
 
         print("beg MatrixData create: %s" % format(time.clock()))
 
+        #create mx_call_negs data - this table (I hope) solves the "L48 issue"
+        #- the need to detect when a . derived allele variant is neg based on
+        #another variant call (same pos) w/out the . derived allele
+        #vid1 is the variant with the . der (ie: L48-)
+        #vid2 is the variant (same pos as vid1, and same ancestral allele) - w/o a . der (ie: L48+)
+        sql = '''
+            insert into mx_call_negs (vid1,vid2,name2,pos,pid,assigned,genotype)
+            select distinct V1.ID as vid1, V2.ID as vid2,
+            ifnull(S2.snpname,V2.ID) as name2, V1.pos,
+            C1.pID, C1.assigned, C1.genotype
+            from vcfcalls C1, vcfcalls C2,
+            alleles A11, alleles A12, alleles A2,
+            variants V1, variants V2
+            LEFT JOIN snpnames S1 ON V1.ID = S1.vID
+            LEFT JOIN snpnames S2 ON V2.ID = S2.vID
+            where C1.vID = V1.ID
+            and C2.vID = V2.ID
+            and V1.der = A12.ID and A12.allele='.'
+            and V1.anc = A11.ID
+            and V1.pos = V2.pos
+            and V1.anc = V2.anc
+            and V1.der <> V2.der
+            and V2.der = A2.ID;
+            '''
+        self.dbo.sql_exec(sql)
+
         #Note: bedranges - uses in_range routine
         #table tmp1 - the covered spots of the bedranges (for the known pos
         #call areas) are pushed to this table; we're only really interested in
@@ -2080,6 +2113,12 @@ class Sort(object):
             #calls
             PF = 0
 
+            #overrides due to . derived alleles in VCF's
+            if row[8] is not None and row[9] is not None:
+                row = list(row)
+                row[2] = row[8]
+                row[7] = row[9]
+
             #the vcf positives
             if row[2] == 1 and row[7] == '1/1':
                 PF = 1
@@ -2091,6 +2130,10 @@ class Sort(object):
             #the additional negs discovered by checking the beds
             elif row[6] == 1 and row[7] == None:
                 PF = -1
+
+            elif row[8] is not None and row[9] is not None:
+                PF = -1
+
             DATA[row[1]].append(PF)
 
             #kits

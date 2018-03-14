@@ -52,6 +52,8 @@ DROP TABLE IF EXISTS mx_variant_stash;
 DROP TABLE IF EXISTS mx_clade_priorities;
 DROP TABLE IF EXISTS tmp1;
 DROP TABLE IF EXISTS tmp2;
+DROP TABLE IF EXISTS mx_call_negs;
+DROP TABLE IF EXISTS mx_assignments_with_unk;
 
 -- }}}
 -- DROP INDEXES {{{
@@ -135,6 +137,27 @@ create table mx_clade_priorities(
   vID int
 );
 
+create table mx_call_negs (
+  vid1 int,
+  vid2 int,
+  name2 text, 
+  pos int,
+  pid int,  
+  assigned int,
+  genotype text
+);
+
+-- create table mx_assignments_with_unk (
+--   pID int, 
+--   name text, 
+--   assigned int,
+--   pos int,
+--   vID int,
+--   kitID text,
+--   val bool,
+--   genotype text
+-- );
+
 -- }}}
 -- CREATE VIEWS (import to matrix) {{{
 
@@ -175,7 +198,10 @@ CREATE VIEW v_all_calls_with_kits as
 CREATE VIEW v_neg_call_chk1 as 
   SELECT DISTINCT C.vID
   FROM vcfcalls C
-  WHERE C.assigned = 1 AND C.genotype = '0/0';
+  WHERE C.assigned = 1 AND C.genotype = '0/0'
+  union 
+  select distinct vid2 as vID from mx_call_negs
+  ;
 
 CREATE VIEW v_pos_neg_call_chk as 
   SELECT DISTINCT vID FROM v_pos_call_chk UNION SELECT vID FROM v_neg_call_chk1;
@@ -222,10 +248,12 @@ CREATE VIEW v_imx_assignments AS
   ON C.vID = PV.ID;
 
 CREATE VIEW v_imx_assignments_with_unk AS
-  SELECT DISTINCT PVK.pID, PVK.name, ifnull(PVKA.assigned,0) as assigned, PVK.pos, PVK.vID, PVK.kitId, T.val, PVKA.genotype 
+  SELECT DISTINCT PVK.pID, PVK.name, ifnull(PVKA.assigned,0) as assigned, PVK.pos, PVK.vID, PVK.kitId, T.val, PVKA.genotype, CN.assigned, CN.genotype 
   FROM v_imx_variants_with_kits PVK, tmp1 T
   LEFT JOIN v_imx_assignments PVKA
   ON PVK.vID = PVKA.vID AND PVK.pID = PVKA.pID 
+  LEFT JOIN mx_call_negs CN
+  ON CN.pos = PVK.pos and CN.pID = PVK.pID and CN.vid2 = PVK.vID
   WHERE T.pid = PVK.pID and T.vID = PVK.vID;
 
 CREATE VIEW v_ref_variants AS
@@ -256,7 +284,6 @@ CREATE VIEW v_ref_variants_hg19 AS
   LEFT JOIN snpnames S
   ON S.vID = v.ID
   WHERE
-  -- V.pos in (%s)
   B.buildNm = 'hg19'
   and V.buildID = B.ID
   ORDER BY 1;
