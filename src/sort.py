@@ -10,7 +10,7 @@ from beautifultable import BeautifulTable
 from collections import OrderedDict
 import pandas as pd
 from array_api import *
-
+import pickle
 #}}}
 
 try:
@@ -466,6 +466,9 @@ class Variant(object):
                 if isinstance(row[6],int) and row[6] != 9999999 and row[0] is not None and self.sort.get_vname_by_vix(row[6]) != row[0]:
                     row[6] = 9999999
 
+                if row[0] is None:
+                    row[0] = '-'
+
                 F[cnt] = tuple(list(row) + [kix]+[coord]) #16,17
                 cnt = cnt + 1        
                 
@@ -787,6 +790,10 @@ class Variant(object):
                 if kpc_ != supkpc: #no sense in doing consistency check, if target variant is looking to be a dupe of its sup
 
                     #remove any target subs or target equivalent variants from consideration (use cache)
+                    if config['SHOW_PROC_CHK_DETAILS']:
+                        print("supsubs: %s"%supsubs_)
+                        print("subs: %s"%subs_)
+                        print("eqvs: %s"%eqvs_)
                     supsubs = list(set(supsubs_)-set(subs_)-set(eqvs_))
 
                     #do consistency checks on remaining variants
@@ -804,6 +811,7 @@ class Variant(object):
                         VAR2a = np.unique(VAR1a[:,0][idx]) #these are the overlapping supsubs with target v
                         if config['SHOW_PROC_CHK_DETAILS']:
                             print("Overlapping supsubs: [%s]\n"%(l2s(VAR2a)))
+
                         for v in VAR2a:
                             supsubkpc = self.sort.get_kixs_by_val(val=1,vix=v)
                             #(mtP) common kpc btw supsub and target variant
@@ -856,6 +864,7 @@ class Variant(object):
                                 splitL.append(diff_common_kpc2)
                             if config['SHOW_PROC_CHK_DETAILS']:
                                 print("       splitL after commkpc2 checks: %s"%splitL)
+                                print("")
                         
                     #splits
                     uniq_splits = [list(x) for x in set(tuple(x) for x in splitL)]
@@ -892,9 +901,10 @@ class Variant(object):
                 if len(s) > 1 : lenS = len(s)
                 else: s_.append(s[0])
             if len(uniq_splits)>1: #has to be over 1 for it to be a true split
-                #print(split_intersects)
-                #print(uniq_splits)
-                #print("splits: %s [%s]" % (l2s(self.sort.get_kname_by_kix(s_)),l2s(s_)))
+                if config['SHOW_PROC_CHK_DETAILS']:
+                    print(split_intersects)
+                    print(uniq_splits)
+                    print("splits: %s [%s]" % (l2s(self.sort.get_kname_by_kix(s_)),l2s(s_)))
                 spl = s_
             #else:
             #    print("splits: %s" % l2s(uniq_splits))
@@ -920,7 +930,8 @@ class Variant(object):
         if len(spl) > 0:
             if auto_perfVariants is True:
                 print("[SPLIT ISSUE] vix: %s [%s] - splits: %s [%s]"%(self.sort.get_vname_by_vix(self.vix),self.vix,l2s(self.sort.get_kname_by_kix(spl)),l2s(spl)))
-                print(uniq_splits)
+                if config['SHOW_PROC_CHK_DETAILS']:
+                    print(uniq_splits)
                 return 1 #split errors for perfect variant chk
             elif auto_perfVariants is False:
                 print("[SPLIT ISSUE] splits: %s [%s]" % (l2s(self.sort.get_kname_by_kix(spl)),l2s(spl)))
@@ -1931,14 +1942,19 @@ class Sort(object):
         self.dbo.sql_exec_many(sql,[(tuple([kid,idx])) for (n,(nm,(kid,idx))) in enumerate(self.get_axis('kits'))])
 
         #save numpy data
-        devnull = open(os.devnull, 'w')
-        from mock import patch
-        with patch('sys.stdout', devnull):
-            with patch('sys.stderr', devnull):
-                import h5py
-        h5f = h5py.File('data.h5', 'w')
-        h5f.create_dataset('dataset_1', data=self.NP)
-        h5f.close()
+        if 1==2:
+            devnull = open(os.devnull, 'w')
+            from mock import patch
+            with patch('sys.stdout', devnull):
+                with patch('sys.stderr', devnull):
+                    import h5py
+            h5f = h5py.File('data.h5', 'w')
+            h5f.create_dataset('dataset_1', data=self.NP)
+            h5f.close()
+
+        if 1==1:
+            with open('data.pickle', 'wb') as handle:
+                pickle.dump(self.NP, handle, protocol=pickle.HIGHEST_PROTOCOL)
         
     def restore_mx_data(self):
         print("beg MatrixData restore: %s" % format(time.clock()))
@@ -1974,14 +1990,18 @@ class Sort(object):
             self.KITS[row[0]] = (row[1],row[2]) #self.VARIANTS[name] = [vID,idx]
 
         #numpy data
-        devnull = open(os.devnull, 'w')
-        from mock import patch
-        with patch('sys.stdout', devnull):
-            with patch('sys.stderr', devnull):
-                import h5py
-        h5f = h5py.File('data.h5','r')
-        self.NP = np.asmatrix(h5f['dataset_1'][:])
-        h5f.close()
+        if 1==2:
+            devnull = open(os.devnull, 'w')
+            from mock import patch
+            with patch('sys.stdout', devnull):
+                with patch('sys.stderr', devnull):
+                    import h5py
+            h5f = h5py.File('data.h5','r')
+            self.NP = np.asmatrix(h5f['dataset_1'][:])
+            h5f.close()
+        if 1==1:
+            with open('data.pickle', 'rb') as handle:
+                self.NP = pickle.load(handle)
 
         #sups+subs
         sql = "SELECT DISTINCT * FROM mx_sups_subs;"
@@ -2001,23 +2021,11 @@ class Sort(object):
         #a position for these -- since we need at least one POS and one NEG for 
         #a variant to be placed in the matrix
 
-        sql = "drop index if exists tmp1idx1;"
-        self.dbo.sql_exec(sql)
-        sql = "drop index if exists tmp1idx2;"
-        self.dbo.sql_exec(sql)
-        sql = "drop table if exists tmp1;"
-        self.dbo.sql_exec(sql)
-        sql = "create table tmp1 (pid int,vid int,pos int,val bool);"
-        self.dbo.sql_exec(sql)
-        sql = "create index tmp1idx1 ON tmp1(pid,vid);" #needed?
-        self.dbo.sql_exec(sql)
-        sql = "create index tmp1idx2 ON tmp1(pid,vid,val);" #needed?
-        self.dbo.sql_exec(sql)
-        sql = "select distinct C.PId FROM vcfcalls C"
+        sql = "select distinct C.pID FROM vcfcalls C"
         pids = self.dbo.sql_exec(sql)
         F = self.dbo.fetchall()
         for row in F:
-            sql = "select * from v_pos_call_chk;"
+            sql = "select * from v_pos_call_chk order by pos;"
             dc = self.dbo.cursor()
             calls = dc.execute(sql)
             rc = self.dbo.cursor()
@@ -2040,10 +2048,8 @@ class Sort(object):
         #situations in the vcfcalls where a positive was uncovered, and compare
         #those results to the covered bed positions
 
-        sql = "drop table if exists tmp2;"
-        self.dbo.sql_exec(sql)
         sql = '''
-            CREATE TABLE tmp2 as 
+            INSERT INTO tmp2 (vid,pid,pidvid)
             SELECT DISTINCT vid as vID, pid as pID,
             cast(pid as varchar(15))||'|'||cast(vid as varchar(15)) as pidvid
             FROM tmp1 WHERE val=1;'''

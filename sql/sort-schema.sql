@@ -12,9 +12,10 @@ DROP VIEW IF EXISTS v_imx_assignments;
 DROP VIEW IF EXISTS v_imx_assignments_with_unk;
 DROP VIEW IF EXISTS v_unq_pos_variants;
 DROP VIEW IF EXISTS v_unq_pos_variants_to_kits;
-DROP VIEW IF EXISTS v_imx_variants_pos;
+-- DROP VIEW IF EXISTS v_imx_variants_pos;
 DROP VIEW IF EXISTS v_imx_variants_with_kits;
 DROP VIEW IF EXISTS v_all_calls_with_kit;
+DROP VIEW IF EXISTS v_all_calls_with_kits;
 
 DROP VIEW IF EXISTS v_mx_kits;
 DROP VIEW IF EXISTS v_mx_variants;
@@ -49,15 +50,32 @@ DROP TABLE IF EXISTS mx_sort_recommendations;
 DROP TABLE IF EXISTS mx_sups_subs;
 DROP TABLE IF EXISTS mx_variant_stash;
 DROP TABLE IF EXISTS mx_clade_priorities;
+DROP TABLE IF EXISTS tmp1;
+DROP TABLE IF EXISTS tmp2;
 
 -- }}}
 -- DROP INDEXES {{{
 
 DROP INDEX IF EXISTS snpidx;
 DROP INDEX IF EXISTS vcfcallsidx;
+DROP INDEX IF EXISTS tmp1idx1;
+DROP INDEX IF EXISTS tmp1idx2;
 
 -- }}}
 -- CREATE TABLES {{{
+
+create table tmp1 (
+    pid int,
+    vid int,
+    pos int,
+    val bool
+);
+
+CREATE TABLE tmp2 (
+    vid int,
+    pid int,
+    pidvid text
+);
 
 CREATE TABLE mx_kits(
  ID int,
@@ -172,12 +190,12 @@ CREATE VIEW v_imx_variants AS
   ON S.vID = V.ID
   WHERE N.vID = V.ID AND P.vID = V.ID AND V.ID = C.vID;
 
-CREATE VIEW v_imx_variants_pos AS
-  SELECT DISTINCT ifnull(S.snpname,V.ID) as name, V.pos, V.ID 
-  FROM vcfcalls C, v_pos_call_chk P, variants V
-  LEFT JOIN v_max_snpnames S
-  ON S.vID = V.ID
-  WHERE N.vID = V.ID AND P.vID = V.ID AND V.ID = C.vID;
+-- CREATE VIEW v_imx_variants_pos AS
+--   SELECT DISTINCT ifnull(S.snpname,V.ID) as name, V.pos, V.ID 
+--   FROM vcfcalls C, v_pos_call_chk P, variants V
+--   LEFT JOIN v_max_snpnames S
+--   ON S.vID = V.ID
+--   WHERE P.vID = V.ID AND V.ID = C.vID;
 
 CREATE VIEW v_only_pos_variants AS
   SELECT DISTINCT P.vID from v_pos_call_chk P 
@@ -257,7 +275,7 @@ CREATE VIEW v_mx_variants AS
 
 CREATE INDEX snpidx on snpnames(snpname);
 CREATE INDEX vcfcallsidx on vcfcalls(assigned,genotype);
--- CREATE INDEX tmp1idx1 on tmp1(pid,vid);
--- CREATE INDEX tmp1idx2 on tmp1(pid,vid,val);
+CREATE INDEX tmp1idx1 on tmp1(pid,vid);
+CREATE INDEX tmp1idx2 on tmp1(pid,vid,val);
 
 /*}}}*/
