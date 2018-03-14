@@ -80,7 +80,7 @@ def unpack_call(bitfield):
 # ranges must be sorted on their minaddr
 # input vector must be sorted
 def in_range(v_vect, ranges, spans):
-    v_vect = sorted(v_vect)
+    #v_vect = sorted(v_vect)
     trace(4,'in_range')
     c_vect = []
     ii = 0

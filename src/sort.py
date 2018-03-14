@@ -2021,11 +2021,11 @@ class Sort(object):
         #a position for these -- since we need at least one POS and one NEG for 
         #a variant to be placed in the matrix
 
-        sql = "select distinct C.PId FROM vcfcalls C"
+        sql = "select distinct C.pID FROM vcfcalls C"
         pids = self.dbo.sql_exec(sql)
         F = self.dbo.fetchall()
         for row in F:
-            sql = "select * from v_pos_call_chk;"
+            sql = "select * from v_pos_call_chk order by pos;"
             dc = self.dbo.cursor()
             calls = dc.execute(sql)
             rc = self.dbo.cursor()
