@@ -662,8 +662,7 @@ def populate_from_dataset(dbo):
         if not os.path.exists(zipf):
             trace(10, 'not present: {}'.format(zipf))
             continue
-        #try:
-        if 1 == 1:
+        try:
             with zipfile.ZipFile(zipf) as zf:
                 trace(1, '{}-{}'.format(nkits,zf.filename[:70]))
                 listfiles = zf.namelist()
@@ -684,8 +683,8 @@ def populate_from_dataset(dbo):
                     trace(2, 'populate from vcf {}'.format(vcffile))
                     populate_from_VCF_file(dbo, buildid, pid, vcff)
             nkits += 1
-        #except:
-        #    trace(0, 'FAIL on file {} (not loaded)'.format(zipf))
+        except:
+            trace(0, 'FAIL on file {} (not loaded)'.format(zipf))
         #    # raise
         if nkits >= config['kitlimit']:
             break
