@@ -91,13 +91,14 @@ if args.testdrive:
     trace(0,'get DNA ids')
     ids = get_dna_ids(db)
     if config['kitlimit'] < 26:
-        trace(0, 'calculate array')
+        trace(0, 'calculate csv at {}'.format(time.clock()))
         out = get_variant_csv(db,ids)
+        trace(0, 'write csv at {}'.format(time.clock()))
         open('csv.out','w').write(out)
     else:
         trace(0, 'skipping large csv file')
     # no other work flow
-    trace(0, 'commit work')
+    trace(0, 'commit work at {}'.format(time.clock()))
     db.commit()
     db.close()
     sys.exit(0)

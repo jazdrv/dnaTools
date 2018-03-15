@@ -8,7 +8,7 @@
 # https://www.gnu.org/licenses/gpl.html
 
 from collections import defaultdict
-import sys, yaml
+import sys, yaml, time
 
 config = yaml.load(open('config.yaml'))
 
@@ -138,6 +138,7 @@ def get_variant_array(db, ppl):
 
 # create a csv file of 2d person x variant array
 def get_variant_csv(db, ppl):
+    trace(2, 'get_variant_csv at {}'.format(time.clock()))
     # people of interest
     dc = db.cursor()
     dc.execute('drop table if exists tmpp')
@@ -174,6 +175,7 @@ def get_variant_csv(db, ppl):
                   inner join tmpp t on t.pid=d.id''')
     klist = list([(k[0],k[1]) for k in tc])
 
+    trace(2, 'write csv file at {}'.format(time.clock()))
     out = ',' + ','.join(['{}'.format(v[1]) for v in klist]) + '\n'
     for vid,vtext in vlist:
         out += vtext
@@ -293,7 +295,7 @@ def get_kit_coverages(db, pids, vids):
         cdict[pid] = defaultdict()
     for pid in pids:
         # get indel coverage for a kit
-        trace(2, 'indels for kit {}...'.format(pid))
+        trace(2, 'indels for kit {} at {}...'.format(pid,time.clock()))
         trace(3, 'get_call_coverage(db, {}, {}, {})'.format(pid,[(i[0],i[1]) for i in enumerate(indel_ids)][:50],[(i[0],i[1]) for i in enumerate(spans)][:50]))
         iv,cv = get_call_coverage(db, pid, indel_ids, spans)
         trace(4, 'indels:{}..., coverage:{}...'.format([(i[0],i[1]) for i in enumerate(iv)][:50], [(i[0],i[1]) for i in enumerate(cv)][:50]))
@@ -302,7 +304,7 @@ def get_kit_coverages(db, pids, vids):
             if not cov:
                 cdict[pid][vid] = False
         # get snp coverage for a kit
-        trace(2, 'snps for kit {}...'.format(pid))
+        trace(2, 'snps for kit {} at {}...'.format(pid,time.clock()))
         trace(3, 'get_call_coverage(db, {}, {})'.format(pid,snp_ids))
         iv,cv = get_call_coverage(db, pid, snp_ids)
         trace(4, 'snps:{}..., coverage:{}...'.format(iv[:5], cv[:5]))
