@@ -1,81 +1,81 @@
 #!/usr/bin/env python3
 # coding: utf-8
-
+#
 # Copyright (c) 2018 The Authors
-
-# Contributors: Jef Treece, Harald Alvestrand, Zak Jones, Iain McDonald
+#
 # Purpose: Reduction and comparison script for Y-chromosome NGS test data
-# For free distribution under the terms of the GNU General Public License,
-# version 3 (29 June 2007)
-# https://www.gnu.org/licenses/gpl.html
+#
+# Usage:
+#   import as a library; or
+#   run script as a command with no args to execute some tests
+#
+# Environment:
+#   REDUX_PATH must be set to source directory
+#   config.yaml is read for configuration settings
+#
 
-# run this script as a command with no args to execute some tests
-# it probably only works when run from the src directory
-
-
-import os,yaml,shutil,glob,re,csv,zipfile,subprocess
+import os, yaml, shutil, re, csv, zipfile, subprocess
 from db import DB
-from collections import defaultdict
 from array_api import *
 import time
+import sys
 
 # read the config file
-# todo: this might need to some bootstrapping (run outside of src dir?)
-config = yaml.load(open('config.yaml'))
+sys.path.insert(0, os.environ['REDUX_PATH'])
+REDUX_CONF = os.path.join(os.environ['REDUX_PATH'], 'config.yaml')
+config = yaml.load(open(REDUX_CONF))
 
-# add src and bin directories to path
-import sys
-sys.path.insert(0, config['REDUX_PATH'])
+# add bin directory to path for executing utilities
 sys.path.insert(0, config['REDUX_BIN'])
 
 
-# routines - debug/diagnostic output
-# fixme - there are too many levels of verbosity - probably should be a
-# bitmap/flags
-# output to stderr by default - use 2> redirection in bash to capture
-# this sends all zero-level messages to stdout
-def trace (level, msg, stream=sys.stderr):
-    if level <= config['verbosity']:
-        if level == 0:
-            print(msg)
-        else:
-            print(msg, file=stream)
-            stream.flush()
+# Class: DisplayMsg
+# Purpose: mix-in used by Trace
+class DisplayMsg:
+    'class that provides methods to send messages to a file or a stream'
+    def display (self, prefix, msg='', stream=sys.stdout):
+        'send a message to an output stream or file'
+        print(prefix+msg, file=stream)
+    def flush (self, stream=sys.stdout):
+        'flush the output stream'
+        stream.flush()
 
-# return a path to a file or directory in the configured data dir
+# Class: Trace
+# Purpose: provides methods for debugging and status messages
+# Example:
+#   trace = Trace(1, stream=open('log.out', 'w'))
+#   trace(0, 'important message')
+class Trace(DisplayMsg):
+    'class that provides a logging facility: set level, then call trace method'
+    def __init__ (self, level=0, prefix="", stream=sys.stderr):
+        self.level = level
+        self.prefix = prefix
+        self.stream = stream
+    def trace (self, level, msg):
+        'trace(level,message): output message if level <= verbosity'
+        if level <= self.level:
+            self.display (self.prefix, msg, self.stream)
+    def __call__ (self, level, msg):
+        self.trace (level, msg)
+
+trace = Trace(config['verbosity'], stream=open('log.out', 'w'))
+
+# Procedure: data_path
+# Purpose: return a path to a file or directory in the configured data dir
 def data_path(fname):
     return os.path.join(config['REDUX_DATA'], fname)
 
-def refresh_dir(DIR,cleanFlag=False):
-    DIR = os.path.join(config['REDUX_ENV'], DIR)
-    #print DIR
-    if (os.path.isdir(DIR)):
-        files = glob.glob(DIR+'/*')
-        if cleanFlag:
-            for f in files:
-                os.remove(f)
-    else:
-        os.makedirs(DIR)
-
-# update the mtime of a file without changing file contents
-def touch_file(FILE):
-    if os.path.exists(FILE):
-        open(FILE,'a').close()
-
-def cmd_exists(CMD):
-    return any(os.access(os.path.join(path, CMD), os.X_OK) for path in os.environ["PATH"].split(os.pathsep))
-
-
-# various scratch/data directory setup under "data"
-def setup_dirs():
-    shutil.rmtree(data_path(config['unzip_dir']),ignore_errors=True)
-    os.makedirs(data_path(config['unzip_dir']))
-
-# call external utility to unpack all files in the zip directory
-# return list of files that were unzipped
-# this procedure is probably obsolete - remove in the future
+# Procedure: extract_zipdir
+# Purpose:
+#   call external utility to unpack zip files
+#   this is driven from the list of DNA kits of interest
+# Info:
+#   this procedure is incomplete
+#   the future intent is extract .vcf and .bed from .zip for debugging
+#   currently, the extracted files are not needed; they do not land on disk
 def extract_zipdir():
     # work in progress Jef
+    # fixme - standalone utility - not needed for analysis
     # fixme - interop with API from DW
     # fixme - don't purge unzip dir if requested (-k flag)
     # fixme - regular expressions for the scripts need adjustment
@@ -92,111 +92,27 @@ def extract_zipdir():
     for ff in fnames:
         trace (40, ff)
 
-# unpack a single zip file
-def unpack_zipfile():
-    # work in progress Jef
-    return
-
-    
-# cache previous run's results
-# fixme this is incorrect, and we need to figure out what needs to be saved
-def go_backup():
-
-    trace(0,"** performing backup.")
-    trace(0,"** (msg) CREATING BACKUP COPIES OF EXISTING FILES...")
-    
-    # autobackup dir
-    refresh_dir('autobackup')
-    for FILE_PATTERN in config['backup_files'].split():
-        for FILE in glob.glob(FILE_PATTERN):
-            shutil.copy(FILE,'autobackup')
-    
-    if config['make_report']:
-        #print "MAKING REPORT..."
-        delete_file('report.csv')
-    
-    trace(0,"** + backup done.")
-    
-
-
-# utility procuedure to drop/create the database and schema
-def go_db():
-    trace(1, "Initialising database...")
-    dbo = DB()
-    dbo.create_schema()
-    return dbo
-
-# call out to bash script to parse the vcf file
-# todo - pull this under python source?
+# Procedure: getVCFvariants
+# Input: an opened VCF file object
+# Purpose: parse the vcf file for data to store in the database
 def getVCFvariants(FILE):
     from subprocess import Popen, PIPE, STDOUT
     cmd = os.path.join(config['REDUX_ENV'], 'getVCFvariants.sh')
-
     p = Popen([cmd, '-'], stdout=PIPE, stdin=PIPE, stderr=STDOUT)    
     p_stdout = p.communicate(input=FILE.read())[0]
     output = p_stdout.decode('utf-8')
     # trace(1, 'command output: {}'.format(output))
     return output
 
-#routines - "arghandler" (sort prototype) - Zak
-
-# I'm not sure what this procedure is for
-def go_sort_db():
-    #trace(0,"** process SNP data.")
-    dbo = go_db()
-    dbo.insert_sample_sort_data()
-    #dbo.commit()
-    dbo.sort_data()
-    #trace(0,"** + SNP processing done.")
-
-    
-def analyzeBed(file):
-
-    #Returns an array of path segments.
-
-    with open(os.path.splitext(file)[0] + '.bed') as bedfile:
-        trace (30, "   Extracting BED: %s" % bedfile)
-        result = []
-        for line in bedfile:
-            fields = line.split()
-            if (fields[0] == 'chrY'):
-                result.append((int(fields[1]), int(fields[2])))
-        return result
-    
-    
-def extract(unzip_dir,files,variants):
-
-    d = []
-    s = []
-
-    curpath = os.path.abspath(os.curdir)
-    with open(os.path.join(curpath, 'variant-list.txt')) as line_headings:
-        for line in line_headings:
-            d.append(line.rstrip())
-            x = line.split(',')
-            s.append(int(x[0]))  # s holds the genome position for each line
-
-    for file in files:
-        vcf_calls = analyzeVcf(config['unzip_dir'] + file)
-        bed_calls = analyzeBed(config['unzip_dir'] + file)
-        bed_index = [0]
-        for lineno in range(len(d)):
-            d[lineno] += ','
-            if s[lineno] in vcf_calls:
-                d[lineno] += vcf_calls[s[lineno]]
-            d[lineno] += makeCall(s[lineno], bed_index, bed_calls)
-
-        for line in d:
-            print (line)
-
-# routines - Iain 
-
-
-# Returns a dict of position -> mutation mappings
-# Modified from Harald's analyzeVCF, this version returns every mutation with
-# its derived value, regardless of whether it was ancestral or not
+# Procedure: readHg19Vcf
+# Input: a VCF file name
+# Purpose: read a hg19 FTDNA .zip file
+# Returns: a dict of position -> mutation mappings
+# Info:
+#   This routine is not currently used because we focus on hg38. Modified from
+#   Harald's analyzeVCF, this version returns every mutation with its derived
+#   value, regardless of whether it was ancestral or not.
 def readHg19Vcf(file):
-
     with open(os.path.splitext(file)[0] + '.vcf') as vcffile:
         trace (30, "   Extracting VCF: %s" % vcffile)
         result = {}
@@ -204,25 +120,17 @@ def readHg19Vcf(file):
             fields = line.split()
             if (fields[0] == 'chrY' and int(fields[1]) > 0 and fields[3] != '.'
                     and fields[4] != '.'):
-                result[fields[1]] = [int(fields[1]), str(fields[3]), str(fields[4])]
+                result[fields[1]] = [int(fields[1]), str(fields[3]),
+                                         str(fields[4])]
         return result
 
-
-# get number of lines in a file
-# probably will fail on utf-8 encoding or binary files in general
-def file_len(fname):
-    #File length, thanks to StackOverflow
-    #https://stackoverflow.com/questions/845058/how-to-get-line-count-cheaply-in-python
-    i=-1
-    with open(fname) as f:
-        for i, l in enumerate(f):
-            pass
-    return i + 1
-
-
-# populate agebed table from age.bed
-# This procedure dumps what may be in the agebed table and replaces it with the
-# ranges defined in age.bed
+# Procedure: populate_age
+# Input: a database object
+# Purpose: populate agebed table from age.bed (a set of ranges in a file)
+# Returns: nothing
+# Info:
+#   this procedure discards what may be already in the agebed table and
+#   replaces it with the ranges defined in age.bed, a text file
 def populate_age(dbo):
     trace(1, 'populate agebed table')
     with open('age.bed') as bedfile:
@@ -244,7 +152,13 @@ def populate_age(dbo):
                            inner join tmpt t on t.b=minaddr and t.c=maxaddr''')
         dbo.dc.execute('drop table tmpt')
 
-# populate reference positives
+# Procedure: populate_refpos
+# Purpose: fill up the refpos (reference-positive) table
+# Input: a database object
+# Returns: nothing
+# Info:
+#   populate reference positives from the SNPs listed in refpos.txt, a text
+#   file
 def populate_refpos(dbo):
     trace(1, 'populate refpos table')
     with open('refpos.txt') as refposfile:
@@ -263,10 +177,15 @@ def populate_refpos(dbo):
                        inner join snpnames s on s.vid=v.id and s.snpname=?''',
                        (snpname,))
 
-
-# populate a table of STR definitions
-# Ordering is optional. If not given, table stores SNP names in FTDNA Y111 order.
-# Otherwise, It's a 111-number vector.
+# Procedure: populate_STRS
+# Purpose: populate a table of STR definitions
+# Input:
+#   a database object
+#   optional ordering (default order is same as FTDNA)
+# Info:
+#   This table is not yet used; we're setting up a framework for using STR data
+#   to incorporate into the models.  Ordering is optional. If not given, table
+#   stores SNP names in FTDNA Y111 order.  Otherwise, It's a 111-number vector.
 def populate_STRs(dbo, ordering=None):
     strdefs = (
         'DYS393', 'DYS390', 'DYS19', 'DYS391', 'DYS385a', 'DYS385b',
@@ -294,9 +213,19 @@ def populate_STRs(dbo, ordering=None):
         for tup in enumerate(strdefs):
             dbo.dc.execute('insert or ignore into strs(ordering,strname) values(?,?)', tup)
 
-
-# pull information about the kits from the web api
-# if API==None, read from
+# Procedure: get_kits
+# Purpose: pull information about the kits from the web api of haplogroup-r
+# Input:
+#   API (optional) if None, read from json.out cached file
+#   qry - optional query string
+# Returns:
+#   js, a json object with all of the metadata records
+# Info:
+#   haplogroup-r provides an api to get metadata about kits stored there.  This
+#   procedure calls that API and returns the JSON record.  To avoid making too
+#   many repeated calls to the API when testing and developing, the json record
+#   is cached on disk. When the API parameter is empty, satisfy the request
+#   from the cached copy.
 def get_kits (API='http://haplogroup-r.org/api/v1/uploads.php', qry='format=json'):
     import requests, json
     try:
@@ -313,12 +242,18 @@ def get_kits (API='http://haplogroup-r.org/api/v1/uploads.php', qry='format=json
             open('json.out','w').write(json.dumps(js))
     except:
         print('Failed to pull kit metadata from {}'.format(API))
-        raise # fixme - what to do on error
-        
+        raise # fixme - what to do on error?
     return js
 
-# update the information about the kits
-# the input is js, a json object that comes from the Haplogroup-R DW API
+# Procedure: update_metadata
+# Purpose: update the kit information in the database
+# Input:
+#   db, a database object
+#   js, a json object that comes from the Haplogroup-R DW API
+# Returns: nothing - only updates the database tables dataset, person, etc
+# Info:
+#   this procedure doesn't load any data; it just updates the metadata for the
+#   available kits contained in the json record
 def update_metadata(db, js):
     blds = {'b38': 'hg38', 'b19': 'hg19', 'b37': 'hg19'}
     rows = [(
@@ -390,8 +325,11 @@ def update_metadata(db, js):
         INNER JOIN testtype tt ON tmpt.o = tt.testNm and tmpt.p = tt.isNGS''')
     trace(1, '{} rows inserted into dataset'.format(db.dc.execute('select count(*) from dataset').fetchone()[0]))
     db.dc.execute('drop table tmpt')
+    return
 
-# load data into the contig table
+# Procedure: populate_contigs
+# Purpose: load data into the contig table
+# Input: a database object
 def populate_contigs(db):
     trace(1,'populate contigs table')
     bid = get_build_byname(db, 'hg19')
@@ -400,8 +338,18 @@ def populate_contigs(db):
     bid = get_build_byname(db, 'hg38')
     db.dc.execute('insert into Contig(buildID,description,length) values(?,?,?)',
                       (bid, 'chrY', 57227415))
+    return
 
-# populate dataset information from Haplogroup-R data warehouse API
+# Procedure: populate_fileinfo
+# Purpose: populate dataset information from Haplogroup-R data warehouse API
+# Input:
+#   db, a database object
+#   fromweb, if True then pull fresh data via the web
+# Info:
+#   This is all that needs to be called to update metadata about available kits
+#   from haplogroup-r. In the normal case, it reaches out using the web API and
+#   stores the latest data. It can also store the most-recent cached data
+#   without calling the web API
 def populate_fileinfo(dbo, fromweb=True):
     if fromweb:
         js = get_kits()
@@ -409,8 +357,13 @@ def populate_fileinfo(dbo, fromweb=True):
         js = get_kits(API=None)
     update_metadata(dbo, js)
 
-# update snp definitions from a csv DictReader instance
-# fixme - update snpnames
+# Procedure: updatesnps
+# Purpose: update snp definitions
+# Input:
+#   db, a database instance
+#   snp_reference, a csv DictReader instance with the SNP definitions
+#   buildname, (optional, default 'hg38') the reference build name
+# Returns: nothing - only updates the table
 def updatesnps(db, snp_reference, buildname='hg38'):
     bid = get_build_byname(db, buildname)
     db.dc.execute('drop table if exists tmpt')
@@ -434,10 +387,20 @@ def updatesnps(db, snp_reference, buildname='hg38'):
                               v.pos = t.b and v.buildID=t.a''')
 
     db.dc.execute('drop table tmpt')
+    return
 
-# pull SNP definitions from the web at ybrowse.org
-# this should be called after the build table is populated
-# refresh files if they are older than maxage; do nothing if maxage < 0
+# Procedure: get_SNPdefs_fromweb
+# Purpose: pull SNP definitions from the web at ybrowse.org
+# Input:
+#   db, a database instance
+#   maxage, maximum number of days since last update
+#   url (optional), where to get the data file
+# Info:
+#   This should be called after the build table is populated. Uses urllib to
+#   fetch the SNP definition file from the web if the latest version is older
+#   than maxage. This keeps the SNP definitions reasonably up to date without
+#   having to download the large files repeatedly. Refresh files if they are
+#   older than maxage; do nothing if maxage < 0
 def get_SNPdefs_fromweb(db, maxage, url='http://ybrowse.org/gbrowse2/gff'):
     import urllib, time
     if maxage < 0:
@@ -462,8 +425,13 @@ def get_SNPdefs_fromweb(db, maxage, url='http://ybrowse.org/gbrowse2/gff'):
             trace(0, 'failed to update {} from the web'.format(fname))
     return
 
-# populate SNP definitions; refresh from web if we have is older than maxage
-# (in days)
+# Procedure: populate_snps
+# Purpose: populate SNP definitions in the database
+# Input:
+#   dbo, a database object
+#   maxage (optional), maximum age of data files pulled from web
+# Info:
+#   refresh from web if we have is older than maxage (in days)
 def populate_SNPs(dbo, maxage=config['max_snpdef_age']):
     get_SNPdefs_fromweb(dbo, maxage=maxage)
     # update known snps for hg19 and hg38
@@ -473,11 +441,22 @@ def populate_SNPs(dbo, maxage=config['max_snpdef_age']):
     with open(os.path.join(config['REDUX_DATA'], config['b38_snp_file'])) as snpfile:
         snp_reference = csv.DictReader(snpfile)
         updatesnps(dbo, snp_reference, 'hg38')
+    return
 
-# return a) sum of BED ranges for kit (how many bases are covered by the test)
-# and b) sum of coverage that is in the age BED range. These stats are needed
-# for age calculations. This is not done in the "brute force" way because it
-# can be compute intensive to search the list for every range.
+# Procedure: get_kit_coverage
+# Purpose:
+#   return a) sum of BED ranges for kit (how many bases are covered by the
+#   test) and b) sum of coverage that is in the age BED range. These stats are
+#   needed for age calculations.
+# Input:
+#   dbo, a database object
+#   pid, a person ID to be updated
+# Returns:
+#   total sum of coverage (sum of bed ranges)
+#   total sum of coverage that is within the agebed ranges
+# Info:
+#   This is not done in the "brute force" way because it can be compute
+#   intensive to search the list for every range.
 def get_kit_coverage(dbo, pid):
     br = dbo.dc.execute('''select 1,minaddr from bedranges r
                            inner join bed b on b.bid=r.id and b.pid=?
@@ -509,9 +488,12 @@ def get_kit_coverage(dbo, pid):
                         (pid,)).fetchone()[0]
     return accum2, accum1
 
-
-# populate regions from a FTDNA BED file
-# fname is an unpacked BED file
+# Procedure: populate_from_BED_file
+# Purpose: populate regions from a FTDNA BED file
+# Input:
+#   dbo, a database object
+#   pid, a database person ID
+#   fileobj, a file object from the open .bed file
 def populate_from_BED_file(dbo, pid, fileobj):
     dc = dbo.cursor()
     ranges = []
@@ -536,9 +518,14 @@ def populate_from_BED_file(dbo, pid, fileobj):
     dc.close()
     return
 
-
-# populate calls, quality, and variants from a VCF file
-# fname is an unzipped VCF file
+# Procedure: populate_from_VCF_file
+# Purpose: populate calls, quality, and variants from a VCF file
+# Input:
+#   dbo, a database object
+#   bid, a build ID
+#   pid, a person ID
+#   fileobj, a file object for the open VCF file
+# Returns: nothing, only updates database tables
 def populate_from_VCF_file(dbo, bid, pid, fileobj):
     dc = dbo.cursor()
     b = dc.execute('select buildNm from build where id=?', (bid,)).fetchone()[0]
@@ -597,7 +584,11 @@ def populate_from_VCF_file(dbo, bid, pid, fileobj):
     trace(500, '{} vcf calls: {}...'.format(len(passes), passes[:5]))
     return
 
-# unpack any zip from FTDNA that has the bed file and vcf file
+# Procedure: populate_from_zip_file
+# Purpose: unpack any zip from FTDNA that has the bed file and vcf file
+# Info:
+#   INCOMPLETE
+#   future: to permit import of .zip that isn't in Hap-R repository
 def populate_from_zip_file(dbo, fname):
     # stub work in progress Jef
     # unpack bed and vcf to a temporary unzip dir
@@ -611,12 +602,19 @@ def populate_from_zip_file(dbo, fname):
     # populate_from_BED_file
     return
 
-# unpack all zip files that can be handled from the HaplogroupR catalog If the
-# zip file exists, unpack it. Future - skip if already loaded?  Walk through
-# dataset table to find these files. Assume we've already pulled the list from
-# the H-R web API and downloaded zip files. Future - download file?
+# Procedure: populate_from_dataset
+# Purpose:
+#   unpack all zip files that can be handled from the HaplogroupR catalog.
+# Input:
+#   dbo, a database object
+#   uses zip files presumed already downloaded into the data directory
+# Info:
+#   If the zip file exists, unpack it. Skip file if already loaded.  Walk
+#   through dataset table to find these files. Assume we've already pulled the
+#   list from the H-R web API and downloaded zip files.
+# Future:
+#   also download files?
 def populate_from_dataset(dbo):
-    import zipfile, re
     trace(1, 'populate from dataset with kit limit {}'.format(config['kitlimit']))
     dc = dbo.cursor()
     bed_re = re.compile(r'(\b(?:\w*[^_/])?regions(?:\[\d\])?\.bed)')
@@ -683,11 +681,11 @@ def populate_from_dataset(dbo):
     dc.execute('create index vcfpidx on vcfcalls(pID)')
     dc.close()
     trace(3, 'done at {}'.format(time.clock()))
-
     return
 
-
-# initial database creation and table loads
+# Procedure: db_creation
+# Purpose: a high-level routine that can be called for initial database
+#   creation and table loads
 def db_creation():
     db = DB(drop=config['drop_tables'])
     if config['drop_tables']:

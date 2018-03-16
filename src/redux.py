@@ -1,32 +1,28 @@
 #!/usr/bin/env python3
-
+#
 # Copyright (c) 2018 the Authors
-
-# Contributors: Jef Treece, Harald Alvestrand, Iain McDonald, Zak Jones
-# Purpose: Reduction and comparison script for Y-chromosome NGS test data
-# For free distribution under the terms of the GNU General Public License,
-# version 3 (29 June 2007)
-# https://www.gnu.org/licenses/gpl.html
-
-
+#
+# Purpose: Reduction and comparison main driver for Y-chromosome NGS test data
+#
+# Usage:
+#   run script as a command with various args
+#
+# Environment:
+#   REDUX_PATH must be set to source directory
+#   config.yaml is read for configuration settings
+#
 import sys
 import argparse
 import yaml
 import os
-import glob
-import shutil
-import re,time,csv,zipfile
-from collections import defaultdict
+import time
 from lib import *
 from db import DB
 from array_api import *
 
-# required environment vars:
-# REDUX_PATH - where the source code and config.yaml lives
 
-start_time = time.clock()
-t0 = time.time()
-trace (1, "Beginning run [%s]" % time.strftime("%H:%M:%S"))
+# configure default logging of any errors that occur during setup
+trace = Trace(1)
 
 # environment variable required
 try:
@@ -39,6 +35,12 @@ except:
 # parse the remainder of the configuration settings
 config = yaml.load(open(REDUX_CONF))
 
+# set up logging for diagnostics and status messages
+trace = Trace(config['verbosity'])
+
+start_time = time.clock()
+t0 = time.time()
+trace (1, "Beginning run [%s]" % time.strftime("%H:%M:%S"))
 
 # basic strategy for command-line arguments
 #  -command-line args mainly select one or more basic execution elements (below)
@@ -71,8 +73,6 @@ parser.add_argument('-b', '--backup', help='do a "backup"', action='store_true')
 args = parser.parse_args()
 
 
-
-
 # main program
 
 # drop database and have a clean start
@@ -102,12 +102,6 @@ if args.testdrive:
     db.commit()
     db.close()
     sys.exit(0)
-
-# run everything
-if args.all:
-    go_backup()
-    go_prep()
-    go_db()
 
 
 trace(0, "** script complete.\n")
