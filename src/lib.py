@@ -16,7 +16,6 @@
 
 import os, yaml, shutil, re, csv, zipfile, subprocess
 from db import DB
-from array_api import *
 import time
 import sys
 
@@ -26,14 +25,14 @@ REDUX_CONF = os.path.join(os.environ['REDUX_PATH'], 'config.yaml')
 config = yaml.load(open(REDUX_CONF))
 
 # add bin directory to path for executing utilities
-sys.path.insert(0, config['REDUX_BIN'])
+# sys.path.insert(0, config['REDUX_BIN'])
 
 
 # Class: DisplayMsg
-# Purpose: mix-in used by Trace
+# Purpose: mix-in used by Trace to display or log messages
 class DisplayMsg:
     'class that provides methods to send messages to a file or a stream'
-    def display (self, prefix, msg='', stream=sys.stdout):
+    def display (self, prefix='', msg='', stream=sys.stdout):
         'send a message to an output stream or file'
         print(prefix+msg, file=stream)
     def flush (self, stream=sys.stdout):
@@ -42,23 +41,35 @@ class DisplayMsg:
 
 # Class: Trace
 # Purpose: provides methods for debugging and status messages
-# Example:
-#   trace = Trace(1, stream=open('log.out', 'w'))
+# Initionalization variables:
+#   prefix, optional text string prepended to every message
+#   stream, optional output stream or file object
+#   level, optional verbosity threshhold
+#   autoflush, optional flag causes automatic flushing on each message
+# Examples:
+#   trace = Trace(1, stream=open('log.out', 'w'), autoflush=True)
 #   trace(0, 'important message')
+#   savetrace = trace
+#   trace = Trace(99, stream=open('log.out', 'w'), prefix='dbg myfunc: ')
+#   trace(10, 'local debugging message')
+#   trace = savetrace
 class Trace(DisplayMsg):
     'class that provides a logging facility: set level, then call trace method'
-    def __init__ (self, level=0, prefix="", stream=sys.stderr):
+    def __init__ (self, level=0, prefix='', stream=sys.stderr, autoflush=False):
         self.level = level
         self.prefix = prefix
         self.stream = stream
+        self.autoflush = autoflush
     def trace (self, level, msg):
         'trace(level,message): output message if level <= verbosity'
         if level <= self.level:
             self.display (self.prefix, msg, self.stream)
+            if self.autoflush:
+                self.flush()
     def __call__ (self, level, msg):
         self.trace (level, msg)
 
-trace = Trace(config['verbosity'], stream=open('log.out', 'w'))
+trace = Trace(config['verbosity'])
 
 # Procedure: data_path
 # Purpose: return a path to a file or directory in the configured data dir
@@ -266,7 +277,7 @@ def update_metadata(db, js):
         jr['surname'], jr['testType'], jr['isNGS'])
         for jr in js
         ]
-    trace(1, 'first row out of {}:{}'.format(len(rows),rows[0]))
+    trace(3, 'first row out of {}:{}'.format(len(rows),rows[0]))
     trace(1, '{} unique kit ids'.format(len(set([v['kitId'] for v in js]))))
     trace(1, '{} null surname'.format(len([v['surname'] for v in js if not v['surname']])))
 
@@ -287,7 +298,7 @@ def update_metadata(db, js):
                         ('lab', 'labNm',-5),
                         ('build', 'buildNm',-4)):
         tups = [(y,) for y in set([v[idx] for v in rows])]
-        trace(1, 'first tuple to insert into {}: {}'.format(tbl, tups[0]))
+        trace(3, 'first tuple to insert into {}: {}'.format(tbl, tups[0]))
         db.dc.executemany('insert or ignore into {}({}) values(?)'.format(tbl,val),
                               tups)
 
@@ -326,6 +337,27 @@ def update_metadata(db, js):
     trace(1, '{} rows inserted into dataset'.format(db.dc.execute('select count(*) from dataset').fetchone()[0]))
     db.dc.execute('drop table tmpt')
     return
+
+# Procedure: get_build_byname
+# Purpose: get build identifier by its name; creates new entry if needed
+# Input:
+#   db, a database object
+#   buildname, optional name of build, e.g. 'hg38'
+# Info:
+#   known aliases are reduced to one entry
+def get_build_byname(db, buildname='hg38'):
+    if buildname.lower().strip() in ('hg19', 'grch37', 'b19', 'b37'):
+        buildname = 'hg19'
+    elif buildname.lower().strip() in ('hg38', 'grch38', 'b38'):
+        buildname = 'hg38'
+    dc = db.dc.execute('select id from build where buildNm=?', (buildname,))
+    bid = None
+    for bid, in dc:
+        continue
+    if not bid:
+        dc.execute('insert into build(buildNm) values (?)', (buildname,))
+        bid = dc.lastrowid
+    return bid
 
 # Procedure: populate_contigs
 # Purpose: load data into the contig table
@@ -443,50 +475,6 @@ def populate_SNPs(dbo, maxage=config['max_snpdef_age']):
         updatesnps(dbo, snp_reference, 'hg38')
     return
 
-# Procedure: get_kit_coverage
-# Purpose:
-#   return a) sum of BED ranges for kit (how many bases are covered by the
-#   test) and b) sum of coverage that is in the age BED range. These stats are
-#   needed for age calculations.
-# Input:
-#   dbo, a database object
-#   pid, a person ID to be updated
-# Returns:
-#   total sum of coverage (sum of bed ranges)
-#   total sum of coverage that is within the agebed ranges
-# Info:
-#   This is not done in the "brute force" way because it can be compute
-#   intensive to search the list for every range.
-def get_kit_coverage(dbo, pid):
-    br = dbo.dc.execute('''select 1,minaddr from bedranges r
-                           inner join bed b on b.bid=r.id and b.pid=?
-                                union
-                           select 1,maxaddr from bedranges r
-                           inner join bed b on b.bid=r.id and b.pid=?
-                                union
-                           select 2,minaddr from bedranges b, agebed a
-                           where a.bID=b.id
-                                union
-                           select 2,maxaddr from bedranges b, agebed a
-                           where a.bID=b.id
-                           order by 2,1''', (pid,pid))
-    ids = {1:0, 2:1}
-    accum1 = 0
-    toggles = [False, False]
-    post = None
-    for r in br:
-        toggles[ids[r[0]]] ^= True
-        if post and (toggles[0] ^ toggles[1]):
-            accum1 += r[1]-post
-            post = None
-        elif toggles[0] & toggles[1]:
-            post = r[1]
-    if post:
-        accum1 += r[1]-post
-    accum2 = dbo.dc.execute('''select sum(maxaddr-minaddr) from bedranges r
-                           inner join bed b on r.id=b.bid and b.pid=?''',
-                        (pid,)).fetchone()[0]
-    return accum2, accum1
 
 # Procedure: populate_from_BED_file
 # Purpose: populate regions from a FTDNA BED file
@@ -517,6 +505,64 @@ def populate_from_BED_file(dbo, pid, fileobj):
                   t.b=br.minaddr and t.c=br.maxaddr''')
     dc.close()
     return
+
+# Procedure: pack_call
+# Purpose: pack call information into an integer
+# Info:
+#   this procedure exists to make vcfcalls table more compact
+#   stores: pos, anc, der, passfail, q1, q2, nreads, passrate
+#   needs corresponding unpack_call
+def pack_call(call_tup):
+    maxshift = 31
+    nqbits = 7
+    ncbits = 9
+    npbits = 8
+    # pack in a pass/fail flag
+    bitfield = {'PASS': 1<<maxshift, 'FAIL': 0}[call_tup[3]]
+    maxshift -= 1
+    # pack in a unitless nqbits-number representing q1
+    qnum = int(float(call_tup[4]) * 3)
+    if qnum > (1<<nqbits) - 1:
+        qnum = (1<<nqbits)-1
+    bitfield |= (qnum << (maxshift - nqbits + 1))
+    maxshift -= nqbits
+    # pack in a unitless nqbits-number representing q2
+    qnum = int(float(call_tup[5]) * 2)
+    if qnum > (1<<nqbits) - 1:
+        qnum = (1<<nqbits) - 1
+    bitfield |= (qnum << (maxshift - nqbits + 1))
+    maxshift -= nqbits
+    # pack in a ncbits-bit number representing num reads
+    nreads = int(call_tup[6])
+    if nreads > (1<<ncbits) - 1:
+        nreads = (1<<ncbits) - 1
+    bitfield |= (nreads << (maxshift - ncbits + 1))
+    maxshift -= nqbits
+    # pack in a ncbits-bit number representing passrate
+    passrate = int(float(call_tup[7]) * ((1<<npbits) - 1))
+    if passrate > (1<<npbits) - 1:
+        passrate = (1<<npbits) - 1
+    bitfield |= passrate
+    return bitfield
+
+# Procedure: unpack_call
+# Purpose: unpack callinfo (corresponds to pack_call)
+# Info:
+#   if pack_call changes, this needs to change
+def unpack_call(bitfield):
+    maxshift = 31
+    nqbits = 7
+    ncbits = 9
+    npbits = 8
+    passrate = float(bitfield & (1<<npbits) - 1) / ((1<<npbits) - 1)
+    calls = (bitfield>>npbits) & ((1<<ncbits) - 1)
+    q2 = float((bitfield>>(npbits+ncbits)) & ((1<<nqbits) - 1)) / 2.
+    q1 = float((bitfield>>(npbits+ncbits+nqbits)) & ((1<<nqbits) - 1)) /3.
+    if (1<<maxshift) & bitfield:
+        passfail = True
+    else:
+        passfail = False
+    return passfail, q1, q2, calls, passrate
 
 # Procedure: populate_from_VCF_file
 # Purpose: populate calls, quality, and variants from a VCF file
@@ -659,15 +705,15 @@ def populate_from_dataset(dbo):
                     trace(0, 'FAIL: missing data:{} (not loaded)'.format(zipf))
                     continue
                 with zf.open(bedfile,'r') as bedf:
-                    trace(2, 'populate from bed {}'.format(bedfile))
+                    trace(3, 'populate from bed {}'.format(bedfile))
                     populate_from_BED_file(dbo, pid, bedf)
                 with zf.open(vcffile,'r') as vcff:
-                    trace(2, 'populate from vcf {}'.format(vcffile))
+                    trace(3, 'populate from vcf {}'.format(vcffile))
                     populate_from_VCF_file(dbo, buildid, pid, vcff)
             nkits += 1
         except:
             trace(0, 'FAIL on file {} (not loaded)'.format(zipf))
-            # raise
+            raise
         if nkits >= config['kitlimit']:
             break
         # fixme - if BED passes and VCF fails, cruft is left behind. This loop
@@ -697,3 +743,19 @@ def db_creation():
     populate_age(db)
     populate_refpos(db)
     return db
+
+
+# test framework
+if __name__=='__main__':
+    # unit test the Trace class
+    t = Trace(1)
+    t(1, 'test message should display to stdout')
+    t(2, 'this message should not be seen')
+    savet = t
+    t = Trace(99, stream=open('log.out', 'w'), prefix='dbg myfunc: ')
+    t.autoflush = True
+    t(0, 'local debugging message should be in log.out')
+    t(98, 'local debugging message should also be in log.out')
+    t(100, 'this message should not be seen')
+    t = savet
+    t(0, 'another message that should be seen')
