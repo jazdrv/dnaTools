@@ -217,9 +217,26 @@ def get_variant_csv(db, ppl):
 
 # Procedure: get_dna_ids
 # Purpose: get the list of populated (ones that have vcfcalls entries) DNAIDs
+# Returns: a vector of pIDs that have calls
 # Input: db, a database object
 def get_dna_ids(db):
     return [x[0] for x in db.dc.execute('select distinct(pID) from vcfcalls')]
+
+# Procedure: get_analysis_ids
+# Purpose: get the list of populated DNAIDs for analysis
+# Input: db, a database object
+# Returns: a vector of pIDs in analysis_kits that also have data (intersection)
+# Info:
+#   We may have more kits loaded than we want to analyze. The table
+#   analysis_kits has a list of IDs we want to analyze. This permits loading
+#   arbitrary kits into the database, while keeping the analysis focused on a
+#   subset of kits.
+def get_analysis_ids(db):
+    all_ids = set(get_dna_ids(db))
+    trace(5, 'all ids: {}'.format(all_ids))
+    ids = set([x[0] for x in db.dc.execute('select pID from analysis_kits')])
+    trace(5, 'analysis ids: {}'.format(ids))
+    return list(ids.intersection(all_ids))
 
 # Procedure: get_call_coverage
 # Purpose: check coverage for a vector of variants for a given DNA kit
@@ -335,4 +352,7 @@ def get_kit_coverages(db, pids, vids):
 
 # test framework
 if __name__=='__main__':
+    from db import DB
+    db = DB(drop=False)
     trace(0, 'test message should display to stdout')
+    trace(0, 'analysis_ids: {} (may be empty if kits are not loaded)'.format(get_analysis_ids(db)))

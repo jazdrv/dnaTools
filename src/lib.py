@@ -162,6 +162,7 @@ def populate_age(dbo):
                            select id from bedranges
                            inner join tmpt t on t.b=minaddr and t.c=maxaddr''')
         dbo.dc.execute('drop table tmpt')
+    return
 
 # Procedure: populate_refpos
 # Purpose: fill up the refpos (reference-positive) table
@@ -187,6 +188,35 @@ def populate_refpos(dbo):
            dbo.dc.execute('''insert into refpos select v.id from variants v
                        inner join snpnames s on s.vid=v.id and s.snpname=?''',
                        (snpname,))
+    return
+
+# Procedure: populate_analysis_kits
+# Purpose: fill up the list of kits to be used for analysis
+# Input: a database object
+# Returns: nothing
+# Info:
+#   populate reference positives from the SNPs listed in refpos.txt, a text
+#   file
+def populate_analysis_kits(dbo):
+    trace(1, 'populate analysis kit list table')
+    with open('kits.txt') as kitsfile:
+        cf = csv.reader(kitsfile)
+        kitids = []
+        for row in cf:
+            if row[0].startswith('#'):
+                continue
+            try:
+                kitids.append(row[0])
+            except:
+                trace(0, 'failed on row of kits.txt:{}'.format(row))
+        dbo.dc.execute('delete from analysis_kits')
+        for kit in kitids:
+           dbo.dc.execute('''insert into analysis_kits
+                       select d.DNAID from dataset d
+                       where d.kitID like ?''',
+                       (kit,))
+    return
+
 
 # Procedure: populate_STRS
 # Purpose: populate a table of STR definitions
@@ -742,6 +772,7 @@ def db_creation():
     populate_contigs(db)
     populate_age(db)
     populate_refpos(db)
+    populate_analysis_kits(db)
     return db
 
 

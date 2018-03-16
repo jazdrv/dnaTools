@@ -52,6 +52,13 @@ create table dataset(
 
 create index fileidx on dataset(kitId);
 
+/* kits to be used for analysis */
+/* this provides a way to analyze a static subset of the loaded kits */
+drop table if exists analysis_kits;
+create table analysis_kits(
+    pID INTEGER references dataset(DNAID) -- person of interest in analysis
+    );
+
 /* surname associated with person and/or kit */
 drop table if exists surname;
 create table surname(
