@@ -56,7 +56,7 @@ class Variant(object):
                 newErr = self.proc_chk(allowImperfect=False,auto_nonsplits=True)
                 cntErr = cntErr + newErr
                 if newErr == 0:
-                    print("No errors - so running: upd_unk, remove_dupes, vandh_sort, save_mx")
+                    print("No inconsistencies - so running: upd_unk, remove_dupes, vandh_sort, save_mx")
                     self.upd_unk(auto_nonsplits=True)
                     self.sort.mx_remove_dupes()
                     self.sort.mx_vandh_sort()
@@ -667,17 +667,19 @@ class Variant(object):
         if 1==2 and auto_perfVariants is True:
             vid = self.sort.get_vid_by_vix(self.vix)
             try:
-                self.subs = self.sort.get_vixs_by_vids(list(self.sort.SS.loc[self.sort.SS['sup']==vid,['sub']].as_matrix().T[0]))
+                #sups subs cache
+                self.subs = sorted(self.sort.get_vixs_by_vids(list(self.sort.SS.loc[self.sort.SS['sup']==vid,['sub']].as_matrix().T[0])))
             except:
                 self.subs = []
             try:
+                #sups subs cache
                 self.sups = self.sort.get_vixs_by_vids(list(self.sort.SS.loc[self.sort.SS['sub']==vid,['sup']].as_matrix().T[0]))
             except:
                 self.sups = []
         #this is used for imperfect variants (ones with unk's)
         else:
             self.sups = self.get_rel(relType=1,allowImperfect=allowImperfect)
-            self.subs = self.get_rel(relType=-1,allowImperfect=allowImperfect)
+            self.subs = sorted(self.get_rel(relType=-1,allowImperfect=allowImperfect))
 
         #debugging
         if config['SHOW_PROC_CHK_DETAILS']:
@@ -725,8 +727,13 @@ class Variant(object):
                 print("")
                 print("There are %s sups to go through.\n"%(len(self.sups)))
 
+            #(beg)REGULAR CHECK ------------------ 
+
+            if config['SHOW_PROC_CHK_DETAILS']:
+                print("\nREGULAR CHECK\n====================\n")
+
             for sup in reversed(self.sups):
-                splitL = []
+
                 if config['SHOW_PROC_CHK_DETAILS']:
                     print("sup: %s [%s]" % (self.sort.get_vname_by_vix(sup),sup)) #can handle top
 
@@ -761,7 +768,20 @@ class Variant(object):
                         print(" - [1] remaining unk - ambig pos: %s [%s]" %(l2s(self.sort.get_kname_by_kix(unkL)),l2s(unkL)))
                     #(end)sup check
 
-                #(beg)consistency check 
+                    print("")
+
+            #(end)REGULAR CHECK ------------------ 
+
+            #(beg)CONSISTENCY CHECK -------------- 
+
+            checked_supsubs = []
+            gap_kpc = []
+
+            if config['SHOW_PROC_CHK_DETAILS']:
+                print("\nCONSISTENCY CHECK\n====================")
+
+            for sup in reversed(self.sups):
+                splitL = []
 
                 if sup == -999: #top handling
                     supsubs_ = self.sort.get_perfect_variants_idx()
@@ -769,7 +789,8 @@ class Variant(object):
                 else:
                     vid = self.sort.get_vid_by_vix(sup)
                     try:
-                        supsubs_ = self.sort.get_vixs_by_vids(list(self.sort.SS.loc[self.sort.SS['sup']==vid,['sub']].as_matrix().T[0]))
+                        #sups subs cache
+                        supsubs_ = sorted(self.sort.get_vixs_by_vids(list(self.sort.SS.loc[self.sort.SS['sup']==vid,['sub']].as_matrix().T[0])))
                     except:
                         supsubs_ = []
 
@@ -782,9 +803,15 @@ class Variant(object):
                         pos_.append(k) #pos
                     elif v[0] == 1:
                         pos_.append(k) #pos ambiguous
+
                 kpc_ = sorted(self.kpc + pos_)
-                subs_ = self.get_rel(relType=-1,kpc=kpc_,allowImperfect=allowImperfect) #not from cache
-                eqvs_ = self.get_rel(relType=0,kpc=kpc_,allowImperfect=allowImperfect) #not from cache
+
+                #TODO: something is happening to self.kpc in below two stmts
+                kpc = self.kpc
+                subs_ = sorted(self.get_rel(relType=-1,kpc=self.kpc,allowImperfect=allowImperfect)) #not from cache
+                eqvs_ = self.get_rel(relType=0,kpc=self.kpc,allowImperfect=allowImperfect) #not from cache
+                #TODO: something is happening to self.kpc in the above two stmts
+                self.kpc = kpc
 
                 #debugging - kpc and temp kpc
                 if config['SHOW_PROC_CHK_DETAILS']:
@@ -794,87 +821,117 @@ class Variant(object):
                 #kpc of the sup
                 supkpc = self.sort.get_kixs_by_val(val=1,vix=sup)
 
-                if kpc_ != supkpc: #no sense in doing consistency check, if target variant is looking to be a dupe of its sup
-
-                    #remove any target subs or target equivalent variants from consideration (use cache)
+                if kpc_ == supkpc: #no sense in doing consistency check, if target variant is looking to be a dupe of its sup
                     if config['SHOW_PROC_CHK_DETAILS']:
-                        print("supsubs: %s"%supsubs_)
-                        print("subs: %s"%subs_)
-                        print("eqvs: %s"%eqvs_)
-                    supsubs = list(set(supsubs_)-set(subs_)-set(eqvs_))
+                        print("kpc_ == supkpc")
 
-                    #do consistency checks on remaining variants
+                #remove any target subs or target equivalent variants from consideration (use cache)
+                if config['SHOW_PROC_CHK_DETAILS']:
+                    print("supsubs: %s"%supsubs_)
+                    print("subs: %s"%subs_)
+                    print("eqvs: %s"%eqvs_)
+
+                #get the final supsubs we'll work with
+                supsubs = list(set(supsubs_)-set(subs_)-set(eqvs_)-set(self.sups)-set(checked_supsubs))
+
+                if config['SHOW_PROC_CHK_DETAILS']:
+                    print("final supsubs: %s"%supsubs)
+
+                #do consistency checks on remaining variants
+                if config['SHOW_PROC_CHK_DETAILS']:
+                    print("\nThere are %s supsubs for sup: %s"%(len(supsubs),self.sort.get_vname_by_vix(sup)))
+
+                #if supsubs
+                if len(supsubs):
+
+                    #debugging stdout
                     if config['SHOW_PROC_CHK_DETAILS']:
-                        print("\nThere are %s supsubs for sup: %s"%(len(supsubs),self.sort.get_vname_by_vix(sup)))
-                    if len(supsubs):
+                        print("")
+
+                    #determine overlapping supsubs
+                    perfNP = self.sort.NP[self.sort.get_perfect_variants_idx()]
+                    VAR1a = np.argwhere(perfNP[:,self.kpc] == 1) #find self.kpc overlaps
+                    mask = np.isin(VAR1a[:,0], supsubs)
+                    idx = list(list(np.where(mask))[0])
+                    VAR2a = np.unique(VAR1a[:,0][idx]) #these are the overlapping supsubs with target v
+                    if config['SHOW_PROC_CHK_DETAILS']:
+                        print("Overlapping supsubs: [%s]\n"%(l2s(VAR2a)))
+
+                    #(beg) for each overlapping supsub
+                    for v in VAR2a:
+
+                        #vars
+                        supsub_kpc = self.sort.get_kixs_by_val(val=1,vix=v)
+                        supsub_min_vix_kpc = sorted(list(set(supsub_kpc)-set(self.kpc)))
+                        if len(supsub_min_vix_kpc):
+                            gap_kpc = list(set(gap_kpc + supsub_min_vix_kpc))
+                        #(X,Y,Z) kpc intersections btw vix, sup, and supsub
+                        Z_i_vix_and_supsub_kpc = sorted(list(set(supsub_kpc).intersection(set(self.kpc))))
+                        X_i_vix_and_sup_kpc = sorted(list(set(self.kpc).intersection(set(supkpc))))
+                        Y_i_sup_and_supsub_kpc = sorted(list(set(supsub_kpc).intersection(set(self.kpc))))
+                        #(X-Z,Y-Z) kpc differences btw intersections
+                        X_min_Z_kpc = sorted(list(set(X_i_vix_and_sup_kpc)-set(Z_i_vix_and_supsub_kpc)))
+                        Y_min_Z_kpc = sorted(list(set(Y_i_sup_and_supsub_kpc)-set(Z_i_vix_and_supsub_kpc)))
+                        #(XiZ,YiZ) kpc intersections btw intersections
+                        i_X_and_Z_kpc = sorted(list(set(X_i_vix_and_sup_kpc).intersection(set(Z_i_vix_and_supsub_kpc))))
+                        i_Y_and_Z_kpc = sorted(list(set(Y_i_sup_and_supsub_kpc).intersection(set(Z_i_vix_and_supsub_kpc))))
+
+                        #debugging stdout
                         if config['SHOW_PROC_CHK_DETAILS']:
+                            print(" - [2] supsub: %s [%s]"%(self.sort.get_vname_by_vix(v),v))
+                            print("       supsub_kpc: %s [%s]"%(l2s(self.sort.get_kname_by_kix(supsub_kpc)),l2s(supsub_kpc)))
+                            print("       [supsub_min_vix_kpc] %s [%s]"%(l2s(self.sort.get_kname_by_kix(supsub_min_vix_kpc)),l2s(supsub_min_vix_kpc)))
+                            print("       [gap_kpc] %s [%s]"%(l2s(self.sort.get_kname_by_kix(gap_kpc)),l2s(gap_kpc)))
+                            print("       [X_i_vix_and_sup_kpc] shared btw vix + sup: %s [%s]"%(l2s(self.sort.get_kname_by_kix(X_i_vix_and_sup_kpc)),l2s(X_i_vix_and_sup_kpc)))
+                            print("       [Y_i_sup_and_supsub_kpc] shared btw sup + supsub: %s [%s]"%(l2s(self.sort.get_kname_by_kix(Y_i_sup_and_supsub_kpc)),l2s(Y_i_sup_and_supsub_kpc)))
+                            print("       [Z_i_vix_and_supsub_kpc] shared btw vix + supsub: %s [%s]"%(l2s(self.sort.get_kname_by_kix(Z_i_vix_and_supsub_kpc)),l2s(Z_i_vix_and_supsub_kpc)))
+                            print("       [X_min_Z_kpc] %s [%s] <- this shared btw vix and sup, but NOT supsub with sup"%(l2s(self.sort.get_kname_by_kix(X_min_Z_kpc)),l2s(X_min_Z_kpc)))
+                            print("       [Y_min_Z_kpc] %s [%s]"%(l2s(self.sort.get_kname_by_kix(Y_min_Z_kpc)),l2s(Y_min_Z_kpc)))
+                            print("       [i_X_and_Z_kpc) shared btw X+Z: %s [%s]"%(l2s(self.sort.get_kname_by_kix(i_X_and_Z_kpc)),l2s(i_X_and_Z_kpc)))
+                            print("       [i_Y_and_Z_kpc] shared btw Y+Z: %s [%s]"%(l2s(self.sort.get_kname_by_kix(i_Y_and_Z_kpc)),l2s(i_Y_and_Z_kpc)))
+
+                        #go through i_X_and_Z_kpc/X_min_Z_kpc
+                        for k in X_min_Z_kpc:
+                            if k in unkL:
+                                unkD[k][1] = unkD[k][1] + 1
+                                if unkD[k][1] > 1:
+                                    if config['SHOW_PROC_CHK_DETAILS']:
+                                        print(" - [2] %s [%s] is a req positive" % (self.sort.get_kname_by_kix(k),k))
+                        if len(i_X_and_Z_kpc) > 0:
+                            if i_X_and_Z_kpc not in splitL:
+                                splitL.append(i_X_and_Z_kpc)
+                        if len(X_min_Z_kpc) > 0:
+                            if X_min_Z_kpc not in splitL:
+                                splitL.append(X_min_Z_kpc)
+                        if config['SHOW_PROC_CHK_DETAILS']:
+                            print("       splitL after i_X_and_Z_kpc/X_min_Z_kpc checks: %s"%splitL)
+
+                        #go through i_Y_and_Z_kpc/Y_min_Z_kpc
+                        for k in Y_min_Z_kpc:
+                            if k in unkL:
+                                unkD[k][1] = unkD[k][1] + 1
+                                if unkD[k][1] > 1:
+                                    if config['SHOW_PROC_CHK_DETAILS']:
+                                        print(" - [2] %s [%s] is a req positive" % (self.sort.get_kname_by_kix(k),k))
+                        if len(i_Y_and_Z_kpc) > 0:
+                            if i_Y_and_Z_kpc not in splitL:
+                                splitL.append(i_Y_and_Z_kpc)
+                        if len(Y_min_Z_kpc) > 0:
+                            if Y_min_Z_kpc not in splitL:
+                                splitL.append(Y_min_Z_kpc)
+                        if config['SHOW_PROC_CHK_DETAILS']:
+                            print("       splitL after i_Y_and_Z_kpc/Y_min_Z_kpc checks: %s"%splitL)
                             print("")
-
-                        #self.sort.get_perfect_variants_idx()
-                        perfNP = self.sort.NP[self.sort.get_perfect_variants_idx()]
-                        VAR1a = np.argwhere(perfNP[:,kpc_] == 1) #find self.kpc overlaps
-                        mask = np.isin(VAR1a[:,0], supsubs)
-                        idx = list(list(np.where(mask))[0])
-                        VAR2a = np.unique(VAR1a[:,0][idx]) #these are the overlapping supsubs with target v
-                        if config['SHOW_PROC_CHK_DETAILS']:
-                            print("Overlapping supsubs: [%s]\n"%(l2s(VAR2a)))
-
-                        for v in VAR2a:
-                            supsubkpc = self.sort.get_kixs_by_val(val=1,vix=v)
-                            #(mtP) common kpc btw supsub and target variant
-                            at_common_kpc = sorted(list(set(supsubkpc).intersection(set(kpc_))))
-                            #(msP1) common kpc btw vix and common sup
-                            as_common_kpc1 = sorted(list(set(kpc_).intersection(set(supkpc))))
-                            #(msP2) common kpc btw supsub and common sup
-                            as_common_kpc2 = sorted(list(set(supsubkpc).intersection(set(kpc_))))
-                            #(xP) diff_common_kpc = [msP(1/2)-mtP]
-                            diff_common_kpc1 = sorted(list(set(as_common_kpc1)-set(at_common_kpc)))
-                            diff_common_kpc2 = sorted(list(set(as_common_kpc2)-set(at_common_kpc)))
-                            #(cP) common_kp c = intersection btw msP(1/2) and mtP
-                            common_kpc1 = sorted(list(set(as_common_kpc1).intersection(set(at_common_kpc))))
-                            common_kpc2 = sorted(list(set(as_common_kpc2).intersection(set(at_common_kpc))))
-                            if config['SHOW_PROC_CHK_DETAILS']:
-                                print(" - [2] supsub: %s [%s]"%(self.sort.get_vname_by_vix(v),v))
-                                print("       supsubkpc: %s [%s]"%(l2s(self.sort.get_kname_by_kix(supsubkpc)),l2s(supsubkpc)))
-                                print("       (msP1) shared btw vix + sup: %s [%s]"%(l2s(self.sort.get_kname_by_kix(as_common_kpc1)),l2s(as_common_kpc1)))
-                                print("       (msP2) shared btw supsub + sup: %s [%s]"%(l2s(self.sort.get_kname_by_kix(as_common_kpc2)),l2s(as_common_kpc2)))
-                                print("       (mtP) shared btw vix + supsub: %s [%s]"%(l2s(self.sort.get_kname_by_kix(at_common_kpc)),l2s(at_common_kpc)))
-                                print("       (xP1) msP1-mtP: %s [%s]"%(l2s(self.sort.get_kname_by_kix(diff_common_kpc1)),l2s(diff_common_kpc1)))
-                                print("       (xP2) msP2-mtP: %s [%s]"%(l2s(self.sort.get_kname_by_kix(diff_common_kpc2)),l2s(diff_common_kpc2)))
-                                print("       (cP1) common btw msP1+mtP: %s [%s]"%(l2s(self.sort.get_kname_by_kix(common_kpc1)),l2s(common_kpc1)))
-                                print("       (cP2) common btw msP2+mtP: %s [%s]"%(l2s(self.sort.get_kname_by_kix(common_kpc2)),l2s(common_kpc2)))
-
-                            #go through common_kpc1/diff_common_kpc1
-                            for k in diff_common_kpc1:
-                                if k in unkL:
-                                    unkD[k][1] = unkD[k][1] + 1
-                                    if unkD[k][1] > 1:
-                                        if config['SHOW_PROC_CHK_DETAILS']:
-                                            print(" - [2] %s [%s] is a req positive" % (self.sort.get_kname_by_kix(k),k))
-                            if len(common_kpc1) > 0:
-                                splitL.append(common_kpc1)
-                            if len(diff_common_kpc1) > 0:
-                                splitL.append(diff_common_kpc1)
-                            if config['SHOW_PROC_CHK_DETAILS']:
-                                print("       splitL after commkpc1 checks: %s"%splitL)
-
-                            #go through common_kpc2/diff_common_kpc2
-                            for k in diff_common_kpc2:
-                                if k in unkL:
-                                    unkD[k][1] = unkD[k][1] + 1
-                                    if unkD[k][1] > 1:
-                                        if config['SHOW_PROC_CHK_DETAILS']:
-                                            print(" - [2] %s [%s] is a req positive" % (self.sort.get_kname_by_kix(k),k))
-                            if len(common_kpc2) > 0:
-                                splitL.append(common_kpc2)
-                            if len(diff_common_kpc2) > 0:
-                                splitL.append(diff_common_kpc2)
-                            if config['SHOW_PROC_CHK_DETAILS']:
-                                print("       splitL after commkpc2 checks: %s"%splitL)
-                                print("")
                         
+                        #this prevents us from repeating checks on overlapping supsubs
+                        if v not in checked_supsubs:
+                            checked_supsubs.append(v)
+
+                    #(end) for each overlapping supsub
+
                     #splits
                     uniq_splits = [list(x) for x in set(tuple(x) for x in splitL)]
+
                     if config['SHOW_PROC_CHK_DETAILS']:
                         print("       uniq_splits: %s"%uniq_splits)
                     if len(uniq_splits) > 0:
@@ -883,12 +940,15 @@ class Variant(object):
                             print("       split_intersects: %s"%l2s(split_intersects))
                         if (len(uniq_splits) > 1 and len(split_intersects) == 0):
                             if config['SHOW_PROC_CHK_DETAILS']:
-                                print(" - [2] split required: btw %s" % uniq_splits)
-                                print(" - [2] all unk to negative")
+                                print("")
+                                print(" - [2] split tentatively required: btw %s" % uniq_splits)
+                                print(" - [2] split tentative determination: all unk to negative")
                             splitReq = True
 
-                    if config['SHOW_PROC_CHK_DETAILS']:
-                        print("")
+            #(end)CONSISTENCY CHECK -------------- 
+
+        if config['SHOW_PROC_CHK_DETAILS']:
+            print("")
 
         #resolution vars - for imperfect variants
         if auto_perfVariants is not True:
@@ -902,31 +962,57 @@ class Variant(object):
         s_ = []
         spl = []
 
-        #resolutions - splits
+        #resolutions - gen pos/pos_a/neg - we need this first before the final
+        #split resolutions because we need to check pos/pos_a promotions in how
+        #they could affect things
+        for k,v in unkD.items():
+            if v[0] == 3 or v[2] == 1:
+                neg.append(k)
+            elif v[0] == 2 or v[1] > 1:
+                pos.append(k)
+            elif v[0] == 1:
+                pos_a.append(k)
+
+        #resolutions - splits - the final check
         if splitReq:
-            for s in uniq_splits:
-                if len(s) > 1 : lenS = len(s)
-                else: s_.append(s[0])
-            if len(uniq_splits)>1: #has to be over 1 for it to be a true split
+            gapkpc_min_pos = list(set(gap_kpc)-set(pos+pos_a))
+
+            #debugging
+            if config['SHOW_PROC_CHK_DETAILS']:
+                print("gapkpc_min_pos: %s"%gapkpc_min_pos)
+
+            #if all the gap_kpc can be explained by pos promotions, not a split
+            if len(gapkpc_min_pos) == 0:
+                splitReq = False
+                i_gapkpc_and_pos_a = sorted(list(set(gap_kpc).intersection(set(pos_a))))
+                if config['SHOW_PROC_CHK_DETAILS']:
+                    print("No split - all inconsistencies can be explained by positive promotions\n")
+                #any pos_a promotions (that would have been a split otherwise), need to be promoted to just pos
+                for k in i_gapkpc_and_pos_a:
+                    pos.append(k)
+                pos_a = []
+
+            #if the gap_kpc can't be explained by pos promotions, then yes -- a split, for sure
+            else:
+                #split -- so we need to remove from pos_a
+                for k in pos_a:
+                    neg.append(k)
+                pos_a = []
+                #split -- so we need to remove from pos
+                for k in pos:
+                    neg.append(k)
+                pos = []
+                for s in uniq_splits:
+                    if len(s) > 1 : lenS = len(s)
+                    else: s_.append(s[0])
+                #if len(uniq_splits)>1: #has to be over 1 for it to be a true split
                 if config['SHOW_PROC_CHK_DETAILS']:
                     print(split_intersects)
                     print(uniq_splits)
                     print("splits: %s [%s]" % (l2s(self.sort.get_kname_by_kix(s_)),l2s(s_)))
                 spl = s_
-            #else:
-            #    print("splits: %s" % l2s(uniq_splits))
-            for k in self.kuc:
-                unkD[k][2] = 1
-
-        #resolutions - other pos/pos_a/neg
-        if auto_perfVariants is not True:
-            for k,v in unkD.items():
-                if v[0] == 3 or v[2] == 1:
-                    neg.append(k)
-                elif v[0] == 2 or v[1] > 1:
-                    pos.append(k)
-                elif v[0] == 1:
-                    pos_a.append(k)
+                for k in self.kuc:
+                    unkD[k][2] = 1
 
         #mx_sort_recommendation updates
 
@@ -934,7 +1020,7 @@ class Variant(object):
             return 0 #no split errors for perfect variant chk
 
         #split found
-        if len(spl) > 0:
+        if splitReq:
             if auto_perfVariants is True:
                 print("[SPLIT ISSUE] vix: %s [%s] - splits: %s [%s]"%(self.sort.get_vname_by_vix(self.vix),self.vix,l2s(self.sort.get_kname_by_kix(spl)),l2s(spl)))
                 if config['SHOW_PROC_CHK_DETAILS']:
@@ -977,7 +1063,7 @@ class Variant(object):
                 sql = '''insert into mx_sort_recommendations (vID,instructions) values (%s,"%s");'''%(vid,str(rec).replace(" ",""))
                 self.dbo.sql_exec(sql)
 
-        if len(spl) > 0:
+        if splitReq:
             return 1 #split errors for imperfect variant chk
         else:
             return 0 #no split errors for imperfect variant chk
@@ -1319,10 +1405,10 @@ class Variant(object):
                     v2.sort = self.sort
                     v2.vix = sup
                     v2kpc = self.sort.get_kixs_by_val(val=1,vix=sup)
-                    common_kpc1 = set(self.kpc).intersection(set(v2kpc))
-                    common_kpc2 = set(v1kpc).intersection(set(v2kpc))
-                    for c in common_kpc2:
-                        if c not in common_kpc1:
+                    i_X_and_Z_kpc = set(self.kpc).intersection(set(v2kpc))
+                    i_Y_and_Z_kpc = set(v1kpc).intersection(set(v2kpc))
+                    for c in i_Y_and_Z_kpc:
+                        if c not in i_X_and_Z_kpc:
                             valid_sub = 0
                             invalid_subs.append(v)
                             break 
