@@ -2,13 +2,14 @@ Genotype from vcf calls
 
 Abstract
 
-   VCF files from FTDNA may contain four types of calls: reference calls,
-   where the sample's measured value is the REF allele, and the GT field is
-   0/0; alternative calls, where the sample's measured value is the ALT
-   allele, and the GT field is 1/1; mixed calls, where the sample's
-   measured value is either the REF or the ALT allele, and the GT field is
-   0/1; and mixed alternative calls, where the sample's measured value is
-   one of the multiple ALT alleles, and the GT field is 1/2.
+   VCF files from FTDNA may contain four types of calls: reference
+   calls, where the sample's measured value is the REF allele, and the
+   GT field is 0/0; alternative calls, where the sample's measured value
+   is the ALT allele, and the GT field is 1/1; mixed calls, where the
+   sample's measured value is either the REF or the ALT allele, and the
+   GT field is 0/1 or 0/2; and mixed alternative calls, where the
+   sample's measured value is one of the multiple ALT alleles, and the
+   GT field is 1/2.
 
    Lines in the VCF may either PASS or FAIL the filters applied by
    FTDNA. PASS is explicit, as the FILTER field in the VCF file is "PASS."
@@ -22,7 +23,7 @@ Abstract
    are other types not yet observed. If the following command returns any
    rows, the rows would represent additional types:
 
-   egrep -v '0/1|0/0|1/1|1/2|^#' *.vcf
+   egrep -v '0/1|0/2|0/0|1/1|1/2|^#' *.vcf
 
    This document describes how we store these values in the database for
    the redux pipeline and how to interpret the actual genotype downstream.
@@ -31,7 +32,7 @@ Definitions
 
    REF call: GT=0/0 and the call is securely the reference allele
    ALT call: GT=1/1 and the call is securely the alternative allele
-   mixed call: GT=0/1 and the call is either the REF or ALT allele
+   mixed call: GT=0/1 or 0/2 and the call is either the REF or ALT allele
    mixed ALT call: GT=1/2 and the call is one of the ALT alleles
    passed: the FILTER field contains PASS - passing FTDNA quality
    failed: the FILTER field doesn't contain PASS - less certain call
