@@ -1,0 +1,23 @@
+digraph database {
+	graph [rankdir=TB];
+	graph [label=<<font face="Arial" point-size="20">Database Interface</font><br/><font face="Arial" point-size="15">Storage/Analysis</font><br/><font face="Arial" point-size="10">(d) data layer (a) analysis layer</font>>];
+	edge [style=bold,color=blue];
+	node [shape=rectangle];
+    node [fontname="Arial" fillcolor=white shape=none margin="0,0"];
+
+VCF -> "(d)DB";
+BED -> "(d)DB";
+"Hap-R metadata" -> "(d)DB";
+"non-VCF" -> "(d)DB";
+"(d)DB" -> "array_api.py";
+"list of DNAs" -> "(d)DB";
+"array_api.py" -> "sparse array";
+"array_api.py" -> "coverage";
+coverage -> "(a)analysis";
+"sparse array" -> "(a)analysis";
+"(a)analysis" -> "array_api.py";
+"(a)analysis" -> "internal transient data structures";
+"(a)analysis" -> "cached persistent data structures";
+"internal transient data structures" -> "analysis products";
+"cached persistent data structures" -> "analysis products";
+}
