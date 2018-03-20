@@ -163,9 +163,8 @@ def in_range(v_vect, ranges, spans):
 #   Note that this can be called without the ppl argument, in which case ppl is
 #   formed by querying the analysis_kits table
 def get_variant_array(db, ppl=None):
-    # FIXME: handle refpos
     # FIXME: handle multiple calls at a given pos for a given person?
-    # FIXME: downstream analysis may need more than True/False
+    # FIXME: downstream analysis may need additional info in return tuple
     # FIXME: merge identical indels here?
     c1 = db.dc
     c1.execute('drop table if exists tmpt')
