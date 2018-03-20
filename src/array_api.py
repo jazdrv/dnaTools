@@ -194,12 +194,14 @@ def get_variant_array(db, ppl=None):
         arr[pp] = defaultdict()
 
     for (v,p,c) in c1:
+        passfail, gt, q1, q2, numcalls, passrate = unpack_call(c)
         # handle refpos variants
         try:
+            # swap variant and call's genotype
             v = refpos[v]
+            gt = {0:1, 1:0, 2:2, 3:3}[gt]
         except:
             pass
-        passfail, gt, q1, q2, numcalls, passrate = unpack_call(c)
         if passfail and numcalls > 1:
             arr[p][v] = (True, gt)
         var.add(v)
