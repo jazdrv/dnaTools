@@ -18,6 +18,7 @@ config = yaml.load(open(REDUX_CONF))
 
 trace = Trace(config['verbosity'])
 
+
 # Procedure: get_kit_coverage
 # Purpose:
 #   return a) sum of BED ranges for kit (how many bases are covered by the
@@ -63,40 +64,83 @@ def get_kit_coverage(dbo, pid):
                         (pid,)).fetchone()[0]
     return accum2, accum1
 
+# values that may be returned by in_range
+RANGE_VALS = 'nc', 'cbl', 'cbh', 'cblh', 'cov'
+RANGE_NC = 0
+RANGE_CBL = 1
+RANGE_CBH = 2
+RANGE_CBLH = 3
+RANGE_COV = 4
+
 # Procedure: in_range
 # Purpose: determine if a set of positions is contained in a set of ranges
 # Input:
 #   v_vect, a sorted vector of positions
 #   ranges, a range vector sorted on minaddr (minaddr,maxaddr)
+#   spans, a vector of lengths associates with v_vect or None
 # Returns:
-#   a vector of True values if v contained in a range, else False
+#   a vector of values:
+#     0: if v is not contained in a range
+#     1: if v is equal to the lower bound of a range
+#     2: if v is equal to the upper bound of a range
+#     3: if v equals both upper and lower bound of a range (of one)
 # Info:
-#   does not consider the endpoints; returns True if minaddr < pos < maxaddr
+#   Spans are for indels, which span a range of positions.
+#   FTDNA ranges are zero-based.
+#   For example, the range (1,2) refers to position 2 only, and (5,10) refers
+#   to position 6-10 inclusive. In this case, a SNP at position 6 would be cbl.
 def in_range(v_vect, ranges, spans):
     trace(4,'in_range')
     c_vect = []
     ii = 0
     nmax = len(ranges)
     for iv,v in enumerate(v_vect):
-        while ii < nmax and ranges[ii][0] < v:
+        while ii < nmax and (ranges[ii][0]+1) <= v:
             ii += 1
-        if ii > 0 and v > ranges[ii-1][0] and v < ranges[ii-1][1]:
-            # note <= ranges[1] means we don't treat cbh any differently
-            if spans and v+spans[iv] <= ranges[ii-1][1]:
-                # span fits within the range
-                c_vect.append(True)
-                trace(5, '{}-{}:cov ({},{})'.format(iv,v,ranges[ii-1][0],ranges[ii-1][1]))
-            elif spans:
-                # span exceeded the upper end of the range
-                c_vect.append(False)
-                trace(5, '{}-{}:nc ({},{})'.format(iv,v,ranges[ii-1][0],ranges[ii-1][1]))
+        if not spans: # snps
+            if v == ranges[ii-1][1] and v == (ranges[ii-1][0] + 1):
+                c_vect.append(RANGE_CBLH)
+                trace(25, '{}:cblh ({},{})'.format(v,ranges[ii-1][0],
+                                                       ranges[ii-1][1]))
+            elif v == ranges[ii-1][1]:
+                c_vect.append(RANGE_CBH)
+                trace(25, '{}:cbh ({},{})'.format(v,ranges[ii-1][0],
+                                                      ranges[ii-1][1]))
+            elif v == (ranges[ii-1][0]+1):
+                c_vect.append(RANGE_CBL)
+                trace(25, '{}:cbl ({},{})'.format(v,ranges[ii-1][0],
+                                                      ranges[ii-1][1]))
+            elif ii > 0 and v > ranges[ii-1][0] and v < ranges[ii-1][1]:
+                c_vect.append(RANGE_COV)
+                trace(25, '{}:snp cov ({},{})'.format(v,ranges[ii-1][0],
+                                                          ranges[ii-1][1]))
             else:
-                # no span - SNP fits within range
-                c_vect.append(True)
-                trace(5, '{}-{}:snp cov ({},{})'.format(iv,v,ranges[ii-1][0],ranges[ii-1][1]))
-        else:
-            c_vect.append(False)
-            trace(5, '{}-{}:not cov ({},{})'.format(iv,v,ranges[ii-1][0],ranges[ii-1][1]))
+                c_vect.append(RANGE_NC)
+                trace(25, '{}:snp nc ({},{})'.format(v,ranges[ii-1][0],
+                                                         ranges[ii-1][1]))
+        else: # spans
+            if v == (ranges[ii-1][0]+1) and v+spans[iv]-1 == ranges[ii-1][1]:
+                c_vect.append(RANGE_CBLH)
+                trace(25, '{}-{}:cblhspan ({},{})'.format(v,v+spans[iv]-1,
+                                            ranges[ii-1][0], ranges[ii-1][1]))
+            elif v == (ranges[ii-1][0]+1) and v+spans[iv]-1 < ranges[ii-1][1]:
+                c_vect.append(RANGE_CBL)
+                trace(25, '{}-{}:cblspan ({},{})'.format(v,v+spans[iv]-1,
+                                            ranges[ii-1][0], ranges[ii-1][1]))
+            elif v+spans[iv]-1 == ranges[ii-1][1]:
+                c_vect.append(RANGE_CBH)
+                trace(25, '{}-{}:cbhspan ({},{})'.format(v,v+spans[iv]-1,
+                                            ranges[ii-1][0], ranges[ii-1][1]))
+            elif v+spans[iv]-1 < ranges[ii-1][1]:
+                # span fits within the range
+                c_vect.append(RANGE_COV)
+                trace(25, '{}-{}:covspan ({},{})'.format(v,v+spans[iv]-1,
+                                            ranges[ii-1][0], ranges[ii-1][1]))
+            else:
+                # span exceeded the upper end of the range
+                c_vect.append(RANGE_NC)
+                trace(25, '{}-{}:ncspan ({},{})'.format(v,v+spans[iv]-1,
+                                            ranges[ii-1][0], ranges[ii-1][1]))
     if len(c_vect) != len(v_vect):
         raise ValueError
     return c_vect
@@ -114,8 +158,11 @@ def in_range(v_vect, ranges, spans):
 # Info:
 #   All entries in vcfcalls are returned; not limited to repeated calls.  Call
 #   get_kit_coverages in conjunction with this to get the coverage associated
-#   with the list of variants
-def get_variant_array(db, ppl):
+#   with the list of variants returned.
+#   
+#   Note that this can be called without the ppl argument, in which case ppl is
+#   formed by querying the analysis_kits table
+def get_variant_array(db, ppl=None):
     # FIXME: handle refpos
     # FIXME: handle multiple calls at a given pos for a given person?
     # FIXME: downstream analysis may need more than True/False
@@ -123,9 +170,23 @@ def get_variant_array(db, ppl):
     c1 = db.dc
     c1.execute('drop table if exists tmpt')
     c1.execute('create temporary table tmpt(id integer)')
-    c1.executemany('insert into tmpt values(?)', [(p,) for p in ppl])
+    if ppl:
+        c1.executemany('insert into tmpt values(?)', [(p,) for p in ppl])
+    else:
+        c1.execute('insert into tmpt select * from analysis_kits')
     c1 = c1.execute('''select c.vid,c.pid,c.callinfo from vcfcalls c
                      inner join tmpt t on c.pid=t.id''')
+
+    # refpos processing
+    c2 = db.db.cursor()
+    c2.execute('''select distinct r.vid, rv.id from refpos r
+                  inner join variants v on v.id=r.vid
+                  inner join variants rv on rv.anc=v.der and
+                     rv.der=v.anc and rv.pos=v.pos and rv.buildid=v.buildid
+               ''')
+    refpos = dict([(rp[0],rp[1]) for rp in c2])
+    c2.close()
+
     # build a 2d array
     arr = {}
     var = set()
@@ -133,9 +194,14 @@ def get_variant_array(db, ppl):
         arr[pp] = defaultdict()
 
     for (v,p,c) in c1:
-        passfail, q1, q2, numcalls, passrate = unpack_call(c)
+        # handle refpos variants
+        try:
+            v = refpos[v]
+        except:
+            pass
+        passfail, gt, q1, q2, numcalls, passrate = unpack_call(c)
         if passfail and numcalls > 1:
-            arr[p][v] = True
+            arr[p][v] = (True, gt)
         var.add(v)
 
     c1.execute('drop table tmpt')
@@ -187,8 +253,8 @@ def get_variant_csv(db, ppl):
 
     # get all calls appearing in vcfcalls
     arr, pl, vlfull = get_variant_array(db, ppl)
-    tc.execute('''select d.id,d.kitid from dataset d
-                  inner join tmpp t on t.pid=d.id''')
+    tc.execute('''select d.dnaid,d.kitid from dataset d
+                  inner join tmpp t on t.pid=d.dnaid''')
     klist = list([(k[0],k[1]) for k in tc])
 
     trace(2, 'write csv file at {}'.format(time.clock()))
@@ -197,12 +263,10 @@ def get_variant_csv(db, ppl):
         out += vtext
         out += ','
         for pid,kid in klist:
-            # if there's an entry, it means not covered
-            try:
-                coverage = cdict[pid][vid]
-                ncstring = ';nc'
-            except:
-                # no entry in the array means covered
+            # indicate what coverage (blank means covered)
+            if cdict[pid][vid] < RANGE_COV:
+                ncstring = RANGE_VALS[cdict[pid][vid]]
+            else:
                 ncstring = ''
             try:
                 # entry in the array means called
@@ -210,9 +274,12 @@ def get_variant_csv(db, ppl):
                 callstring = '+'
             except:
                 callstring = ''
-
-            out += '{}{},'.format(callstring, ncstring)
-        out += '\n'
+            if ncstring and callstring:
+                out += ';'.join([callstring, ncstring])
+            else:
+                out += (callstring + ncstring)
+            out += ','
+        out = out[:-1] + '\n'
     return out
 
 # Procedure: get_dna_ids
@@ -261,6 +328,7 @@ def get_call_coverage(dbo, pid, vids, spans=None):
     if spans:
         trace(3, 'get_call_coverage: spans:{}...'.format(spans[:10]))
     dc.executemany('insert into tmpt values(?)', [(a,) for a in vids])
+    # get list of variants of interest ordered by position
     calls = dc.execute('''select v.id, v.pos from variants v
                           inner join tmpt t on t.vid=v.id
                           order by 2''')
@@ -269,7 +337,7 @@ def get_call_coverage(dbo, pid, vids, spans=None):
     iv = [v[0] for v in xl]
     pv = [v[1] for v in xl]
     trace(500, '{} calls: {}...'.format(len(pv), pv[:20]))
-    # form a list of ranges of interest
+    # get the ordered list of ranges of interest
     rc = dbo.cursor()
     ranges = rc.execute('''select minaddr,maxaddr from bedranges r
                            inner join bed b on b.bID=r.id
@@ -335,10 +403,9 @@ def get_kit_coverages(db, pids, vids):
         trace(4, 'get_call_coverage(db, {}, {}, {})'.format(pid,[(i[0],i[1]) for i in enumerate(indel_ids)][:50],[(i[0],i[1]) for i in enumerate(spans)][:50]))
         iv,cv = get_call_coverage(db, pid, indel_ids, spans)
         trace(5, 'indels:{}..., coverage:{}...'.format([(i[0],i[1]) for i in enumerate(iv)][:50], [(i[0],i[1]) for i in enumerate(cv)][:50]))
-        # store "not-covered" since it's sparse
+        # store coverage information
         for cov,vid in zip(cv, iv):
-            if not cov:
-                cdict[pid][vid] = False
+            cdict[pid][vid] = cov
         # get snp coverage for a kit
         trace(3, 'snps for kit {} at {}...'.format(pid,time.clock()))
         trace(4, 'get_call_coverage(db, {}, {})'.format(pid,snp_ids))
@@ -346,13 +413,22 @@ def get_kit_coverages(db, pids, vids):
         trace(5, 'snps:{}..., coverage:{}...'.format(iv[:5], cv[:5]))
         # store "not-covered" since it's sparse
         for cov,vid in zip(cv, iv):
-            if not cov:
-                cdict[pid][vid] = False
+            cdict[pid][vid] = cov
     return cdict
 
 # test framework
 if __name__=='__main__':
     from db import DB
+    # smoke test DB __init__
     db = DB(drop=False)
+    # smoke test trace()
     trace(0, 'test message should display to stdout')
     trace(0, 'analysis_ids: {} (may be empty if kits are not loaded)'.format(get_analysis_ids(db)))
+    # smoke test in_range()
+    v_vect = [1, 1, 5, 30, 35, 40, 42, 47, 52]
+    ranges = [(0, 20), (30, 40), (41, 42), (45, 50)]
+    # expected: [1, 1, 4, 0, 4, 2, 3, 4, 0]
+    trace(0, '{}'.format(in_range(v_vect,ranges,None)))
+    spans = [20, 1, 1, 3, 6, 2, 2, 3, 1]
+    # expected: [3, 1, 4, 0, 2, 0, 0, 4, 0]
+    trace(0, '{}'.format(in_range(v_vect,ranges,spans)))
