@@ -282,11 +282,10 @@ def get_kits (API='http://haplogroup-r.org/api/v1/uploads.php', qry='format=json
             trace(1, 'reading kit info from the web')
             url = '?'.join([API, qry])
             res = requests.get(url)
-            print('Res.encoding is', res.encoding)
             js = res.json()
             open('json.out','w').write(json.dumps(js))
     except:
-        print('Failed to pull kit metadata from {}'.format(API))
+        trace(0, 'Failed to pull kit metadata from {}'.format(API))
         raise # fixme - what to do on error?
     return js
 
