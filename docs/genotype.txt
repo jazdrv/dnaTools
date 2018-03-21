@@ -140,6 +140,10 @@ get_variant_array(db, ppl)
    evidence for various alleles as the genotype. If it's a mixed call,
    the reference allele is implied as one of the possibilities.
 
+   The return value in the array already has refpos corrected. That
+   means the original variant is replaced with one that has REF and ALT
+   swapped, and the calls are corrected accordingly.
+
    Sample array tuple values:
    (True, 0) - REF call that passed: genotype is REF
    (True, 1) - ALT call that passed: genotype is ALT

@@ -215,7 +215,8 @@ create index varidx on variants(buildID, pos);
 /* a listing in this table means reverse the meaning of anc and der */
 drop table if exists refpos;
 create table refpos(
-    vID INTEGER references variants(ID)
+    vID INTEGER references variants(ID),
+    UNIQUE(vid)
     );
 
 /* allele values, strings of DNA letters */
@@ -230,8 +231,8 @@ create table alleles(
 drop table if exists snpnames;
 create table snpnames(
     vID INTEGER REFERENCES variants(ID),
-    snpname TEXT
-    -- unique(snpname,vID)
+    snpname TEXT,
+    unique(snpname,vID)
     );
 
 /* build (reference genome assembly) associated with data sets */

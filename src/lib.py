@@ -185,9 +185,14 @@ def populate_refpos(dbo):
                 trace(0, 'failed on row of refpos.txt:{}'.format(row))
         dbo.dc.execute('delete from refpos')
         for snpname in snps:
-           dbo.dc.execute('''insert into refpos select v.id from variants v
-                       inner join snpnames s on s.vid=v.id and s.snpname=?''',
+           dbo.dc.execute('''insert or ignore into refpos
+                       select vid from snpnames where snpname=?''',
                        (snpname,))
+
+        # make sure there's a swapped variant
+        dbo.dc.execute('''insert or ignore into variants(pos,anc,der,buildid)
+                          select pos,der,anc,buildid from variants v
+                          inner join refpos r on r.vid=v.id''')
     return
 
 # Procedure: populate_analysis_kits
@@ -195,8 +200,7 @@ def populate_refpos(dbo):
 # Input: a database object
 # Returns: nothing
 # Info:
-#   populate reference positives from the SNPs listed in refpos.txt, a text
-#   file
+#   populate analysis kits from those listed in kits.txt, a text file
 def populate_analysis_kits(dbo):
     trace(1, 'populate analysis kit list table')
     with open('kits.txt') as kitsfile:
@@ -278,11 +282,10 @@ def get_kits (API='http://haplogroup-r.org/api/v1/uploads.php', qry='format=json
             trace(1, 'reading kit info from the web')
             url = '?'.join([API, qry])
             res = requests.get(url)
-            print('Res.encoding is', res.encoding)
             js = res.json()
             open('json.out','w').write(json.dumps(js))
     except:
-        print('Failed to pull kit metadata from {}'.format(API))
+        trace(0, 'Failed to pull kit metadata from {}'.format(API))
         raise # fixme - what to do on error?
     return js
 
@@ -427,6 +430,7 @@ def populate_fileinfo(dbo, fromweb=True):
 #   buildname, (optional, default 'hg38') the reference build name
 # Returns: nothing - only updates the table
 def updatesnps(db, snp_reference, buildname='hg38'):
+    trace(1, 'update snpnames for {}'.format(buildname))
     bid = get_build_byname(db, buildname)
     db.dc.execute('drop table if exists tmpt')
     db.dc.execute('create temporary table tmpt(a integer, b integer, c text, d text, e text, unique(a,b,c,d,e))')
@@ -540,16 +544,21 @@ def populate_from_BED_file(dbo, pid, fileobj):
 # Purpose: pack call information into an integer
 # Info:
 #   this procedure exists to make vcfcalls table more compact
-#   stores: pos, anc, der, passfail, q1, q2, nreads, passrate
+#   stores: pos, anc, der, passfail, BQ, MQ, nreads, passrate, gt
 #   needs corresponding unpack_call
 def pack_call(call_tup):
-    maxshift = 31
+    maxshift = 33
+    ngbits = 2
     nqbits = 7
     ncbits = 9
     npbits = 8
     # pack in a pass/fail flag
     bitfield = {'PASS': 1<<maxshift, 'FAIL': 0}[call_tup[3]]
     maxshift -= 1
+    # pack in a genotype, [0,3]
+    gtdict = {'0/0':0, '1/1':1, '0/2': 2, '0/1': 2, '1/2': 3}
+    bitfield |= (gtdict[call_tup[8]] << (maxshift - ngbits + 1))
+    maxshift -= ngbits
     # pack in a unitless nqbits-number representing q1
     qnum = int(float(call_tup[4]) * 3)
     if qnum > (1<<nqbits) - 1:
@@ -580,7 +589,8 @@ def pack_call(call_tup):
 # Info:
 #   if pack_call changes, this needs to change
 def unpack_call(bitfield):
-    maxshift = 31
+    maxshift = 33
+    ngbits = 2
     nqbits = 7
     ncbits = 9
     npbits = 8
@@ -588,11 +598,12 @@ def unpack_call(bitfield):
     calls = (bitfield>>npbits) & ((1<<ncbits) - 1)
     q2 = float((bitfield>>(npbits+ncbits)) & ((1<<nqbits) - 1)) / 2.
     q1 = float((bitfield>>(npbits+ncbits+nqbits)) & ((1<<nqbits) - 1)) /3.
+    gt = (bitfield>>(npbits+ncbits+nqbits*2)) & ((1<<ngbits) - 1)
     if (1<<maxshift) & bitfield:
         passfail = True
     else:
         passfail = False
-    return passfail, q1, q2, calls, passrate
+    return passfail, gt, q1, q2, calls, passrate
 
 # Procedure: populate_from_VCF_file
 # Purpose: populate calls, quality, and variants from a VCF file
@@ -602,22 +613,23 @@ def unpack_call(bitfield):
 #   pid, a person ID
 #   fileobj, a file object for the open VCF file
 # Returns: nothing, only updates database tables
+# Info:
+#   depends on refpos table, which should already be populated
 def populate_from_VCF_file(dbo, bid, pid, fileobj):
     dc = dbo.cursor()
     b = dc.execute('select buildNm from build where id=?', (bid,)).fetchone()[0]
     if b != 'hg38':
-        trace(0, 'currently unable to parse build {}'.format(b))
+        trace(0, 'ERROR: currently unable to parse build {}'.format(b))
         return
     # parse output of getVCFvariants(fname)
     parsed = getVCFvariants(fileobj)
     tups = []
     for line in parsed.splitlines():
-        # pos, anc, der, passfail, q1, q2, nreads, passrate
+        # pos, anc, der, passfail, q1, q2, nreads, passrate, gt
         tups.append(line.split())
+    trace(5, 'parsed vcf: {}...'.format(tups[:3]))
 
-    # trace(1, 'parsed vcf: {}...'.format(tups[:3]))
     # filter down to the calls we want to store
-    # fixme this is probably not the correct filtering
     try:
         #passes = [t for t in tups if t[2] != '.' and (t[3] == 'PASS' or
         #          (int(t[6]) < 4 and float(t[7]) > .75))]
@@ -635,25 +647,29 @@ def populate_from_VCF_file(dbo, bid, pid, fileobj):
 
     # execute sql on results to save in vcfcalls
     dc.execute('drop table if exists tmpt')
-    dc.execute('''create temporary table tmpt(a integer, b integer,
-                  c text, d text, e integer, f integer)''')
-    dc.executemany('insert into tmpt values(?,?,?,?,?,?)',
-                          [[bid]+v[0:3]+[pid]+[v[-1]] for v in call_info])
-    # fixme - performance
-    trace(3,'VCF update variants at {}'.format(time.clock()))
+    # bid, pos, ref, alt, pid, passfail, gt, packcall
+    dc.execute('''create temporary table tmpt(a integer, b integer, c text,
+                  d text, e integer, f text, g text, h integer)''')
+    dc.executemany('insert into tmpt values(?,?,?,?,?,?,?,?)',
+                    [[bid]+v[0:3]+[pid]+[v[3]]+v[-2:] for v in call_info])
+    # fixme - performance?
+    trace(4,'VCF update variants at {}'.format(time.clock()))
     dc.execute('''insert or ignore into variants(buildID, pos, anc, der)
                   select a, b, an.id, dr.id from tmpt
                   inner join alleles an on an.allele = c
                   inner join alleles dr on dr.allele = d''')
-    trace(3,'done at {}'.format(time.clock()))
-    trace(3,'VCF update calls at {}'.format(time.clock()))
+    trace(4,'VCF update calls at {}'.format(time.clock()))
+    # don't insert clear reference calls unless they are refpos
+    dc.execute('''delete from tmpt where g='0/0' and d='.' and f='PASS'
+                  and b not in (select v.pos from variants v
+                    inner join refpos r on r.vid=v.id)''')
     dc.execute('''insert into vcfcalls (pid,vid,callinfo)
-                  select e, v.id, f from tmpt
+                  select e, v.id, h from tmpt
                   inner join alleles an on an.allele = c
                   inner join alleles dr on dr.allele = d
                   inner join variants v on v.buildID = a and v.pos = b
                   and v.anc=an.id and v.der=dr.id''')
-    trace(3,'done at {}'.format(time.clock()))
+    trace(4,'VCF load for {} done at {}'.format(pid, time.clock()))
     dc.execute('drop table tmpt')
     dc.close()
 
@@ -695,7 +711,7 @@ def populate_from_dataset(dbo):
     dc = dbo.cursor()
     bed_re = re.compile(r'(\b(?:\w*[^_/])?regions(?:\[\d\])?\.bed)')
     vcf_re = re.compile(r'(\b(?:\w*[^_/])?variants(?:\[\d\])?\.vcf)')
-    dc = dc.execute('select fileNm,buildID,ID from dataset')
+    dc = dc.execute('select fileNm,buildID,DNAID from dataset')
     allsets = list([(t[0],t[1],t[2]) for t in dc])
     pc = dbo.cursor()
     pl = pc.execute('select distinct pid from vcfcalls')
