@@ -9,7 +9,7 @@ Abstract
    sample's measured value is either the REF or the ALT allele, and the
    GT field is 0/1 or 0/2; and mixed alternative calls, where the
    sample's measured value is one of the multiple ALT alleles, and the
-   GT field is 1/2.
+   GT field is 1/2, 1/3, or 2/2.
 
    Lines in the VCF may either PASS or FAIL the filters applied by
    FTDNA. PASS is explicit, as the FILTER field in the VCF file is "PASS."
@@ -33,7 +33,7 @@ Definitions
    REF call: GT=0/0 and the call is securely the reference allele
    ALT call: GT=1/1 and the call is securely the alternative allele
    mixed call: GT=0/1 or 0/2 and the call is either the REF or ALT allele
-   mixed ALT call: GT=1/2 and the call is one of the ALT alleles
+   mixed ALT call: GT=1/2, 1/3, or 2/2 and call is one of the ALT alleles
    passed: the FILTER field contains PASS - passing FTDNA quality
    failed: the FILTER field doesn't contain PASS - less certain call
    ambiguous call: GT=0/0 or 1/1 and not passed
