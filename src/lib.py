@@ -556,7 +556,7 @@ def pack_call(call_tup):
     bitfield = {'PASS': 1<<maxshift, 'FAIL': 0}[call_tup[3]]
     maxshift -= 1
     # pack in a genotype, [0,3]
-    gtdict = {'0/0':0, '1/1':1, '0/2': 2, '0/1': 2, '1/2': 3}
+    gtdict = {'0/0':0, '1/1':1, '0/2':2, '0/1':2, '1/2':3, '1/3':3, '2/2':3}
     bitfield |= (gtdict[call_tup[8]] << (maxshift - ngbits + 1))
     maxshift -= ngbits
     # pack in a unitless nqbits-number representing q1
@@ -721,9 +721,9 @@ def populate_from_dataset(dbo):
 
     # fixme - hack - better index handling (drop index for insert performance)
     trace(3, 'drop indexes at {}'.format(time.clock()))
-    dc.execute('drop index bedidx')
-    dc.execute('drop index vcfidx')
-    dc.execute('drop index vcfpidx')
+    dc.execute('drop index if exists bedidx')
+    dc.execute('drop index if exists vcfidx')
+    dc.execute('drop index if exists vcfpidx')
     trace(3, 'done at {}'.format(time.clock()))
 
     for (fn,buildid,pid) in allsets:
@@ -759,7 +759,10 @@ def populate_from_dataset(dbo):
             nkits += 1
         except:
             trace(0, 'FAIL on file {} (not loaded)'.format(zipf))
-            raise
+            dbo.commit()
+            dbo.close()
+            trace(0, 'commit and close db')
+            raise # FIXME what to do on error
         if nkits >= config['kitlimit']:
             break
         # fixme - if BED passes and VCF fails, cruft is left behind. This loop

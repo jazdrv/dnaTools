@@ -89,8 +89,9 @@ if args.testdrive:
     db = db_creation()
     populate_from_dataset(db)
     trace(0,'get DNA ids')
-    ids = get_dna_ids(db)
-    if config['kitlimit'] < 26:
+    #ids = get_dna_ids(db)
+    ids = get_analysis_ids(db) # only get the kits of interest
+    if len(ids) < 26:
         trace(0, 'calculate csv at {}'.format(time.clock()))
         out = get_variant_csv(db,ids)
         trace(0, 'write csv at {}'.format(time.clock()))
