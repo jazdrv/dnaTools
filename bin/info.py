@@ -80,7 +80,15 @@ def querysnp(snp):
     trace(2, 'looking for details about {}...'.format(snp))
     c1 = dbconn.cursor()
     ids = set()
-    c1 = c1.execute('select id from variants where pos=?', (snp,))
+    try:
+        pos,ref,alt = snp.split('.')
+        c1.execute('''select v.id from variants v
+                 inner join alleles a on a.id=v.anc
+                 inner join alleles b on b.id=v.der
+                 where v.pos=? and a.allele=? and b.allele=?''',
+                 (pos,ref,alt))
+    except:
+        c1.execute('''select v.id from variants v where pos=?''', (snp,))
     for row in c1:
         ids.add(row[0])
     c1 = c1.execute('select vid from snpnames where snpname=?', (snp.upper(),))
@@ -123,7 +131,7 @@ def querysnp(snp):
     for iid in kitids:
         c1 = c1.execute('''select d.kitid,b.buildnm from dataset d
                            inner join build b on b.id=d.buildid
-                           where d.id=?''', (iid,))
+                           where d.dnaid=?''', (iid,))
         kitid, buildnm = c1.fetchone()
         print('{} {}'.format(kitid,buildnm))
 
