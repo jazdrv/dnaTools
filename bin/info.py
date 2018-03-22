@@ -35,6 +35,7 @@ DEBUG=config['verbosity']
 
 parser = argparse.ArgumentParser()
 parser.add_argument('-s', '--snp', nargs=1)
+parser.add_argument('-k', '--kit', nargs=1)
 args = parser.parse_args()
 
 
@@ -73,6 +74,18 @@ def listbed():
     c = c1.execute('select name,seq from files where kit=1 order by 2')
     for row in c:
         print(os.path.join(UNZIPDIR,row[0])+'.bed')
+
+
+# list out kit(s) by identifier, either pid or kitid
+def listkit(kit):
+    c1 = dbconn.cursor()
+    c1.execute('''select dnaid, kitid, filenm from dataset where dnaid in
+                  (select dnaid from dataset where dnaid=?
+                   union all select dnaid from dataset where kitid=?)''',
+                   (kit,kit))
+    print('{:10s}{:10s}{:58s}'.format('pID','kitID','filenm'))
+    for row in c1:
+        print('{:<10}{:10s}{:58s}'.format(row[0], row[1], row[2][:58]))
 
 
 # print info about a snp by name or addr
@@ -138,6 +151,9 @@ def querysnp(snp):
 
 if args.snp:
     querysnp(args.snp[0])
+
+if args.kit:
+    listkit(args.kit[0])
 
 dbconn.commit()
 dbcurs.close()
