@@ -88,8 +88,7 @@ if args.loadkits:
 if args.testdrive:
     db = db_creation()
     populate_from_dataset(db)
-    trace(0,'get DNA ids')
-    #ids = get_dna_ids(db)
+    trace(0,'get analysis DNA ids')
     ids = get_analysis_ids(db) # only get the kits of interest
     if len(ids) < 26:
         trace(0, 'calculate csv at {}'.format(time.clock()))
@@ -101,6 +100,7 @@ if args.testdrive:
     # no other work flow
     trace(0, 'commit work at {}'.format(time.clock()))
     db.commit()
+    trace(1, 'commit done at {:.2f} seconds'.format(time.time() - t0))
     db.close()
     sys.exit(0)
 
