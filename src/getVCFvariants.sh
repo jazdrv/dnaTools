@@ -13,12 +13,12 @@ if [ "$1" != "-" ]; then
     eval $(parse_yaml ${REDUX_PATH}/config.yaml "config_")
     FILE="${config_REDUX_DATA}/${config_unzip_dir}/$1"
     if [ "$1" == "" ]; then
-	echo "Nothing given. Aborting."
-	exit
+	    echo "Nothing given. Aborting."
+        exit
     fi
     if [[ ! -f "$FILE" ]]; then
-	echo "$FILE doesn't exist. Aborting."
-	exit
+        echo "$FILE doesn't exist. Aborting."
+	    exit
     fi
 else
     FILE=$1

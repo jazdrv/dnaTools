@@ -52,6 +52,13 @@ create table dataset(
 
 create index fileidx on dataset(kitId);
 
+/* kits to be used for analysis */
+/* this provides a way to analyze a static subset of the loaded kits */
+drop table if exists analysis_kits;
+create table analysis_kits(
+    pID INTEGER references dataset(DNAID) -- person of interest in analysis
+    );
+
 /* surname associated with person and/or kit */
 drop table if exists surname;
 create table surname(
@@ -132,10 +139,10 @@ drop table if exists vcfcalls;
 create table vcfcalls(
     pID INTEGER REFERENCES dataset(ID),
     vID INTEGER REFERENCES variants(ID),
-    callinfo INTEGER,  --some info about this call packed into an int
+    callinfo INTEGER   --some info about this call packed into an int
     -- zak (beg) sort prototype
-    assigned INTEGER, -- just to get this working
-    genotype TEXT -- just to get this working
+    -- assigned INTEGER, -- just to get this working
+    -- genotype TEXT -- just to get this working
     -- zak (end) sort prototype
     );
 
@@ -212,7 +219,8 @@ create index varidx on variants(buildID, pos);
 /* a listing in this table means reverse the meaning of anc and der */
 drop table if exists refpos;
 create table refpos(
-    vID INTEGER references variants(ID)
+    vID INTEGER references variants(ID),
+    UNIQUE(vid)
     );
 
 /* allele values, strings of DNA letters */
@@ -227,8 +235,8 @@ create table alleles(
 drop table if exists snpnames;
 create table snpnames(
     vID INTEGER REFERENCES variants(ID),
-    snpname TEXT
-    -- unique(snpname,vID)
+    snpname TEXT,
+    unique(snpname,vID)
     );
 
 /* build (reference genome assembly) associated with data sets */

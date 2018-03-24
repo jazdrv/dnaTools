@@ -40,11 +40,10 @@ Setup
 
 2. Set the environment variable
 
-export REDUX_PATH="/where/ever/redux/src"
+. ./redux.env
 
 3. Run the driver, which creates and populates the database basics. This is
-an important step in the setup, and it downloads a couple of important
-files from the web.
+an important step in the setup if it has never been run before
 
 cd ${REDUX_PATH}
 ./redux.py -c
@@ -55,8 +54,12 @@ ftp. It's not important which set of or how many files you download.
 sqlite3 variant.db > /tmp/f.out <<EOF
 select fileNm from dataset where fileNm like '%/b38/%';
 EOF
+
 cd ../data/HaplogroupR
-for f in `head -10 /tmp/f.out`; do wget -nc -x -nH --user user@it2kane.org --password=xxx-xxx ftp://it2kane.org/$f; done
+IFS_backup=$IFS
+IFS=$(echo -en "\n\b")
+for f in `head -10 /tmp/f.out`; do wget -nc -x -nH --user <user>@it2kane.org --password=<password> ftp://it2kane.org/"$f"; done
+IFS=${IFS_backup}
 
 5. Run the driver in test mode
 

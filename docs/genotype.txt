@@ -1,0 +1,237 @@
+Genotype from vcf calls
+
+Abstract
+
+   VCF files from FTDNA may contain four types of calls: reference
+   calls, where the sample's measured value is the REF allele, and the
+   GT field is 0/0; alternative calls, where the sample's measured value
+   is the ALT allele, and the GT field is 1/1; mixed calls, where the
+   sample's measured value is either the REF or the ALT allele, and the
+   GT field is 0/1 or 0/2; and mixed alternative calls, where the
+   sample's measured value is one of the multiple ALT alleles, and the
+   GT field is 1/2, 1/3, or 2/2.
+
+   Lines in the VCF may either PASS or FAIL the filters applied by
+   FTDNA. PASS is explicit, as the FILTER field in the VCF file is "PASS."
+   FAIL is implicit, with the FILTER field containing other information.
+
+   There may be more than one alternative allele in the ALT field,
+   separated by commas. More than one of those alternative alleles may need
+   to be considered.
+
+   The four types mentioned above are from observation. It's possible there
+   are other types not yet observed. If the following command returns any
+   rows, the rows would represent additional types:
+
+   egrep -v '0/1|0/2|0/0|1/1|1/2|^#' *.vcf
+
+   This document describes how we store these values in the database for
+   the redux pipeline and how to interpret the actual genotype downstream.
+
+Definitions
+
+   REF call: GT=0/0 and the call is securely the reference allele
+   ALT call: GT=1/1 and the call is securely the alternative allele
+   mixed call: GT=0/1 or 0/2 and the call is either the REF or ALT allele
+   mixed ALT call: GT=1/2, 1/3, or 2/2 and call is one of the ALT alleles
+   passed: the FILTER field contains PASS - passing FTDNA quality
+   failed: the FILTER field doesn't contain PASS - less certain call
+   ambiguous call: GT=0/0 or 1/1 and not passed
+   securely called: GT=0/0 or 1/1 and passed
+   refpos: for analysis, we need to swap the meaning of REF and ALT
+   covered: the position is covered by a range in the FTDNA BED file
+
+High level approach
+
+   The key database table used in encoding calls from the VCF files is
+   the vcfcalls table. This table simply joins DNA samples to VCF calls,
+   and it adds a small amount of information about the call to assist
+   downstream analysis.
+
+   Not all calls need to be stored. In particular, securely called REF
+   calls that are not refpos variants may be assumed to be the reference
+   allele, and we can save storage and I/O by not saving them in the
+   database. We also choose not to store every line from the VCF file if
+   it is not passed and read depth and quality when parsing the file
+   looks too low to consider in analysis.
+
+Refpos
+
+   Refpos variants are positive in the reference assembly because the
+   sequence used for the reference was positive for that variant. In
+   these cases, a REF call is really an ALT call and vice-versa; we're
+   normally interpreting REF as ancestral and ALT as derived genotype.
+
+   Refpos variants are specified in the refpos table in the database.
+   This is a simple list of variant IDs that are known to be refpos, and
+   it's a user-supplied input.
+
+   Refpos variants have no impact on analysis UNLESS there's a mix of
+   the two genotypes (REF and ALT) within the set of kits that are being
+   analyzed. This is because in analysis, we don't care about variants
+   that are all the same genotype for every DNA sample in the sample
+   set; those variants do not define any tree branches.
+
+   When parsing the VCF files, we don't know if there's such a mix
+   within the sample set or not, so we always store REF calls for the
+   refpos variants, as the REF calls in those cases represent the true
+   variant. If the refpos table is not properly populated for the sample
+   set before parsing the VCF files, some important calls might not get
+   stored in the database, and kits with those variants would need to be
+   re-parsed after correcting the refpos table.
+
+Interface
+
+   The vcfcalls table is not intended to be used in raw form, though
+   various queries against it may be useful to the analyst. An array
+   API, get_variant_array(), is provided that interprets the vcfcalls
+   table for a set of DNA kits and a set of variants and returns the
+   genotype information in a complex data structure. Future requirements
+   for providing call information should be implemented in
+   get_variant_array() or other procedures in array_api.py to keep the
+   data layer as independent of the analysis as possible - downstream
+   analysis work should not depend on how the data are stored or
+   processed, to permit enhancements to the data layer without
+   disrupting code. Known future work will likely cause significant
+   changes, including processing of "other" file formats such as FGC
+   Elite and BAM files.
+
+   In conjunction with get_variant_array(), coverage information is
+   provided by the get_kit_coverages() API. Coverage is necessary for
+   properly interpreting variants that are not called for a DNA sample:
+   if the position of the variant is not covered for a given DNA sample,
+   the variant is an unknown value for that sample.
+
+   These two interfaces co-evolve with the analysis layer in case there
+   is missing or deeper information needed for analysis, keeping the
+   data layer independent of other layers.
+
+get_variant_array(db, ppl)
+
+   db - a database object
+   ppl - a list of DNA ids (references dataset(DNAID))
+
+   Return value is a 2-dimensional associative array and a list of
+   variants that is the union of all variants across all DNAIDs. The
+   first dimension of the array is the DNA ID (corresponding to
+   dataset.DNAID); the second dimension is the variant ID (corresponding
+   to variants.ID). For example, arr[17][11] is the call information for
+   vID=11 and DNAID=17. This is a "sparse array" in that there may not
+   be any call information for a given DNAID,vID
+
+   The call information is a tuple, containing the following
+   information. This information may change in the future as needed:
+
+   0: PASS or FAIL as True/False
+   1: REF call or ALT call or mixed call or mixed ALT call as 0/1/2/3
+
+   If there is no entry in the array for a (DNAID,pID), it means there
+   is no call stored in vcfcalls that passed the parsing. If the variant
+   is not covered for that DNAID, the genotype should then be
+   interpreted as unknown. Otherwise, the genotype should be interpreted
+   as the reference. The reference genotype is not stored anywhere;
+   however, at least one DNAID must have a variant call for anything to
+   be returned by this interface, and the reference genotype can be
+   taken from that call. A third possibility must be kept in mind - that
+   there is some information in the .VCF file that we chose to discard
+   when parsing and populating vcfcalls.
+
+   When the call is mixed or mixed ALT, it means there's possible
+   evidence for various alleles as the genotype. If it's a mixed call,
+   the reference allele is implied as one of the possibilities.
+
+   The return value in the array already has refpos corrected. That
+   means the original variant is replaced with one that has REF and ALT
+   swapped, and the calls are corrected accordingly.
+
+   Sample array tuple values:
+   (True, 0) - REF call that passed: genotype is REF
+   (True, 1) - ALT call that passed: genotype is ALT
+   (True, 2) - mixed call that passed: genotype is ALT but also may be
+               REF or other ALT values
+   (True, 3) - mixed REF call: genotype is ALT, but there may be other
+               ALT entries for this position
+   (False,1) - ALT call that didn't pass FTDNA filters: genotype is ALT
+   no entry  - genotype is REF if covered or unknown if not covered
+
+------------------------------------------------------------------------------
+
+VCF cheat sheet
+
+FORMAT
+------
+
+AB              Ratio of genotype allelic depths for heterozygous variants
+AD              Allelic depths for the ref and alt alleles in the order listed
+AS              Allele support scores for the ref and alt alleles in the order
+                listed
+BQ              RMS Phred-scaled base quality of supporting reads at variant
+                position
+ClipCnt         Number of reads with clipping for the ref and alt alleles in
+                the order listed
+DP              Approximate read depth (reads with MQ=255 or with bad mates
+                are filtered)
+GQ              Genotype Quality
+GT              Genotype
+LowMQ           Number of reads with MQ<=10 for the ref and alt alleles in
+                the order listed
+PL              Normalized, Phred-scaled likelihoods for genotypes as defined
+                in the VCF specification
+RAD             Allelic depths for the ref and alt alleles in the order
+                listed, for reverse-strand reads only
+ReadOffset      Average offset to variant position in reads supporting the
+                ref and alt alleles in the order listed
+SR              Ratio of reads supporting genotype that are on the forward
+                strand
+
+INFO
+----
+
+BQ              RMS Phred-scaled base quality of supporting reads at
+                variant position
+GC              GC content of all reads at the variant position
+HL              Longest Homopolymer run adjacent to position across all reads
+HR              RMS Weighted Homopolymer Rate of all reads
+IndelCnt        RMS number of indels near variant position across all reads
+MQ              RMS Mapping Quality
+MQ0             Total Mapping Quality Zero Reads
+MismatchCnt     RMS number of mismatches near variant position across all
+                reads
+
+column  what    example
+------  ----    ------- 
+
+1       #CHROM  chrY
+2       POS     2781653
+3       ID      .
+4       REF     A
+5       ALT     .
+6       QUAL    12.0807
+7       FILTER  GTL=1.889918;QUAL=12.080310
+8       INFO    BQ=36.0373;GC=0.544073;HL=2;HR=2;IndelCnt=0;MQ=60;MQ0=0;
+                MismatchCnt=0
+9       FORMAT  GT:AD:DP:GQ:PL:AB:SR:BQ:LowMQ:ClipCnt:ReadOffset:RAD:AS
+10      data    0/0:2:2:0:0:0:0.5:36:0:1:33:1:1.9995
+
+
+EXAMPLE
+-------
+
+chrY    2781785 .       AG      G,A,AAA	GT:AD:DP:GQ:PL:AB:SR:BQ:LowMQ:ClipCnt:ReadOffset:RAD:AS	0/1:4,3,1,1:10:5:27,0,33,33,34,36,33,34,36,36:0.571429:0.285714:19:0,0,0,0:3,3,1,1:115.75,73.6667,79,63:4,1,0,0:3.97455,2.94992,0.981063,0.95898
+
+FORMAT = GT:AD:DP:GQ:PL:AB:SR:BQ:LowMQ:ClipCnt:ReadOffset:RAD:AS
+data = 0/1:4,3,1,1:10:5:27,0,33,33,34,36,33,34,36,36:0.571429:0.285714:19:0,0,0,0:3,3,1,1:115.75,73.6667,79,63:4,1,0,0:3.97455,2.94992,0.981063,0.95898
+GT = 0/1
+AD = 4,3,1,1
+DP = 10
+GQ = 5
+PL = 27,0,33,33,34,36,33,34,36,36
+AB = 0.571429
+SR = 0.285714
+BQ = 19
+LowMQ = 0,0,0,0
+ClipCnt = 3,3,1,1
+ReadOffset = 115.75,73.6667,79,63
+RAD = 4,1,0,0
+AS = 3.97455,2.94992,0.981063,0.95898
+

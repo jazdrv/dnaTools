@@ -35,6 +35,7 @@ DEBUG=config['verbosity']
 
 parser = argparse.ArgumentParser()
 parser.add_argument('-s', '--snp', nargs=1)
+parser.add_argument('-k', '--kit', nargs=1)
 args = parser.parse_args()
 
 
@@ -75,12 +76,32 @@ def listbed():
         print(os.path.join(UNZIPDIR,row[0])+'.bed')
 
 
+# list out kit(s) by identifier, either pid or kitid
+def listkit(kit):
+    c1 = dbconn.cursor()
+    c1.execute('''select dnaid, kitid, filenm from dataset where dnaid in
+                  (select dnaid from dataset where dnaid=?
+                   union all select dnaid from dataset where kitid=?)''',
+                   (kit,kit))
+    print('{:10s}{:10s}{:58s}'.format('pID','kitID','filenm'))
+    for row in c1:
+        print('{:<10}{:10s}{:58s}'.format(row[0], row[1], row[2][:58]))
+
+
 # print info about a snp by name or addr
 def querysnp(snp):
     trace(2, 'looking for details about {}...'.format(snp))
     c1 = dbconn.cursor()
     ids = set()
-    c1 = c1.execute('select id from variants where pos=?', (snp,))
+    try:
+        pos,ref,alt = snp.split('.')
+        c1.execute('''select v.id from variants v
+                 inner join alleles a on a.id=v.anc
+                 inner join alleles b on b.id=v.der
+                 where v.pos=? and a.allele=? and b.allele=?''',
+                 (pos,ref,alt))
+    except:
+        c1.execute('''select v.id from variants v where pos=?''', (snp,))
     for row in c1:
         ids.add(row[0])
     c1 = c1.execute('select vid from snpnames where snpname=?', (snp.upper(),))
@@ -123,13 +144,16 @@ def querysnp(snp):
     for iid in kitids:
         c1 = c1.execute('''select d.kitid,b.buildnm from dataset d
                            inner join build b on b.id=d.buildid
-                           where d.id=?''', (iid,))
+                           where d.dnaid=?''', (iid,))
         kitid, buildnm = c1.fetchone()
         print('{} {}'.format(kitid,buildnm))
 
 
 if args.snp:
     querysnp(args.snp[0])
+
+if args.kit:
+    listkit(args.kit[0])
 
 dbconn.commit()
 dbcurs.close()
