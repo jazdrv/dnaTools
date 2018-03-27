@@ -146,6 +146,22 @@ def in_range(v_vect, ranges, spans):
     return c_vect
 
 
+# Procedure: get_variant_defs
+# Purpose: get the ref and alt ids for a list of variants
+# Input:
+#   a db instance
+#   a list of variant ids
+# Returns:
+#   (vid, anc, der) for vid in variants
+def get_variant_defs(db, vids):
+    dc = db.cursor()
+    rval = []
+    for v in vids:
+        dc.execute('select id,anc,der from variants where id=?', (v,))
+        rval.append(dc.fetchone())
+    return rval
+
+
 # Procedure: get_variant_array
 # Purpose: build a dictionary of people-variants
 # Input:
@@ -433,3 +449,5 @@ if __name__=='__main__':
     spans = [20, 1, 1, 3, 6, 2, 2, 3, 1]
     # expected: [3, 1, 4, 0, 2, 0, 0, 4, 0]
     trace(0, '{}'.format(in_range(v_vect,ranges,spans)))
+    # smoke test get_variant_defs
+    trace(0, '{}'.format(get_variant_defs(db, [1,2,20,21])))

@@ -1,15 +1,6 @@
 #!/usr/bin/env python3
 #
 # Copyright (c) 2018 the Authors
-<<<<<<< HEAD
-
-# Contributors: Jef Treece, Harald Alvestrand, Iain McDonald, Zak Jones
-# Purpose: Reduction and comparison script for Y-chromosome NGS test data
-# For free distribution under the terms of the GNU General Public License,
-# version 3 (29 June 2007)
-# https://www.gnu.org/licenses/gpl.html
-
-=======
 #
 # Purpose: Reduction and comparison main driver for Y-chromosome NGS test data
 #
@@ -20,7 +11,6 @@
 #   REDUX_PATH must be set to source directory
 #   config.yaml is read for configuration settings
 #
->>>>>>> 758a9ccc23e5ca9ab2c06de04ceb97a5479613d6
 import sys
 import argparse
 import yaml
@@ -29,49 +19,29 @@ import time
 from lib import *
 from db import DB
 from array_api import *
-
-<<<<<<< HEAD
-# (beg) sort prototype libs
-
-from db1 import DB1 #this one can be better merged with db.py (but for debugging, I prefer this one) 
 from sort import *
 
-# (end) sort prototype libs
-
-# required environment vars:
-# REDUX_PATH - where the source code and config.yaml lives
-=======
->>>>>>> 758a9ccc23e5ca9ab2c06de04ceb97a5479613d6
 
 # configure default logging of any errors that occur during setup
 trace = Trace(1)
 
 # environment variable required
-#try:
-#    sys.path.append(os.environ['REDUX_PATH'])
-#    REDUX_CONF = os.path.join(os.environ['REDUX_PATH'], 'config.yaml')
-#except:
-#    trace(0,"Missing environment variable REDUX_PATH. Aborting.")
-#    sys.exit()
+try:
+    sys.path.append(os.environ['REDUX_PATH'])
+    REDUX_CONF = os.path.join(os.environ['REDUX_PATH'], 'config.yaml')
+except:
+    trace(0,"Missing environment variable REDUX_PATH. Aborting.")
+    sys.exit()
 
 # parse the remainder of the configuration settings
-#config = yaml.load(open(REDUX_CONF))
+config = yaml.load(open(REDUX_CONF))
 
-<<<<<<< HEAD
-try:
-    config = yaml.load(open(os.environ['REDUX_CONF_ZAK']))
-except:
-    print("Missing environment variable REDUX_CONF_ZAK. Aborting.")
-    sys.exit()
-sys.path.append(config['REDUX_PATH'])
-=======
 # set up logging for diagnostics and status messages
 trace = Trace(config['verbosity'])
 
 start_time = time.clock()
 t0 = time.time()
 trace (1, "Beginning run [%s]" % time.strftime("%H:%M:%S"))
->>>>>>> 758a9ccc23e5ca9ab2c06de04ceb97a5479613d6
 
 # basic strategy for command-line arguments
 #  -command-line args mainly select one or more basic execution elements (below)
@@ -137,10 +107,7 @@ parser.add_argument('-b', '--backup', help='do a "backup"', action='store_true')
 
 args = parser.parse_args()
 
-<<<<<<< HEAD
-=======
 
->>>>>>> 758a9ccc23e5ca9ab2c06de04ceb97a5479613d6
 # main program
 
 # drop database and have a clean start
@@ -172,18 +139,12 @@ if args.testdrive:
     db.close()
     sys.exit(0)
 
-<<<<<<< HEAD
-# run everything
-if args.all:
-    go_backup()
-    go_prep()
-    go_db()
 
 # (beg) sort prototype stuff
 
 def init_vt(initSort=False):
     vt = Variant()
-    vt.dbo = DB1()
+    vt.dbo = DB()
     vt.dbo.db = vt.dbo.db_init()
     vt.dbo.dc = vt.dbo.cursor()
     if initSort:
@@ -193,7 +154,7 @@ def init_vt(initSort=False):
     
 def init_sort():
     sort = Sort()
-    sort.dbo = DB1()
+    sort.dbo = DB()
     return sort
 
 if args.sort:
@@ -294,8 +255,7 @@ if args.clade_priority:
     vt.clade_priority([args.clade_priority]+args.rest)
 
 # (end) sort prototype stuff
-=======
->>>>>>> 758a9ccc23e5ca9ab2c06de04ceb97a5479613d6
+
 
 trace(0, "** script complete.\n")
 trace(1, 'done at {:.2f} seconds'.format(time.time() - t0))

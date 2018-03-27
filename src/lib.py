@@ -648,80 +648,48 @@ def populate_from_VCF_file(dbo, bid, pid, fileobj):
     # save the call quality info - experimental
     call_info = [t + [pack_call(t)] for t in passes]
 
-    cnt=0
-    chk=0
-    for p_ in passes:
-        if p_[0] == '21450311':
-            print("THE CNT IS: %s" % cnt)
-            chk = cnt
-        cnt = cnt+1
-
     # execute sql on results to save in vcfcalls
     dc.execute('drop table if exists tmpt')
-<<<<<<< HEAD
-
-    #dc.execute('''create temporary table tmpt(a integer, b integer,
-    #              c text, d text, e integer, f integer)''')
-
-    #(beg) hack - for sort prototype
-    dc.execute('''create table if not exists tmpta(a int, b int, c text, d text, g text, e int, f int, h text)''')
-    dc.execute('''create temporary table tmpt(a int, b int, c text, d text, g text, e int, f int, h text)''')
-    #(end) hack - for sort prototype
-
-    #dc.executemany('insert into tmpt values(?,?,?,?,?,?)',
-    #                      [[bid]+v[0:3]+[pid]+[v[-1]] for v in call_info])
-
-    #if pid == 1040:
-    #    print(len(passes))
-    #    print(len(call_info))
-    #    print(passes[chk])
-    #    print(call_info[chk])
-    #    sys.exit()
-
-    #(beg) hack - for sort prototype
-    dc.executemany("insert into tmpt values(?,?,?,?,?,?,?,?)",
-                          [[bid]+v[0:4]+[pid]+[v[-1]]+[v[-2]] for v in call_info])
-    dc.executemany("insert into tmpta values(?,?,?,?,?,?,?,?)",
-                          [[bid]+v[0:4]+[pid]+[v[-1]]+[v[-2]] for v in call_info])
-    #(end) hack - for sort prototype
-
-    trace(3,'VCF update variants at {}'.format(time.clock()))
-=======
     # bid, pos, ref, alt, pid, passfail, gt, packcall
     dc.execute('''create temporary table tmpt(a integer, b integer, c text,
                   d text, e integer, f text, g text, h integer)''')
     dc.executemany('insert into tmpt values(?,?,?,?,?,?,?,?)',
                     [[bid]+v[0:3]+[pid]+[v[3]]+v[-2:] for v in call_info])
-    # fixme - performance?
-    trace(4,'VCF update variants at {}'.format(time.clock()))
->>>>>>> 758a9ccc23e5ca9ab2c06de04ceb97a5479613d6
-    dc.execute('''insert or ignore into variants(buildID, pos, anc, der)
-                  select a, b, an.id, dr.id from tmpt
-                  inner join alleles an on an.allele = c
-                  inner join alleles dr on dr.allele = d''')
-<<<<<<< HEAD
-    trace(3,'done at {}'.format(time.clock()))
-    trace(3,'VCF update calls at {}'.format(time.clock()))
 
-    #dc.execute('''insert into vcfcalls (pid,vid,callinfo)
-    #              select e, v.id, f from tmpt
+    # ----- merge for sort prototype -----
+    # dc.execute('''create table if not exists tmpta(a int, b int, c text, d text, g text, e int, f int, h text)''')
+    # dc.execute('''create temporary table tmpt(a int, b int, c text, d text, g text, e int, f int, h text)''')
+    # dc.executemany("insert into tmpt values(?,?,?,?,?,?,?,?)",
+    #                      [[bid]+v[0:4]+[pid]+[v[-1]]+[v[-2]] for v in call_info])
+    # dc.executemany("insert into tmpta values(?,?,?,?,?,?,?,?)",
+    #                      [[bid]+v[0:4]+[pid]+[v[-1]]+[v[-2]] for v in call_info])
+    # ----- merge for sort prototype -----
 
-    #(next two lines) hack - for sort prototype
-    dc.execute('''insert into vcfcalls (pid,vid,callinfo,assigned,genotype)
-                  select e, v.id, f, case when g = 'PASS' then 1 else -1 end as g, h from tmpt
-=======
-    trace(4,'VCF update calls at {}'.format(time.clock()))
     # don't insert clear reference calls unless they are refpos
     dc.execute('''delete from tmpt where g='0/0' and d='.' and f='PASS'
                   and b not in (select v.pos from variants v
                     inner join refpos r on r.vid=v.id)''')
+
+    dc.execute('''insert or ignore into variants(buildID, pos, anc, der)
+                  select a, b, an.id, dr.id from tmpt
+                  inner join alleles an on an.allele = c
+                  inner join alleles dr on dr.allele = d''')
+
+
+    # fixme - performance?
+    trace(4,'VCF update variants at {}'.format(time.clock()))
+
+    # ----- merge for sort prototype -----
+    # dc.execute('''insert into vcfcalls (pid,vid,callinfo,assigned,genotype)
+    #              select e, v.id, f, case when g = 'PASS' then 1 else -1 end as g, h from tmpt
+    # ----- merge -----
     dc.execute('''insert into vcfcalls (pid,vid,callinfo)
                   select e, v.id, h from tmpt
->>>>>>> 758a9ccc23e5ca9ab2c06de04ceb97a5479613d6
                   inner join alleles an on an.allele = c
                   inner join alleles dr on dr.allele = d
                   inner join variants v on v.buildID = a and v.pos = b
                   and v.anc=an.id and v.der=dr.id''')
+
     trace(4,'VCF load for {} done at {}'.format(pid, time.clock()))
     dc.execute('drop table tmpt')
     dc.close()
@@ -812,14 +780,11 @@ def populate_from_dataset(dbo):
             nkits += 1
         except:
             trace(0, 'FAIL on file {} (not loaded)'.format(zipf))
-<<<<<<< HEAD
-        #    # raise
-=======
             dbo.commit()
             dbo.close()
             trace(0, 'commit and close db')
             raise # FIXME what to do on error
->>>>>>> 758a9ccc23e5ca9ab2c06de04ceb97a5479613d6
+
         if nkits >= config['kitlimit']:
             break
         # fixme - if BED passes and VCF fails, cruft is left behind. This loop

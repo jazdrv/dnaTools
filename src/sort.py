@@ -1,24 +1,22 @@
-# license + libs{{{
-
-# Purpose: Y-DNA NGS analytics
-# Git repo: https://github.com/jazdrv/dnaTools
-# For free distribution under the terms of the GNU General Public License,
-# version 3 (29 June 2007) https://www.gnu.org/licenses/gpl.html
-
+#!/usr/bin/env python3
+#
+# Copyright (c) 2018 the Authors
+#
+# Purpose: Reduction and comparison array and sort
+#
+# Usage:
+#   import Variant or Sort class or run directly as a script for unit tests
+#
 import sys,os,yaml,csv,json,time,numpy as np
 from beautifultable import BeautifulTable
 from collections import OrderedDict
 import pandas as pd
 from array_api import *
 import pickle
-#}}}
 
-try:
-    config = yaml.load(open(os.environ['REDUX_CONF_ZAK']))
-except:
-    print("Missing environment variable REDUX_CONF_ZAK. Aborting.")
-    sys.exit()
-sys.path.append(config['REDUX_PATH'])
+REDUX_CONF = os.path.join(os.environ['REDUX_PATH'], 'config.yaml')
+config = yaml.load(open(REDUX_CONF))
+
 
 def l2s(lst):
     return ",".join(str(x) for x in lst)
@@ -26,7 +24,7 @@ def l2s(lst):
 class Variant(object):
 
     def __init__(self):
-        self.dbo = None
+        self.dbo = DB(drop=False)
 
     def proc(self,vname):
         #Note: just process one variant 
@@ -157,12 +155,12 @@ class Variant(object):
 
                 #delete any old mx_clade_priorities refs  (this tbl might not be necessary)
                 sql = "delete from mx_clade_priorities where snpname = '%s' and vID = %s " % (new_snpname,new_vID)
-                self.dbo.sql_exec(sql)
+                self.dbo.dc.execute(sql)
                 sql = '''
                     insert into mx_clade_priorities (ID,snpname,vID) select
                     null,snpname,vID from snpnames where snpname = '%s' and vID='%s';
                     ''' % (new_snpname,new_vID)
-                self.dbo.sql_exec(sql)
+                self.dbo.dc(sql)
 
                 #this checks for a different snpname/vID combo
                 sql = '''
@@ -171,7 +169,7 @@ class Variant(object):
                     where D.dupe_vID=S.vID and S.snpname = '%s' and S.vID = %s
                     and V.ID = D.dupe_vID
                     ''' % (new_snpname,new_vID)
-                self.dbo.sql_exec(sql)
+                self.dbo.dc.execute(sql)
                 F = self.dbo.fetchall()
                 if len(F) > 0:
                     new_vid = True
@@ -189,7 +187,7 @@ class Variant(object):
                         where D.vID=S.vID and S.snpname = '%s' and S.vID = %s
                         and V.ID = D.vID
                         ''' % (new_snpname,new_vID)
-                    self.dbo.sql_exec(sql)
+                    self.dbo.dc.execute(sql)
                     F = self.dbo.fetchall()
                     if len(F) > 0:
                         new_vid = False
@@ -211,45 +209,45 @@ class Variant(object):
                     #update mx_sups_subs - sup references
                     if new_vid:
                         sql = "update mx_sups_subs set sup = %s where sup = %s" % (new_vID,old_vID)
-                        self.dbo.sql_exec(sql)
+                        self.dbo.dc.execute(sql)
 
                     #update mx_sups_subs - sub references
                     if new_vid:
                         sql = "update mx_sups_subs set sub = %s where sub = %s" % (old_vID,new_vID)
-                        self.dbo.sql_exec(sql)
+                        self.dbo.dc.execute(sql)
 
                     #update panda version of mx_sups_subs
                     if new_vid:
                         sql = "select distinct * from mx_sups_subs;"
-                        self.dbo.sql_exec(sql)
+                        self.dbo.dc.execute(sql)
                         sups_ = self.dbo.fetchall()
                         self.SS = pd.DataFrame(sups_,columns=['sup','sub'])
 
                     #update mx_dupe_variants - vID references
                     if new_vid:
                         sql = "update mx_dupe_variants set vID = %s where vID = %s" % (new_vID,old_vID)
-                        self.dbo.sql_exec(sql)
+                        self.dbo.dc.execute(sql)
 
                     #update mx_dupe_variants - dupe_vID references
                     if new_vid:
                         sql = "update mx_dupe_variants set dupe_vID = %s where dupe_vID = %s" % (old_vID,new_vID)
-                        self.dbo.sql_exec(sql)
+                        self.dbo.dc.execute(sql)
 
                     #update mx_variants table
                     sql = "delete from mx_variants;"
-                    self.dbo.sql_exec(sql)
+                    self.dbo.dc.execute(sql)
                     sql = "insert into mx_variants (ID,name,pos) values (?,?,?);"
-                    self.dbo.sql_exec_many(sql,[(tuple([vid,nm,pos])) for (n,(nm,(vid,idx,pos))) in enumerate(self.sort.get_axis('variants'))])
+                    self.dbo.dc.executemany(sql,[(tuple([vid,nm,pos])) for (n,(nm,(vid,idx,pos))) in enumerate(self.sort.get_axis('variants'))])
 
                     #update mx_idxs table
                     if new_vid:
                         sql = "update mx_idxs set axis_id = %s where axis_id= %s and type_id=0" % (new_vID,old_vID)
-                        self.dbo.sql_exec(sql)
+                        self.dbo.dc.execute(sql)
 
                     #reset mx_sort_recommendations
                     if new_vid:
                         sql = "delete from mx_sort_recommendations;"
-                        self.dbo.sql_exec(sql)
+                        self.dbo.dc.execute(sql)
 
                     print("Done making changes. Check the matrix and clade detail views to make sure it worked!")
 
@@ -292,7 +290,7 @@ class Variant(object):
             RV.der, RV.idx, RV.vID1, RV.vID2, RV.reasonId
             from v_ref_variants RV where %s order by 7,1,3;
             ''' % sqlw
-        self.dbo.sql_exec(sql)
+        self.dbo.dc.execute(sql)
         F = self.dbo.fetchall()
 
         #stdout hg38 tbl data
@@ -326,7 +324,7 @@ class Variant(object):
                 select distinct RV.snpname,RV.ID,RV.pos,RV.buildNm from v_ref_variants_hg19 RV
                 where %s order by 1;
                 ''' % sqlw
-            self.dbo.sql_exec(sql)
+            self.dbo.dc.execute(sql)
             F = self.dbo.fetchall()
             if len(F) > 0:
                 table = BeautifulTable()
@@ -357,21 +355,21 @@ class Variant(object):
             left join snpnames S on S.vID = v.ID
             where B.buildNm = 'hg38' and V.buildID = B.ID and %s
             ''' % (sqlw)
-        self.dbo.sql_exec(sql)
+        self.dbo.dc.execute(sql)
         vids1 = [i[0] for i in list(self.dbo.fetchall())]
 
         #get vid - imx_dupe_variants (dupe_vId ref)
         sql = '''
             select distinct vid from mx_dupe_variants D where dupe_vID in (%s)
             '''% l2s(vids1)
-        self.dbo.sql_exec(sql)
+        self.dbo.dc.execute(sql)
         vids2 = [i[0] for i in list(self.dbo.fetchall())]
 
         #get vid - imx_dupe_variants (vId ref)
         sql = '''
             select distinct dupe_vid from mx_dupe_variants D where vID in (%s)
             '''% l2s(vids1)
-        self.dbo.sql_exec(sql)
+        self.dbo.dc.execute(sql)
         vids3 = [i[0] for i in list(self.dbo.fetchall())]
 
         #get all vid supporting details
@@ -381,7 +379,7 @@ class Variant(object):
             RV.der, RV.idx, RV.vID1, RV.vID2, RV.reasonId, RV.name
             from v_ref_variants RV where RV.ID in (%s) order by 7,1,3;
             ''' % l2s(vids)
-        self.dbo.sql_exec(sql)
+        self.dbo.dc.execute(sql)
         F = self.dbo.fetchall()
 
         #stdout tbl
@@ -445,7 +443,7 @@ class Variant(object):
             where D.ID = T.pID and RV.pos = T.pos and %s -- and T.pID is not None
             order by 1
             ''' % (sqlw)
-        self.dbo.sql_exec(sql)
+        self.dbo.dc.execute(sql)
         F = self.dbo.fetchall()
 
         if len(F) > 0:
@@ -556,7 +554,7 @@ class Variant(object):
 
             #move vid to stash table
             sql = "insert into mx_variant_stash (ID) values (%s)" % vid
-            self.dbo.sql_exec(sql)
+            self.dbo.dc.execute(sql)
 
             #mx_remove_vix routine
             self.sort.mx_remove_vix(vix)
@@ -1058,10 +1056,10 @@ class Variant(object):
 
             #reset mx_sort_recommendations with new instructions
             sql = "delete from mx_sort_recommendations where vID=%s"%vid
-            self.dbo.sql_exec(sql)
+            self.dbo.dc.execute(sql)
             if len(rec.items()):
                 sql = '''insert into mx_sort_recommendations (vID,instructions) values (%s,"%s");'''%(vid,str(rec).replace(" ",""))
-                self.dbo.sql_exec(sql)
+                self.dbo.dc.execute(sql)
 
         if splitReq:
             return 1 #split errors for imperfect variant chk
@@ -1087,7 +1085,7 @@ class Variant(object):
         #Note: retrieve insructions for this variant (or exit, if nothing)
         vid = self.sort.get_vid_by_vix(self.vix)
         sql = "select instructions from mx_sort_recommendations where vID=%s"%vid
-        self.dbo.sql_exec(sql)
+        self.dbo.dc.execute(sql)
         row = self.dbo.fetchone()
         if row is None:
             print("vix (%s [%s]) - there are no saved instructions.  Exiting."%(self.vix,self.sort.get_vname_by_vix(self.vix)))
@@ -1112,16 +1110,16 @@ class Variant(object):
                     print("Changing: coord (%s:%s) to POS"%(self.sort.get_vname_by_vix(self.vix),self.sort.get_kname_by_kix(kix)))
                 kid = self.sort.get_kid_by_kix(kix)
                 sql = "select * from mx_calls where vID=%s and pID=%s"%(vid,kid)
-                self.dbo.sql_exec(sql)
+                self.dbo.dc.execute(sql)
                 row = self.dbo.fetchone()
                 if row is not None:
                     oldval = row[4]
                     sql = "update mx_calls set assigned=1,confidence=2,changed=%s where pID=%s and vID=%s;"%(oldval,kid,vid)
-                    self.dbo.sql_exec(sql)
+                    self.dbo.dc.execute(sql)
                 else:
                     oldval = self.sort.NP[self.vix,kix]
                     sql = "insert into mx_calls (pID,vID,assigned,confidence,changed) values (%s,%s,%s,%s,%s);"%(kid,vid,1,2,oldval)
-                    self.dbo.sql_exec(sql)
+                    self.dbo.dc.execute(sql)
                 self.sort.NP[self.vix,kix] = 1
 
         #Note: positive ambiguous calls
@@ -1132,16 +1130,16 @@ class Variant(object):
                 self.sort.NP[self.vix,kix] = 1
                 kid = self.sort.get_kid_by_kix(kix)
                 sql = "select * from mx_calls where vID=%s and pID=%s"%(vid,kid)
-                self.dbo.sql_exec(sql)
+                self.dbo.dc.execute(sql)
                 row = self.dbo.fetchone()
                 if row is not None:
                     oldval = row[4]
                     sql = "update mx_calls set assigned=1,confidence=1,changed=%s where pID=%s and vID=%s;"%(oldval,kid,vid)
-                    self.dbo.sql_exec(sql)
+                    self.dbo.dc.execute(sql)
                 else:
                     oldval = self.sort.NP[self.vix,kix]
                     sql = "insert into mx_calls (pID,vID,assigned,confidence,changed) values (%s,%s,%s,%s,%s);"%(kid,vid,1,1,oldval)
-                    self.dbo.sql_exec(sql)
+                    self.dbo.dc.execute(sql)
                 self.sort.NP[self.vix,kix] = 1
 
         #Note: negative calls
@@ -1151,16 +1149,16 @@ class Variant(object):
                     print("Changing: coord (%s:%s) to NEG"%(self.sort.get_vname_by_vix(self.vix),self.sort.get_kname_by_kix(kix)))
                 kid = self.sort.get_kid_by_kix(kix)
                 sql = "select * from mx_calls where vID=%s and pID=%s"%(vid,kid)
-                self.dbo.sql_exec(sql)
+                self.dbo.dc.execute(sql)
                 row = self.dbo.fetchone()
                 if row is not None:
                     oldval = row[4]
                     sql = "update mx_calls set assigned=-1,confidence=2,changed=%s where pID=%s and vID=%s;"%(oldval,kid,vid)
-                    self.dbo.sql_exec(sql)
+                    self.dbo.dc.execute(sql)
                 else:
                     oldval = self.sort.NP[self.vix,kix]
                     sql = "insert into mx_calls (pID,vID,assigned,confidence,changed) values (%s,%s,%s,%s,%s);"%(kid,vid,-1,2,oldval)
-                    self.dbo.sql_exec(sql)
+                    self.dbo.dc.execute(sql)
                 self.sort.NP[self.vix,kix] = -1
 
         #Note: vars needed for not used chk
@@ -1188,8 +1186,8 @@ class Variant(object):
             elif len(kpc) == 0:
                 sql1 = "update mx_calls set removal=2 where vid=%s;"%vid
                 sql2 = "insert into mx_notused_variants(vId,reasonId) values(%s,2);"%vid
-            self.dbo.sql_exec(sql1)
-            self.dbo.sql_exec(sql2)
+            self.dbo.dc.execute(sql1)
+            self.dbo.dc.execute(sql2)
 
             #remove variant from self.VARIANTS + matrix
             self.sort.mx_remove_vix(self.vix)
@@ -1201,7 +1199,7 @@ class Variant(object):
 
             #Note: drop any prior sup/sub definitions for this variant
             sql = "delete from mx_sups_subs where sup = %s or sub = %s;"%(vid,vid)
-            self.dbo.sql_exec(sql)
+            self.dbo.dc.execute(sql)
             cnt_new_sups_subs = 0
 
             #new sups
@@ -1211,7 +1209,7 @@ class Variant(object):
                     sups_.append((sup_i,vid))
                 #insert new sup info
                 sql = "insert into mx_sups_subs (sup,sub) values (?,?);"
-                self.dbo.sql_exec_many(sql,sups_)
+                self.dbo.dc.executemany(sql,sups_)
                 cnt_new_sups_subs = cnt_new_sups_subs + len(recD['sups'])
 
             #new subs
@@ -1221,12 +1219,12 @@ class Variant(object):
                     subs_.append((vid,sub_i))
                 #insert new sub info
                 sql = "insert into mx_sups_subs (sup,sub) values (?,?);"
-                self.dbo.sql_exec_many(sql,subs_)
+                self.dbo.dc.executemany(sql,subs_)
                 cnt_new_sups_subs = cnt_new_sups_subs + len(recD['subs'])
 
             #Note: recreate panda sups/subs cache
             sql = "select distinct * from mx_sups_subs;"
-            self.dbo.sql_exec(sql)
+            self.dbo.dc.execute(sql)
             sups_ = self.dbo.fetchall()
             self.SS = pd.DataFrame(sups_,columns=['sup','sub'])
 
@@ -1477,7 +1475,7 @@ class Variant(object):
 class Sort(object):
 
     def __init__(self):
-        self.dbo = None #db object
+        self.dbo = DB(drop=False)
         self.KITS = None
         self.VARIANTS = None
         self.NP = None #matrix
@@ -1972,23 +1970,23 @@ class Sort(object):
 
         #update mx_variants table
         sql = "delete from mx_variants;"
-        self.dbo.sql_exec(sql)
+        self.dbo.dc.execute(sql)
         sql = "insert into mx_variants (ID,name,pos) values (?,?,?);"
-        self.dbo.sql_exec_many(sql,[(tuple([vid,nm,pos])) for (n,(nm,(vid,idx,pos))) in enumerate(self.get_axis('variants'))])
+        self.dbo.dc.executemany(sql,[(tuple([vid,nm,pos])) for (n,(nm,(vid,idx,pos))) in enumerate(self.get_axis('variants'))])
 
         #remove vid from mx_sups_subs
         sql = "delete from mx_sups_subs where sup = %s or sub = %s" % (vid_,vid_)
-        self.dbo.sql_exec(sql)
+        self.dbo.dc.execute(sql)
 
         #update panda version of mx_sups_subs
         sql = "select distinct * from mx_sups_subs;"
-        self.dbo.sql_exec(sql)
+        self.dbo.dc.execute(sql)
         sups_ = self.dbo.fetchall()
         self.SS = pd.DataFrame(sups_,columns=['sup','sub'])
 
         #remove vid from mx_dupe_variants
         sql = "delete from mx_dupe_variants where vID = %s or dupe_vID = %s" % (vid_,vid_)
-        self.dbo.sql_exec(sql)
+        self.dbo.dc.execute(sql)
 
         #reset the matrix
         self.NP = self.NP[idx_,]
@@ -1997,42 +1995,40 @@ class Sort(object):
 
         #reset mx_sort_recommendations
         sql = "delete from mx_sort_recommendations"
-        self.dbo.sql_exec(sql)
+        self.dbo.dc.execute(sql)
 
     # data 
 
     def sort_schema(self):
         #Note: where the sort DDL schema is first run
-        self.dbo.db = self.dbo.db_init()
-        self.dbo.dc = self.dbo.cursor()
-        self.dbo.sql_exec_file('sort-schema.sql')
+        self.dbo.run_sql_file('sort-schema.sql')
         
     def save_mx(self):
         #Note: push kit/variant/numpy data into saved/matrix tbls + h5py file
 
         #deletes
         sql = "delete from mx_variants;"
-        self.dbo.sql_exec(sql)
+        self.dbo.dc.execute(sql)
         sql = "delete from mx_kits;"
-        self.dbo.sql_exec(sql)
+        self.dbo.dc.execute(sql)
         sql = "delete from mx_idxs;"
-        self.dbo.sql_exec(sql)
+        self.dbo.dc.execute(sql)
 
         #save matrix variants
         sql = "insert into mx_variants (ID,name,pos) values (?,?,?);"
-        self.dbo.sql_exec_many(sql,[(tuple([vid,nm,pos])) for (n,(nm,(vid,idx,pos))) in enumerate(self.get_axis('variants'))])
+        self.dbo.dc.executemany(sql,[(tuple([vid,nm,pos])) for (n,(nm,(vid,idx,pos))) in enumerate(self.get_axis('variants'))])
 
         #save matrix variants (idx order)
         sql = "insert into mx_idxs (type_id,axis_id,idx) values (0,?,?);"
-        self.dbo.sql_exec_many(sql,[(tuple([vid,idx])) for (n,(nm,(vid,idx,pos))) in enumerate(self.get_axis('variants'))])
+        self.dbo.dc.executemany(sql,[(tuple([vid,idx])) for (n,(nm,(vid,idx,pos))) in enumerate(self.get_axis('variants'))])
 
         #save matrix kits
         sql = "insert into mx_kits (ID,kitId) values (?,?);"
-        self.dbo.sql_exec_many(sql,[(tuple([kid,nm])) for (n,(nm,(kid,idx))) in enumerate(self.get_axis('kits'))])
+        self.dbo.dc.executemany(sql,[(tuple([kid,nm])) for (n,(nm,(kid,idx))) in enumerate(self.get_axis('kits'))])
 
         #save matrix kits (idx order)
         sql = "insert into mx_idxs (type_id,axis_id,idx) values (1,?,?);"
-        self.dbo.sql_exec_many(sql,[(tuple([kid,idx])) for (n,(nm,(kid,idx))) in enumerate(self.get_axis('kits'))])
+        self.dbo.dc.executemany(sql,[(tuple([kid,idx])) for (n,(nm,(kid,idx))) in enumerate(self.get_axis('kits'))])
 
         #save numpy data
         if 1==2:
@@ -2063,7 +2059,7 @@ class Sort(object):
             WHERE IX.type_id = 0
             ORDER BY IX.idx;
             ''';
-        self.dbo.sql_exec(sql)
+        self.dbo.dc.execute(sql)
         F = self.dbo.fetchall()
         for row in F:
             self.VARIANTS[row[0]] = (row[1],row[2],row[3]) #self.VARIANTS[name] = [vID,idx]
@@ -2077,7 +2073,7 @@ class Sort(object):
             WHERE IX.type_id = 1
             ORDER BY IX.idx;
             ''';
-        self.dbo.sql_exec(sql)
+        self.dbo.dc.execute(sql)
         F = self.dbo.fetchall()
         for row in F:
             self.KITS[row[0]] = (row[1],row[2]) #self.VARIANTS[name] = [vID,idx]
@@ -2098,141 +2094,63 @@ class Sort(object):
 
         #sups+subs
         sql = "SELECT DISTINCT * FROM mx_sups_subs;"
-        self.dbo.sql_exec(sql)
+        self.dbo.dc.execute(sql)
         sups_ = self.dbo.fetchall()
         self.SS = pd.DataFrame(sups_,columns=['sup','sub'])
         print("end MatrixData restore: %s" % format(time.clock()))
         
+    # Method: create_mx_data
+    # Purpose: create an array of genotypes out of call data
+    # Info:
+    #   DATA[vid] is a vector of genotype IDs for the given variant
+    #   a genotype of -1 means unknown due to poor coverage
+    #   variants that don't have at least one + and one - are not kept
     def create_mx_data(self):
 
         print("beg MatrixData create: %s" % format(time.clock()))
 
-        #create mx_call_negs data - this table (I hope) solves the "L48 issue"
-        #- the need to detect when a . derived allele variant is neg based on
-        #another variant call (same pos) w/out the . derived allele
-        #vid1 is the variant with the . der (ie: L48-)
-        #vid2 is the variant (same pos as vid1, and same ancestral allele) - w/o a . der (ie: L48+)
-        sql = '''
-            insert into mx_call_negs (vid1,vid2,name2,pos,pid,assigned,genotype)
-            select distinct V1.ID as vid1, V2.ID as vid2,
-            ifnull(S2.snpname,V2.ID) as name2, V1.pos,
-            C1.pID, C1.assigned, C1.genotype
-            from vcfcalls C1, vcfcalls C2,
-            alleles A11, alleles A12, alleles A2,
-            variants V1, variants V2
-            LEFT JOIN snpnames S1 ON V1.ID = S1.vID
-            LEFT JOIN snpnames S2 ON V2.ID = S2.vID
-            where C1.vID = V1.ID
-            and C2.vID = V2.ID
-            and V1.der = A12.ID and A12.allele='.'
-            and V1.anc = A11.ID
-            and V1.pos = V2.pos
-            and V1.anc = V2.anc
-            and V1.der <> V2.der
-            and V2.der = A2.ID;
-            '''
-        self.dbo.sql_exec(sql)
+        # get all call info (arr) and coverage info (cov) -treece
+        ppl = get_analysis_ids(self.dbo)
+        arr, ppl, vids = get_variant_array(self.dbo, ppl)
+        cov = get_kit_coverages(self.dbo, ppl, vids)
 
-        #Note: bedranges - uses in_range routine
-        #table tmp1 - the covered spots of the bedranges (for the known pos
-        #call areas) are pushed to this table; we're only really interested in
-        #those situations where a VCF positive call has been discovered along 
-        #a position for these -- since we need at least one POS and one NEG for 
-        #a variant to be placed in the matrix
+        # ----- MERGE CONFLICT LINES DELETED -----
 
-        sql = "select distinct C.pID FROM vcfcalls C"
-        pids = self.dbo.sql_exec(sql)
-        F = self.dbo.fetchall()
-        for row in F:
-            sql = "select * from v_pos_call_chk order by pos;"
-            dc = self.dbo.cursor()
-            calls = dc.execute(sql)
-            rc = self.dbo.cursor()
-            sql = '''select minaddr,maxaddr from bedranges r
-                inner join bed b on b.bID=r.id
-                where b.pid=%s order by 1'''%row[0]
-            ranges = rc.execute(sql)
-            xl = list([(v[0],v[1]) for v in calls])
-            pv = [v[1] for v in xl]
-            rv = [v for v in ranges]
-            coverage = in_range(pv, rv, spans=None)
-            mergedList = [(x,y,z) for (x,y),z in zip(xl, coverage)]
-            sql = "insert into tmp1 (pid,vid,pos,val) values (%s,?,?,?);"%row[0]
-            self.dbo.sql_exec_many(sql,mergedList)
+        # loop through (vid,refid,altid) for our vids of interest
+        # collect covered and gt = allele ID if genotype is known or -1 if not
+        vdefs = get_variant_defs(db, vids)
+        for tup in vdefs:
+            vect = []
+            for pp in ppl:
+                gt = None
+                try:
+                    # there is a call for this pid,vid
+                    pf,igt = arr[pp][vv]
+                    covered = True
+                    if igt in (0,1):
+                        # gt from get_variant_array is 0,1 ==> anc,der
+                        gt = tup[igt+1]
+                    else:
+                        # gt is not 0,1 ==> dunno
+                        gt = -1
+                except:
+                    # no call for this pid,vid
+                    try:
+                        # if variant is not covered, we don't know genotype
+                        covered = cov[pp][vv]
+                        gt = -1
+                    except:
+                        # covered, so gt is anc by get_variant_array convention
+                        covered = True
+                        gt = tup[1]
+                if not gt:
+                    raise ValueError, 'gt not set'
+                vect.append(gt)
+            # we only care if we have at least one ref and one alt
+            if tup[1] in vect and tup[2] in vect:
+                DATA[vv] = vect
 
-        #Note: table tmp2 - this is the data that correlates variants pos's to whether kits were
-        #tested for them or not (a neg is when it was covered, but it's not
-        #showing up in the vcfcalls)
-        #the pidvid idea is a hack ... so we can isolate pid/vid combos for
-        #situations in the vcfcalls where a positive was uncovered, and compare
-        #those results to the covered bed positions
-
-        sql = '''
-            INSERT INTO tmp2 (vid,pid,pidvid)
-            SELECT DISTINCT vid as vID, pid as pID,
-            cast(pid as varchar(15))||'|'||cast(vid as varchar(15)) as pidvid
-            FROM tmp1 WHERE val=1;'''
-        self.dbo.sql_exec(sql)
-
-        #Note: anything that is already in VCF's can't be a newly discovered bed NEG
-        sql = "delete from tmp2 where pidvid in (select pidvid from v_all_calls_with_kits);"
-        self.dbo.sql_exec(sql)
-
-        #Note: sql to fetch matrix variant data; this targets variants that
-        #have at least one POS, one NEG across the known kits
-        sql = "select * from v_imx_assignments_with_unk;"
-        self.dbo.sql_exec(sql)
-        F = self.dbo.fetchall()
-
-        #Note: vars that will be used the loop coming up
-        DATA = OrderedDict()
-        self.KITS = {}
-        self.VARIANTS = {}
-        cntV = 0
-        cntK = 0
-
-        #Note: retrieve data from sqlite like so: [V][K] [x,x,x,x,x,x,...]
-        for row in F:
-            if row[1] not in DATA:
-                DATA[row[1]] = []
-
-            #calls
-            PF = 0
-
-            #overrides due to . derived alleles in VCF's
-            if row[8] is not None and row[9] is not None:
-                row = list(row)
-                row[2] = row[8]
-                row[7] = row[9]
-
-            #the vcf positives
-            if row[2] == 1 and row[7] == '1/1':
-                PF = 1
-
-            #the vcf negatives
-            elif row[2] == 1 and row[7] == '0/0':
-                PF = -1
-
-            #the additional negs discovered by checking the beds
-            elif row[6] == 1 and row[7] == None:
-                PF = -1
-
-            elif row[8] is not None and row[9] is not None:
-                PF = -1
-
-            DATA[row[1]].append(PF)
-
-            #kits
-            if row[5] not in self.KITS.keys():
-                #what this is doing: self.KITS[name] = (pID,idx)
-                self.KITS[row[5]] = [row[0],cntK]
-                cntK = cntK + 1
-
-            #variants
-            if row[1] not in self.VARIANTS.keys():
-                #what this is doing: self.VARIANTS[name] = (vID,idx,pos)
-                self.VARIANTS[row[1]] = [row[4],cntV,row[3]]
-                cntV = cntV + 1
+        # ----- MERGE CONFLICT LINES DELETED -----
 
         #debugging
         self.NP = np.matrix(list(DATA.values()))
@@ -2242,25 +2160,9 @@ class Sort(object):
             print("---------------------------------------")
             print(self.NP)
 
-        #Note: table mx_notused_variants - these are variants that don't have at least one
-        #NEG, one POS - they won't be put in the matrix
-        sql = "delete from mx_notused_variants;"
-        self.dbo.sql_exec(sql)
-        sql = "insert into mx_notused_variants select vID,1 from v_only_pos_variants";
-        self.dbo.sql_exec(sql)
-        sql = "insert into mx_notused_variants select vID,-1 from v_only_neg_variants";
-        self.dbo.sql_exec(sql)
-        sql = "select count(*) from mx_notused_variants where reasonId = 1";
-        self.dbo.sql_exec(sql)
-        row = self.dbo.fetchone()
-        nu_pos = row[0]
-        sql = "select count(*) from mx_notused_variants where reasonId = -1";
-        self.dbo.sql_exec(sql)
-        row = self.dbo.fetchone()
-        nu_neg = row[0]
-        print("\nThere are %s pos not-used variants" % nu_pos)
-        print("There are %s neg not-used variants" % nu_neg)
+        # ----- MERGE RESOLUTION LINES DELETED -----
 
+        # not sure if this is needed -treece
         #Note: remove dupes - they aren't kept in the matrix either
         self.mx_remove_dupes()
 
@@ -2314,7 +2216,7 @@ class Sort(object):
             #add new dupe variants to mx_dupe_variants table
             sql = "insert into mx_dupe_variants(vID,dupe_vID) values (%s,?);" % new_vid
             dupe_itms = [tuple([l]) for l in old_vids]
-            self.dbo.sql_exec_many(sql,dupe_itms)
+            self.dbo.dc.executemany(sql,dupe_itms)
 
             #track what's been changed
             dupe_cnt = dupe_cnt + len(dupe_itms)
@@ -2323,15 +2225,15 @@ class Sort(object):
 
             #reset primary vID in the mx_dupe_variants table when there are dupe removals
             sql = "update mx_dupe_variants set vID = %s where vID in (%s);" % (new_vid,l2s(old_vids))
-            self.dbo.sql_exec(sql)
+            self.dbo.dc.execute(sql)
 
             #reset any sup references in the mx_sups_subs table for removed variants
             sql = "update mx_sups_subs set sup = %s where sup in (%s);" % (new_vid,l2s(old_vids))
-            self.dbo.sql_exec(sql)
+            self.dbo.dc.execute(sql)
 
             #reset any sub references in the mx_sups_subs table for removed variants
             sql = "update mx_sups_subs set sub = %s where sub in (%s);" % (new_vid,l2s(old_vids))
-            self.dbo.sql_exec(sql)
+            self.dbo.dc.execute(sql)
 
             #remove dupe variants from the self.VARIANTS var
             for k in self.get_vname_by_vix(itms):
@@ -2354,7 +2256,7 @@ class Sort(object):
 
         #reset tbl
         sql = "delete from mx_sups_subs"
-        self.dbo.sql_exec(sql)
+        self.dbo.dc.execute(sql)
 
         #perfect variants only
         NP = self.NP[self.get_perfect_variants_idx()]
@@ -2372,7 +2274,7 @@ class Sort(object):
 
         #sqlite tbl
         sql = "insert into mx_sups_subs (sup,sub) values (?,?);"
-        self.dbo.sql_exec_many(sql,sups_)
+        self.dbo.dc.executemany(sql,sups_)
 
         #panda tbl
         self.SS = pd.DataFrame(sups_,columns=['sup','sub'])
