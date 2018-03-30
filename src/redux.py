@@ -152,13 +152,8 @@ def init_vt(initSort=False):
         vt.sort.dbo = vt.dbo
     return vt
     
-def init_sort():
-    sort = Sort()
-    sort.dbo = DB()
-    return sort
-
 if args.sort:
-    sort = init_sort()
+    sort = Sort()
     sort.sort_schema()
     sort.sort_matrix()
 
@@ -195,7 +190,7 @@ if args.matrix_imperf:
     vt.matrix(args.rest,imperfOnly=True)
 
 if args.unknowns:
-    sort = init_sort()
+    sort = Sort()
     sort.stdout_unknowns()
 
 if args.variant_ref_name:

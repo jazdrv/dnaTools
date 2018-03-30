@@ -13,9 +13,13 @@ from collections import OrderedDict
 import pandas as pd
 from array_api import *
 import pickle
+from db import DB
+from lib import Trace
 
 REDUX_CONF = os.path.join(os.environ['REDUX_PATH'], 'config.yaml')
 config = yaml.load(open(REDUX_CONF))
+
+trace = Trace(level=config['verbosity'])
 
 
 def l2s(lst):
@@ -1582,10 +1586,6 @@ class Sort(object):
     # matrix 
 
     def sort_matrix(self):
-        #db
-        self.dbo.db = self.dbo.db_init()
-        self.dbo.dc = self.dbo.cursor()
-
         #get data
         self.create_mx_data()
 
@@ -2001,7 +2001,7 @@ class Sort(object):
 
     def sort_schema(self):
         #Note: where the sort DDL schema is first run
-        self.dbo.run_sql_file('sort-schema.sql')
+        self.dbo.create_schema(schemafile='sort-schema.sql')
         
     def save_mx(self):
         #Note: push kit/variant/numpy data into saved/matrix tbls + h5py file
@@ -2112,48 +2112,92 @@ class Sort(object):
         # get all call info (arr) and coverage info (cov) -treece
         ppl = get_analysis_ids(self.dbo)
         arr, ppl, vids = get_variant_array(self.dbo, ppl)
+        trace(2, 'people: {}'.format(ppl))
+        trace(5, 'variants: {}...'.format(vids[:100]))
+        trace(5, 'arr: {}...'.format(arr[ppl[0]]))
         cov = get_kit_coverages(self.dbo, ppl, vids)
 
         # ----- MERGE CONFLICT LINES DELETED -----
 
         # loop through (vid,refid,altid) for our vids of interest
         # collect covered and gt = allele ID if genotype is known or -1 if not
-        vdefs = get_variant_defs(db, vids)
+        identcallDATA = OrderedDict()
+        perfectDATA = OrderedDict()
+        unknownDATA = OrderedDict()
+        mixedDATA = OrderedDict()
+        self.KITS = {}
+        self.VARIANTS = {}
+        vdefs = get_variant_defs(self.dbo, vids)
+        trace(2, 'vdefs: {}...'.format(vdefs[:20]))
         for tup in vdefs:
+            vv = tup[0]
             vect = []
             for pp in ppl:
                 gt = None
                 try:
                     # there is a call for this pid,vid
                     pf,igt = arr[pp][vv]
-                    covered = True
+                    covered = pf
                     if igt in (0,1):
                         # gt from get_variant_array is 0,1 ==> anc,der
                         gt = tup[igt+1]
                     else:
-                        # gt is not 0,1 ==> dunno
-                        gt = -1
+                        # gt is not 0,1 ==> ambiguous call: don't know
+                        gt = -2
                 except:
                     # no call for this pid,vid
                     try:
                         # if variant is not covered, we don't know genotype
-                        covered = cov[pp][vv]
-                        gt = -1
+                        if cov[pp][vv] == 0:
+                            covered = False
+                            gt = -1
+                        else:
+                            # covered, gt=anc by get_variant_array convention
+                            covered = True
+                            gt = tup[1]
                     except:
-                        # covered, so gt is anc by get_variant_array convention
-                        covered = True
-                        gt = tup[1]
+                        trace(0, 'FIXME: coverage for {},{}'.format(pp,vv))
                 if not gt:
-                    raise ValueError, 'gt not set'
+                    raise ValueError('gt not set')
                 vect.append(gt)
-            # we only care if we have at least one ref and one alt
-            if tup[1] in vect and tup[2] in vect:
-                DATA[vv] = vect
+                if vv in (396568, 406650, 367821, 309494):
+                    trace(4,'kit {}, variant {}, gt {}'.format(pp,vv,gt))
+            trace(3,'vect: {}...'.format(vect[:10]))
+
+            # no unknowns
+            if -1 not in vect and -2 not in vect:
+                # we have at least one ref and one alt
+                if (tup[1] in vect) and (tup[2] in vect):
+                    perfectDATA[vv] = vect
+                # all the same genotype across kits
+                elif vect.count(vect[0]) == len(vect):
+                    identcallDATA[vv] = vect
+            # some unknowns (due to no coverage or mixed calls)
+            else:
+                # there's at least one with a call
+                if (len([t for t in vect if t>=0]) > 0):
+                    mixedDATA[vv] = vect
+                else:
+                    unknownDATA[vv] = vect
+
+            if vv in (396568, 406650, 367821, 309494):
+                try:
+                    trace(4, '{}:{}'.format(vv, mixedDATA[vv]))
+                except:
+                    pass
+        trace(2,'kits: {}'.format(ppl))
+        trace(3,'perfectDATA: {}...'.format(perfectDATA))
 
         # ----- MERGE CONFLICT LINES DELETED -----
 
         #debugging
-        self.NP = np.matrix(list(DATA.values()))
+        trace(5,'variants in perfectDATA: {}'.format(perfectDATA.keys()))
+        self.NP = np.matrix(list(perfectDATA.values()))
+        trace(2,'NP:\n{}'.format(self.NP))
+        self.NP2 = np.matrix(list(identcallDATA.values()))
+        trace(2,'NP2:\n{}'.format(self.NP2))
+        self.NP3 = np.matrix(list(mixedDATA.values()))
+        trace(2,'NP3:\n{}'.format(self.NP3))
         if config['DBG_MATRIX']:
             print("\n---------------------------------------")
             print("Matrix: just created data")
@@ -2161,10 +2205,6 @@ class Sort(object):
             print(self.NP)
 
         # ----- MERGE RESOLUTION LINES DELETED -----
-
-        # not sure if this is needed -treece
-        #Note: remove dupes - they aren't kept in the matrix either
-        self.mx_remove_dupes()
 
         #Note: counts for stdout
         print("Total matrix kits: %s" % len(self.KITS))
@@ -2179,7 +2219,7 @@ class Sort(object):
             print("Matrix: end of create data routine")
             print("---------------------------------------")
             print(self.NP)
-        
+
     def mx_remove_dupes(self,auto_nonsplits=False):
         #Note: this is where dupe variant profiles are removed from the matrix and stored in the DB
 

@@ -170,24 +170,24 @@ CREATE VIEW v_imx_kits AS
   ON C.pID = D.ID 
   GROUP BY 1;
 
-CREATE VIEW v_pos_call_chk as 
-  SELECT DISTINCT C.vID, V.pos
-  FROM vcfcalls C 
-  INNER JOIN variants V
-  ON C.vID  = V.ID and C.assigned = 1 AND C.genotype = '1/1';
+--jct CREATE VIEW v_pos_call_chk as 
+--jct   SELECT DISTINCT C.vID, V.pos
+--jct   FROM vcfcalls C 
+--jct   INNER JOIN variants V
+--jct   ON C.vID  = V.ID and C.assigned = 1 AND C.genotype = '1/1';
 
-CREATE VIEW v_pos_call_chk_with_kits as 
-  SELECT DISTINCT C.vID, V.pos, C.pID, cast(C.pID as varchar(15))||'|'||cast(C.vID as varchar(15)) as pidvid
-  FROM vcfcalls C 
-  INNER JOIN variants V 
-  ON
-  C.vID  = V.ID and C.assigned = 1 AND C.genotype = '1/1';
+--jct CREATE VIEW v_pos_call_chk_with_kits as 
+--jct   SELECT DISTINCT C.vID, V.pos, C.pID, cast(C.pID as varchar(15))||'|'||cast(C.vID as varchar(15)) as pidvid
+--jct   FROM vcfcalls C 
+--jct   INNER JOIN variants V 
+--jct   ON
+--jct   C.vID  = V.ID and C.assigned = 1 AND C.genotype = '1/1';
 
-CREATE VIEW v_unk_call_chk_with_kits as 
-  SELECT DISTINCT C.vID, V.pos, C.pID, cast(C.pID as varchar(15))||'|'||cast(C.vID as varchar(15)) as pidvid
-  FROM vcfcalls C 
-  INNER JOIN variants V
-  ON C.vID  = V.ID and C.assigned = -1;
+--jct CREATE VIEW v_unk_call_chk_with_kits as 
+--jct   SELECT DISTINCT C.vID, V.pos, C.pID, cast(C.pID as varchar(15))||'|'||cast(C.vID as varchar(15)) as pidvid
+--jct   FROM vcfcalls C 
+--jct   INNER JOIN variants V
+--jct   ON C.vID  = V.ID and C.assigned = -1;
 
 CREATE VIEW v_all_calls_with_kits as 
   SELECT DISTINCT C.vID, V.pos, C.pID, cast(C.pID as varchar(15))||'|'||cast(C.vID as varchar(15)) as pidvid
@@ -195,13 +195,13 @@ CREATE VIEW v_all_calls_with_kits as
   INNER JOIN variants V
   ON C.vID  = V.ID; 
 
-CREATE VIEW v_neg_call_chk1 as 
-  SELECT DISTINCT C.vID
-  FROM vcfcalls C
-  WHERE C.assigned = 1 AND C.genotype = '0/0'
-  union 
-  select distinct vid2 as vID from mx_call_negs
-  ;
+--jct CREATE VIEW v_neg_call_chk1 as 
+--jct   SELECT DISTINCT C.vID
+--jct   FROM vcfcalls C
+--jct   WHERE C.assigned = 1 AND C.genotype = '0/0'
+--jct   union 
+--jct   select distinct vid2 as vID from mx_call_negs
+--jct   ;
 
 CREATE VIEW v_pos_neg_call_chk as 
   SELECT DISTINCT vID FROM v_pos_call_chk UNION SELECT vID FROM v_neg_call_chk1;
@@ -223,38 +223,38 @@ CREATE VIEW v_imx_variants AS
 --   ON S.vID = V.ID
 --   WHERE P.vID = V.ID AND V.ID = C.vID;
 
-CREATE VIEW v_only_pos_variants AS
-  SELECT DISTINCT P.vID from v_pos_call_chk P 
-  LEFT JOIN v_neg_call_chk2 N
-  ON P.vID = N.vID
-  WHERE N.vID is Null;
+--jct CREATE VIEW v_only_pos_variants AS
+--jct   SELECT DISTINCT P.vID from v_pos_call_chk P 
+--jct   LEFT JOIN v_neg_call_chk2 N
+--jct   ON P.vID = N.vID
+--jct   WHERE N.vID is Null;
   
-CREATE VIEW v_only_neg_variants AS
-  SELECT DISTINCT N.vID 
-  FROM v_neg_call_chk2 N
-  LEFT JOIN v_pos_call_chk P
-  ON P.vID = N.vID
-  WHERE P.vID is Null;
+--jct CREATE VIEW v_only_neg_variants AS
+--jct   SELECT DISTINCT N.vID 
+--jct   FROM v_neg_call_chk2 N
+--jct   LEFT JOIN v_pos_call_chk P
+--jct   ON P.vID = N.vID
+--jct   WHERE P.vID is Null;
   
 CREATE VIEW v_imx_variants_with_kits AS
   SELECT DISTINCT K.pID, PV.name, PV.pos, PV.ID as vID, K.kitId
   FROM v_imx_variants PV
   CROSS JOIN v_imx_kits K;
 
-CREATE VIEW v_imx_assignments AS
-  SELECT DISTINCT C.pID, PV.name, PV.pos, PV.ID as vID, C.assigned,C.genotype
-  FROM vcfcalls C 
-  INNER JOIN v_imx_variants PV
-  ON C.vID = PV.ID;
+--jct CREATE VIEW v_imx_assignments AS
+--jct   SELECT DISTINCT C.pID, PV.name, PV.pos, PV.ID as vID, C.assigned,C.genotype
+--jct   FROM vcfcalls C 
+--jct   INNER JOIN v_imx_variants PV
+--jct   ON C.vID = PV.ID;
 
-CREATE VIEW v_imx_assignments_with_unk AS
-  SELECT DISTINCT PVK.pID, PVK.name, ifnull(PVKA.assigned,0) as assigned, PVK.pos, PVK.vID, PVK.kitId, T.val, PVKA.genotype, CN.assigned, CN.genotype 
-  FROM v_imx_variants_with_kits PVK, tmp1 T
-  LEFT JOIN v_imx_assignments PVKA
-  ON PVK.vID = PVKA.vID AND PVK.pID = PVKA.pID 
-  LEFT JOIN mx_call_negs CN
-  ON CN.pos = PVK.pos and CN.pID = PVK.pID and CN.vid2 = PVK.vID
-  WHERE T.pid = PVK.pID and T.vID = PVK.vID;
+--jct CREATE VIEW v_imx_assignments_with_unk AS
+--jct   SELECT DISTINCT PVK.pID, PVK.name, ifnull(PVKA.assigned,0) as assigned, PVK.pos, PVK.vID, PVK.kitId, T.val, PVKA.genotype, CN.assigned, CN.genotype 
+--jct   FROM v_imx_variants_with_kits PVK, tmp1 T
+--jct   LEFT JOIN v_imx_assignments PVKA
+--jct   ON PVK.vID = PVKA.vID AND PVK.pID = PVKA.pID 
+--jct   LEFT JOIN mx_call_negs CN
+--jct   ON CN.pos = PVK.pos and CN.pID = PVK.pID and CN.vid2 = PVK.vID
+--jct   WHERE T.pid = PVK.pID and T.vID = PVK.vID;
 
 CREATE VIEW v_ref_variants AS
   SELECT DISTINCT S.snpname, V.ID, V.pos, B.buildNm, AA.allele as
@@ -301,7 +301,7 @@ CREATE VIEW v_mx_variants AS
 -- CREATE INDEXES{{{
 
 CREATE INDEX snpidx on snpnames(snpname);
-CREATE INDEX vcfcallsidx on vcfcalls(assigned,genotype);
+--jct CREATE INDEX vcfcallsidx on vcfcalls(assigned,genotype);
 CREATE INDEX tmp1idx1 on tmp1(pid,vid);
 CREATE INDEX tmp1idx2 on tmp1(pid,vid,val);
 
