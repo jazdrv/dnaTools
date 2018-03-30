@@ -732,7 +732,11 @@ def populate_from_dataset(dbo):
     dc = dbo.cursor()
     bed_re = re.compile(r'(\b(?:\w*[^_/])?regions(?:\[\d\])?\.bed)')
     vcf_re = re.compile(r'(\b(?:\w*[^_/])?variants(?:\[\d\])?\.vcf)')
-    dc = dc.execute('select fileNm,buildID,DNAID from dataset')
+    # all known kits, with analysis_kits prioritized
+    dc = dc.execute('''select fileNm,buildID,DNAID from dataset
+                       inner join analysis_kits on pID=DNAID
+                             union all
+                       select fileNm,buildID,DNAID from dataset''')
     allsets = list([(t[0],t[1],t[2]) for t in dc])
     pc = dbo.cursor()
     pl = pc.execute('select distinct pid from vcfcalls')
