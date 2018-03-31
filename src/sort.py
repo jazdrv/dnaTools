@@ -15,6 +15,7 @@ from array_api import *
 import pickle
 from db import DB
 from lib import Trace
+import shelve
 
 REDUX_CONF = os.path.join(os.environ['REDUX_PATH'], 'config.yaml')
 config = yaml.load(open(REDUX_CONF))
@@ -25,10 +26,792 @@ trace = Trace(level=config['verbosity'])
 def l2s(lst):
     return ",".join(str(x) for x in lst)
 
-class Variant(object):
+class Sort(object):
 
     def __init__(self):
         self.dbo = DB(drop=False)
+        self.KITS = None
+        self.VARIANTS = None
+        self.NPu = None # unknowns matrix
+        self.NPp = None # perfect calls matrix
+        self.NPi = None # identical calls matrix
+        self.NPm = None # mixed calls matrix
+        self.SS = None #sups+subs
+        self.identcallDATA = {}
+        self.perfectDATA = {}
+        self.unknownDATA = {}
+        self.mixedDATA = {}
+
+    # stdout
+
+    def stdout_matrix(self,NP):
+        vix = sorted(NP.keys())
+        kix = sorted(self.KITS)
+        VARIANTS = vix
+        KITS = kix
+
+        print("beg stdout-matrix: %s" % format(time.clock()))
+        print("")
+
+        #matrix size chk
+        if config['SHOW_STDOUT_MATRIX_OVER_50_ROWS'] is False and len(NP) > 50:
+            print("Matrix too large for presentation.")
+            np.set_printoptions(threshold=np.inf)
+            trace(3,'{}'.format(NP))
+            return
+
+        #debugging
+        if config['DBG_MATRIX']:
+            print("---------------------------------------")
+            print("Matrix: bef stdout")
+            print("---------------------------------------")
+            trace(3,'{}'.format(NP))
+            print("")
+
+        #col nums
+        if kix:
+            lenCols = len(kix)
+            kixCols = kix
+        else:
+            lenCols = len(self.KITS)
+            kixCols = [str(x) for x in list(range(lenCols))]
+
+        #matrix
+        table = BeautifulTable(max_width=155)
+        table.column_headers = ['c']+['p']+['v']+[str(x) for x in KITS]
+        table.append_row(['']+['']+['']+kixCols)
+        table.append_row(['']+['']+['']+['']*lenCols)
+        cntV = 0
+        for V in VARIANTS:
+            K = self.get_vix_by_vix(V)
+            table.append_row([V,K]+[str(x) for x in NP[cntV,:].tolist()[0]])
+            table.row_seperator_char = ''
+            table.column_seperator_char = ''
+            table.column_alignments['v'] = BeautifulTable.ALIGN_LEFT
+            cntV = cntV + 1
+        print(table)
+
+        #Note: counts for stdout
+        print("\nTotal matrix kits: %s" % len(self.KITS))
+        print("Total perfect matrix variants: %s" % len(self.get_perfect_variants_idx()))
+        print("Total imperfect matrix variants: %s" % len(self.get_imperfect_variants_idx()))
+        print("Total matrix variants: %s\n" % len(self.VARIANTS))
+
+        #done
+        print("")
+        print("end stdout-matrix: %s" % format(time.clock()))
+        
+    def stdout_unknowns(self):
+        self.dbo.db = self.dbo.db_init()
+        self.dbo.dc = self.dbo.cursor()
+        self.restore_mx_data()
+        print("")
+        print("---------------------------------------------------------------------")
+        print("")
+        cnt = 1
+        if len(self.get_imperfect_variants_idx()) == 0:
+            print("There are no imperfect variants in this matrix.")
+            print("")
+
+        for vix in self.get_imperfect_variants_idx():
+            name = self.get_vname_by_vix(vix)
+            kuc = self.get_kixs_by_val(val=0,vix=vix)
+            kucn = "kuc: %s [%s]"%(l2s(self.get_kname_by_kix(kuc)),l2s(kuc))
+            print("[%s]  var: %s" %(vix,name))
+            print("     %s" %kucn)
+            print("")
+            cnt = cnt + 1
+        print("---------------------------------------------------------------------")
+        print("")
+
+    # matrix 
+
+    def sort_matrix(self):
+        #get data
+        self.create_mx_data()
+
+        #sort
+        self.mx_vandh_sort()
+
+        #cache sups + subs
+        self.reset_ss_data()
+
+        #save data
+        self.save_mx()
+
+    # FIXME - get_x_by_y() should be in array_api
+    def get_vix_by_vix(self,vix):
+        newVix = []
+        for vo in list(vix):
+            for itm in list(self.VARIANTS.items()):
+                if itm[1][1] == vo:
+                    newVix.append(itm)
+                    break
+        return(newVix)
+        
+    def get_kix_by_kix(self,kix):
+        newKix = []
+        for ko in list(kix):
+            for itm in list(self.KITS.items()):
+                if itm[1][1] == ko:
+                    newKix.append(itm)
+                    break
+        return(newKix)
+        
+    def get_vid_by_vix(self,vix):
+        intFlg = True
+        try:
+            value = int(vix)
+        except:
+            intFlg = False
+        if intFlg:
+            vix = [vix]
+        vidList = []
+        for vo in vix:
+            for itm in list(self.VARIANTS.items()):
+                if itm[1][1] == vo:
+                    vidList.append(itm[1][0])
+                    break
+        if intFlg:
+            return vidList[0]
+        else:
+            return vidList
+        
+    def get_kid_by_kix(self,kix):
+        intFlg = True
+        try:
+            value = int(kix)
+        except:
+            intFlg = False
+        if intFlg:
+            kix = [kix]
+        kidList = []
+        for ko in kix:
+            for itm in list(self.KITS.items()):
+                if itm[1][1] == ko:
+                    kidList.append(itm[1][0])
+                    break
+        if intFlg:
+            return kidList[0]
+        else:
+            return kidList
+        
+    def get_vname_by_vix(self,vix):
+        intFlg = True
+        try:
+            value = int(vix)
+        except:
+            intFlg = False
+        if intFlg:
+            vix = [vix]
+        vnList = []
+        for vo in vix:
+            if vo == -999: #top handling
+                vnList.append('top')
+            else:
+                for itm in list(self.VARIANTS.items()):
+                    if itm[1][1] == vo:
+                        vnList.append(itm[0])
+                        break
+        if intFlg:
+            return vnList[0]
+        else:
+            return vnList
+        
+    def get_kname_by_kix(self,kix):
+        intFlg = True
+        try:
+            value = int(kix)
+        except:
+            intFlg = False
+        if intFlg:
+            kix = [kix]
+        knList = []
+        for ko in kix:
+            for itm in list(self.KITS.items()):
+                if itm[1][1] == ko:
+                    knList.append(itm[0])
+                    break
+        if intFlg:
+            return knList[0]
+        else:
+            return knList
+
+    def get_vix_by_name(self,vnames):
+        vixs = []
+        strFlg = isinstance(vnames, str)
+        if strFlg:
+            vnames = [vnames]
+        for vn in vnames:
+            if vn.upper() in self.VARIANTS.keys():
+                vixs.append(self.VARIANTS[vn.upper()][1])
+        if strFlg:
+            if len(vixs):
+                return vixs[0]
+            else:
+                return None
+        else:
+            return vixs
+        
+    def get_kix_by_name(self,knames):
+        kixs = []
+        strFlg = isinstance(knames, str)
+        if strFlg:
+            knames = [knames]
+        for kn in knames:
+            kixs.append(self.KITS[kn][1])
+        if strFlg:
+            return kixs[0]
+        else:
+           return kixs
+        
+    def get_kid_by_name(self,kname):
+        return self.KITS[kname][0]
+        
+    def get_vid_by_name(self,vname):
+        return self.VARIANTS[vname][0]
+
+    def get_vixs_by_vids(self,vids):
+        intFlg = True
+        try:
+            value = int(vids)
+        except:
+            intFlg = False
+        if intFlg:
+            vids = [vids]
+        vixs = []
+        for v in vids:
+            for itm in list(self.VARIANTS.items()):
+                if itm[1][0] == v:
+                    vixs.append(itm[1][1])
+                    break
+        if intFlg:
+            return vixs[0]
+        else:
+            return vixs
+    def get_kixs_by_kids(self,kids):
+        intFlg = True
+        try:
+            value = int(kids)
+        except:
+            intFlg = False
+        if intFlg:
+            kids = [kids]
+        kixs = []
+        for k in kids:
+            for itm in list(self.KITS.items()):
+                if itm[1][0] == k:
+                    kixs.append(itm[1][1])
+                    break
+        if intFlg:
+            return kixs[0]
+        else:
+            return kixs
+
+    def get_kixs_by_val(self,val,vix=None,vname=None,overrideData=None):
+        if vname is not None:
+            vix = self.get_vix_by_name(vname)
+        if vix is not None and overrideData is not None: # we're sending in a custom evaluation
+            return list(np.argwhere(overrideData[0,] == val).T[1,]) #with override data, there's only one line evaluated - 1d datset
+        elif vix is not None: #no override -- use self.NP (all data)
+            if vix == -999: #top handling
+                if val == 1:
+                    return list(range(len(self.KITS)))
+                if val in [-1,0]:
+                    return []
+            return list(np.argwhere(self.NP[vix,] == val).T[1,]) #default data, it's the entire matrix - 2d dataset 
+        
+    def get_vixs_by_val(self,val,kix=None,kname=None,overrideData=None):
+        if kname is not None:
+            kix = self.get_kix_by_name(kname)
+        if kix is not None and overrideData is not None:
+            return np.argwhere(overrideData[:,0] == val).T[0,] #with override data, there's only one line evaluated - 1d dataset
+        elif kix is not None: #no override -- use self.NP (all data)
+            return np.argwhere(self.NP[:,kix] == val).T[0,] #default data, it's the entire matrix - 2d dataset
+        
+    def get_knames_by_val(self,val,vix=None,vname=None,overrideData=None):
+        return self.get_kname_by_kix(self.get_kix_by_val(val,vix,vname,overrideData))
+        
+    def get_vnames_by_val(self,val,kix=None,kname=None,overrideData=None):
+        return self.get_vname_by_vix(self.get_vixs_by_val(val,kix,kname,overrideData))
+
+    def mx_vandh_sort(self):
+        #Note: vertical/horizontal sort of the matrix
+
+        def return_counts(idx,inv):
+            count = np.zeros(len(idx), np.int)
+            np.add.at(count, inv, 1)
+            return count
+
+        #Note: debugging line outs
+        if config['DBG_MATRIX']:
+            print("\n=================================")
+            print("inside vandh sort")
+            print("=================================\n")
+            print("\n---------------------------------------")
+            print("Matrix: beg vandh sort")
+            print("---------------------------------------")
+            print(self.NP)
+            print("")
+
+        #Note: perfect variants
+        prfVix = self.get_perfect_variants_idx()
+
+        #Note: needs a certain amount of perfect vix (or it breaks)
+        if len(prfVix) < 2:
+            print("Only %s perfect vix found. Not enough. Exiting.\n" % len(prfVix))
+            sys.exit()
+
+        #Note: panda special handling to coord perfect vix + kix sorting
+        C = pd.DataFrame(np.argwhere(self.NP[prfVix]==1),columns=['vix2','kix'])
+        VX = pd.DataFrame(prfVix,columns=['vix1'])
+        VX['vix2'] = range(len(VX))
+        VC = pd.DataFrame(return_counts(list(range(len(prfVix))),np.argwhere(self.NP[prfVix]==1)[:,0]),columns=['cntV'])
+        KC = pd.DataFrame(return_counts(list(range(len(self.KITS))),np.argwhere(self.NP[prfVix]==1)[:,1]),columns=['cntK'])
+        KC['kix'] = range(len(KC))
+        VC2 = pd.concat([VX,VC], axis=1, join_axes=[VC.index])
+        C_VX = pd.merge(pd.merge(C,VC2, on='vix2'),KC,on='kix').sort_values(['cntV','cntK'], ascending=[False, False]).reset_index(drop=True)
+        prfVixSorted = list(C_VX.groupby('vix1',as_index=False).head(1)['vix1'].as_matrix())
+        KixSorted = list(C_VX.groupby('kix',as_index=False).head(1)['kix'].as_matrix())
+
+        #Note: imperfect variants
+        impVix = self.get_imperfect_variants_idx()
+        impVixPosV = np.argwhere(self.NP[impVix]==1)[:,0]
+        unqIV, cntIV = np.unique(impVixPosV, return_counts=True)
+        allIV = np.asarray((impVix,cntIV)) #idx w/counts
+        allIV = allIV[:,np.argsort(-allIV[1])] #vsort
+        impVixSorted = allIV.T[:,0] #sorted vix
+
+        #Note: vsort
+        VixSorted = np.concatenate((prfVixSorted,impVixSorted))
+        self.NP = self.NP[np.concatenate((prfVixSorted,impVixSorted)),]
+
+        #Note: if there are any kits w/o positives, figure it out here
+        cnts = return_counts(list(range(len(self.KITS))),KixSorted)
+        if 0 in list(cnts):
+            KixSorted = KixSorted + [i for i in list(range(len(self.KITS))) if cnts[i] == 0]
+
+        #re-map variant names with new indexes
+        vnamesL = self.get_vname_by_vix(VixSorted)
+        #re-map kit names with new indexes
+        knamesL = self.get_kname_by_kix(KixSorted)
+
+        #new matrix
+        if config['DBG_MATRIX']:
+            print("---------------------------------------")
+            print("Matrix: vandh - aft vsort")
+            print("---------------------------------------")
+            print(self.NP)
+
+        #hsort
+        self.NP = self.NP[:,KixSorted]
+        if config['DBG_MATRIX']:
+            print("\n---------------------------------------")
+            print("Matrix: vandh - aft hsort")
+            print("---------------------------------------")
+            print(self.NP)
+            print("")
+
+        #variants
+        for ix,v in enumerate(vnamesL):
+            #self.VARIANTS[v][1] = ix
+            self.VARIANTS[v] = (self.VARIANTS[v][0],ix,self.VARIANTS[v][2])
+
+        #kits
+        for ix,k in enumerate(knamesL):
+            #self.KITS[k][1] = ix
+            self.KITS[k] = (self.KITS[k][0],ix)
+
+    def get_axis(self,orderByType=None,keysOnly=False):
+        #Note: this is a useful function for being able to enumerate the VARIANTS/KITS dictionaries
+
+        if orderByType in ['variants','kits']:
+            if orderByType == 'variants' : SCH = self.VARIANTS
+            if orderByType == 'kits' : SCH = self.KITS
+            if keysOnly:
+                return [i[0] for i in sorted(SCH.items(), key=lambda e: e[1][1])]
+            else:
+                return sorted(SCH.items(), key=lambda e: e[1][1])
+
+    def get_mx_row_as_list(self,rownum,NP=None):
+        #TODO: this NP override is a hack, need to work out why I need this
+
+        if NP is not None:
+            NP = self.NP
+        else:
+            NP = NP
+        return NP[rownum,:].tolist()[0]
+        
+    def get_mx_kit_data(self,vix=None,vname=None):
+        if vname is not None:
+            vix = self.get_vix_by_name(vname)
+        if vix is not None:
+            return self.NP[vix,]
+        
+    def get_mx_variant_data(self,kix=None,kname=None):
+        if kname is not None:
+            kix = self.get_kix_by_name(kname)
+        if kix is not None:
+            return self.NP[:,kix].T
+
+    def get_perfect_variants_idx(self):
+        idx = list(range(len(self.VARIANTS)))
+        prf_idx = idx[:]
+        unk_idx = list(np.unique(np.argwhere(self.NP==0)[:,0]))
+        for x in idx:
+            if x in unk_idx:
+                prf_idx.remove(x)
+        return prf_idx
+        
+    def get_imperfect_variants_idx(self):
+        return list(np.unique(np.argwhere(self.NP==0)[:,0])) #make it a copy
+        
+    def filter_perfect_variants(self,vix):
+        if any(isinstance(el, list) for el in vix):
+            for itm in reversed([[n,v] for (n,(v,c)) in enumerate(vix)]):
+                if itm[1] in self.get_imperfect_variants_idx():
+                    vix.remove(vix[itm[0]])
+            return vix
+        else:
+            for itm in reversed([[n,v] for n,v in enumerate(vix)]):
+                if itm[1] in self.get_imperfect_variants_idx():
+                    vix.remove(vix[itm[0]])
+            return vix
+
+    def get_row_when_override_kixs(self,override_val,vix,kixs):
+        row = self.get_mx_kit_data(vix=vix)
+        if len(kixs) == 0:
+            return row
+        rowO = np.empty_like(row)
+        rowO[:] = row #make duplicate copy - important!
+        for kx in kixs:
+            rowO[0,kx] = override_val
+        return rowO
+        
+    def get_row_when_override_coord(self,override_val,kix=None,vix=None,kname=None,vname=None):
+        row = self.get_mx_kit_data(vix=vix)
+        rowO = np.empty_like(row)
+        rowO[:] = row #make duplicate copy - important!
+        rowO[0,kix] = override_val
+        return rowO
+
+    def mx_remove_vix(self,vix):
+        vid_ = self.get_vid_by_vix(vix)
+        vname = self.get_vname_by_vix(vix)
+
+        #TODO: need to check if there are other dupes to represent the missing variant. 
+
+        #remove variant from self.VARIANTS
+        idx_ = list(range(len(self.VARIANTS)))
+        idx_.pop(vix)
+        self.VARIANTS.pop(vname,None)
+
+        #reset the matrix idxs
+        for ix,vn in enumerate(self.get_vname_by_vix(idx_)):
+            self.VARIANTS[vn] = (self.VARIANTS[vn][0],ix,self.VARIANTS[vn][2])
+
+        #update mx_variants table
+        sql = "delete from mx_variants;"
+        self.dbo.dc.execute(sql)
+        sql = "insert into mx_variants (ID,name,pos) values (?,?,?);"
+        self.dbo.dc.executemany(sql,[(tuple([vid,nm,pos])) for (n,(nm,(vid,idx,pos))) in enumerate(self.get_axis('variants'))])
+
+        #remove vid from mx_sups_subs
+        sql = "delete from mx_sups_subs where sup = %s or sub = %s" % (vid_,vid_)
+        self.dbo.dc.execute(sql)
+
+        #update panda version of mx_sups_subs
+        sql = "select distinct * from mx_sups_subs;"
+        self.dbo.dc.execute(sql)
+        sups_ = self.dbo.fetchall()
+        self.SS = pd.DataFrame(sups_,columns=['sup','sub'])
+
+        #remove vid from mx_dupe_variants
+        sql = "delete from mx_dupe_variants where vID = %s or dupe_vID = %s" % (vid_,vid_)
+        self.dbo.dc.execute(sql)
+
+        #reset the matrix
+        self.NP = self.NP[idx_,]
+        self.mx_vandh_sort()
+        self.save_mx()
+
+        #reset mx_sort_recommendations
+        sql = "delete from mx_sort_recommendations"
+        self.dbo.dc.execute(sql)
+
+    # data 
+
+    def sort_schema(self):
+        #Note: where the sort DDL schema is first run
+        self.dbo.create_schema(schemafile='sort-schema.sql')
+        
+    def save_mx(self):
+        trace(1, 'beg MatrixData stash at {}'.format(time.clock()))
+        with shelve.open('saved-data') as db:
+            db['KITS'] = self.KITS
+            db['VARIANTS'] = self.VARIANTS
+            db['perfectDATA'] = self.perfectDATA
+            db['mixedDATA'] = self.mixedDATA
+            db['identcallDATA'] = self.identcallDATA
+            db['unknownDATA'] = self.unknownDATA
+        
+    def restore_mx_data(self):
+        trace(1, 'beg MatrixData restore at {}'.format(time.clock()))
+        with shelve.open('saved-data') as db:
+            self.KITS = db['KITS']
+            self.VARIANTS = db['VARIANTS']
+            self.perfectDATA = db['perfectDATA']
+            self.mixedDATA = db['mixedDATA']
+            self.identcallDATA = db['identcallDATA']
+            self.unknownDATA = db['unknownDATA']
+
+        
+    # Method: create_mx_data
+    # Purpose: create an array of genotypes out of call data
+    # Side effect: matrices are populated in class variables
+    # Info:
+    #   matrix[vid] is a vector of genotype IDs for the given variant
+    #     the index into this vector corresponds to kitid
+    #     a genotype of -1 means unknown due to poor coverage
+    #     a genotype of -2 means gt was ambiguous (0/1, 0/2, 1/2, etc)
+    def create_mx_data(self):
+
+        # ----- MERGE CONFLICT LINES DELETED -----
+        # this procedure is a re-write to call get_variant_ids()
+        # all down-stream procedures affected, but haven't been touched yet
+
+        print("beg MatrixData create: %s" % format(time.clock()))
+
+        # get all call info (arr) and coverage info (cov)
+        ppl = get_analysis_ids(self.dbo)
+        arr, ppl, vids = get_variant_array(self.dbo, ppl)
+        trace(5, 'arr: {}...'.format(arr[ppl[0]]))
+        cov = get_kit_coverages(self.dbo, ppl, vids)
+
+        # loop through (vid,refid,altid) for our vids of interest
+        # value in resulting matrix:
+        #   = allele ID if genotype is solidly called
+        #   = -1 if position is not covered
+        #   = -2 if the call is mixed (ref or alt possible)
+        # the ancestral value is always the allele id of the variant anc
+        # values are kept as database IDs for efficiency
+        # can be converted to human-readable later when display is needed
+
+        # called variants that are identical across all kits
+        identcallDATA = OrderedDict()
+        # variants that are called for every kit and not all kits are the same
+        perfectDATA = OrderedDict()
+        # variants that have no solid calls
+        unknownDATA = OrderedDict()
+        # variants that have some solid calls and some unknowns
+        mixedDATA = OrderedDict()
+
+        vdefs = get_variant_defs(self.dbo, vids)
+        trace(2, 'vdefs({}): [{},{}....{}{}]'.format(len(vdefs),
+                                    vdefs[0],vdefs[1], vdefs[-2],vdefs[-1]))
+
+        # main loop to populate the matrices
+        for tup in vdefs:
+            vv = tup[0]
+            vect = []
+            for pp in ppl:
+                gt = None
+                try:
+                    # there is a call for this pid,vid
+                    pf,igt = arr[pp][vv]
+                    covered = pf
+                    if igt in (0,1):
+                        # gt from get_variant_array is 0,1 ==> anc,der
+                        gt = tup[igt+1]
+                    else:
+                        # gt is not 0,1 ==> ambiguous call: don't know
+                        gt = -2
+                except:
+                    # no call for this pid,vid
+                    try:
+                        # if variant is not covered, we don't know genotype
+                        if cov[pp][vv] == 0:
+                            covered = False
+                            gt = -1
+                        else:
+                            # covered, gt=anc by get_variant_array convention
+                            covered = True
+                            gt = tup[1]
+                    except:
+                        trace(0, 'FIXME: coverage for {},{}'.format(pp,vv))
+                if not gt:
+                    raise ValueError('gt not set')
+                vect.append(gt)
+            trace(3,'vect: {}...'.format(vect[:10]))
+
+            # no unknowns
+            if -1 not in vect and -2 not in vect:
+                # we have at least one ref and one alt
+                if (tup[1] in vect) and (tup[2] in vect):
+                    perfectDATA[vv] = vect
+                # all the same genotype across kits
+                elif vect.count(vect[0]) == len(vect):
+                    identcallDATA[vv] = vect
+                else:
+                    raise ValueError('unhandled vector type')
+            # some unknowns exist (due to no coverage or mixed calls)
+            else:
+                # there's at least one with a call
+                if (len([t for t in vect if t>=0]) > 0):
+                    mixedDATA[vv] = vect
+                else:
+                    unknownDATA[vv] = vect
+
+        # FIXME - used downstream, this definition isn't correct yet
+        self.VARIANTS = vids
+        self.KITS = ppl
+        trace(2,'KITS: {}'.format(self.KITS))
+        trace(2,'VARIANTS: {}...'.format(self.VARIANTS[:20]))
+
+        # show some debugging info
+        self.NPp = np.matrix(list(perfectDATA.values()))
+        trace(2,'NPp:\n{}'.format(self.NPp))
+        self.NPi = np.matrix(list(identcallDATA.values()))
+        trace(2,'NPi:\n{}'.format(self.NPi))
+        self.NPm = np.matrix(list(mixedDATA.values()))
+        trace(2,'NPm:\n{}'.format(self.NPm))
+        self.NPu = np.matrix(list(unknownDATA.values()))
+        trace(2,'NPu:\n{}'.format(self.NPu))
+
+        # summarize the results for diagnostics
+        trace(1,'Total matrix kits: {}'.format(len(self.KITS)))
+        trace(1,'Total perfect matrix variants: {}'.format(len(self.NPp)))
+        trace(1,'Total identical matrix variants: {}'.format(len(self.NPi)))
+        trace(1,'Total mixed matrix variants: {}'.format(len(self.NPm)))
+        trace(1,'Total unknowns matrix variants: {}'.format(len(self.NPu)))
+        trace(1,'Total matrix variants: {}'.format(len(self.VARIANTS)))
+
+        self.identcallDATA = identcallDATA
+        self.perfectDATA = perfectDATA
+        self.unknownDATA = unknownDATA
+        self.mixedDATA = mixedDATA
+        self.save_mx()
+
+        # FIXME - exit here while debugging
+        sys.exit(0)
+
+    def mx_remove_dupes(self,auto_nonsplits=False):
+        #Note: this is where dupe variant profiles are removed from the matrix and stored in the DB
+
+        def return_counts(idx, inv):
+            count = np.zeros(len(idx), np.int)
+            np.add.at(count, inv, 1)
+            return count
+
+        #create variables that we'll need for finding duplicates among the variants
+        b = np.ascontiguousarray(self.NP).view(np.dtype((np.void, self.NP.dtype.itemsize * self.NP.shape[1])))
+        _, idx, inv = np.unique(b, return_index=True, return_inverse=True)
+
+        cnts = return_counts(idx,inv)
+        dupes = [(i,j) for i,j in enumerate(idx) if cnts[i] > 1]
+
+        if auto_nonsplits is False:
+            print("\nThere are %s variants pre-dupe" % len(self.NP))
+            if len(dupes) > 0:
+                print("There are dupes: moving them\n")
+            else:
+                print("There are 0 dupes\n")
+
+        idx_uniq = [i for i, j in enumerate(idx) if cnts[i] == 1]
+        idx_dupe = [i for i, j in enumerate(idx) if cnts[i] > 1]
+
+        dupe_cnt = 0
+        for itm in dupes:
+
+            #this gets the duplicate variants (based on idx order) 
+            itms = list(np.delete(np.argwhere(inv==itm[0]),0))
+            new_vid = self.get_vid_by_vix(itm[1])
+            old_vids = self.get_vid_by_vix(itms)
+
+            #add new dupe variants to mx_dupe_variants table
+            sql = "insert into mx_dupe_variants(vID,dupe_vID) values (%s,?);" % new_vid
+            dupe_itms = [tuple([l]) for l in old_vids]
+            self.dbo.dc.executemany(sql,dupe_itms)
+
+            #track what's been changed
+            dupe_cnt = dupe_cnt + len(dupe_itms)
+            if config['DBG_DUPE_MSGS']:
+                print("removing %s dupes (total: %s)" % (len(dupe_itms),dupe_cnt))
+
+            #reset primary vID in the mx_dupe_variants table when there are dupe removals
+            sql = "update mx_dupe_variants set vID = %s where vID in (%s);" % (new_vid,l2s(old_vids))
+            self.dbo.dc.execute(sql)
+
+            #reset any sup references in the mx_sups_subs table for removed variants
+            sql = "update mx_sups_subs set sup = %s where sup in (%s);" % (new_vid,l2s(old_vids))
+            self.dbo.dc.execute(sql)
+
+            #reset any sub references in the mx_sups_subs table for removed variants
+            sql = "update mx_sups_subs set sub = %s where sub in (%s);" % (new_vid,l2s(old_vids))
+            self.dbo.dc.execute(sql)
+
+            #remove dupe variants from the self.VARIANTS var
+            for k in self.get_vname_by_vix(itms):
+                self.VARIANTS.pop(k,None)
+
+        if config['DBG_DUPE_MSGS']:
+            print("")
+
+        #reset the matrix idxs for the remaining non-dupe variants
+        for ix,vn in enumerate(self.get_vname_by_vix(idx)):
+            self.VARIANTS[vn] = (self.VARIANTS[vn][0],ix,self.VARIANTS[vn][2])
+            
+        #reset the matrix (now that the dupes are out)
+        self.NP = self.NP[idx,]
+        if dupe_cnt > 0:
+            print("Total dupes removed: %s\n" % dupe_cnt)
+        
+    def reset_ss_data(self):
+        #Note: this is where sups and subs are assembled, cached, and put into the DB
+
+        #reset tbl
+        sql = "delete from mx_sups_subs"
+        self.dbo.dc.execute(sql)
+
+        #perfect variants only
+        NP = self.NP[self.get_perfect_variants_idx()]
+        nrows, ncols = NP.shape
+        sups_ = []
+        vt = Variant()
+        for vix in list(range(nrows)):
+            vid = self.get_vid_by_vix(vix)
+            vt.vix = vix
+            vt.sort = self
+            sups = vt.get_rel(relType=1,allowImperfect=False)
+            if len(sups):
+                for sup_i in self.get_vid_by_vix(sups):
+                    sups_.append((sup_i,vid))
+
+        #sqlite tbl
+        sql = "insert into mx_sups_subs (sup,sub) values (?,?);"
+        self.dbo.dc.executemany(sql,sups_)
+
+        #panda tbl
+        self.SS = pd.DataFrame(sups_,columns=['sup','sub'])
+
+        #check consistencies of perfect variants (this needs to be after self.SS created)
+        print("\nChecking consistencies for perfect variants...")
+        cntErr = 0
+        for vix in list(range(nrows)):
+            vt.vix = vix
+            vt.kpc = self.get_kixs_by_val(val=1,vix=vt.vix)
+            cntErr = cntErr + vt.proc_chk(allowImperfect=False,auto_perfVariants=True)
+        if cntErr>0:
+            print("\n%s consistency problem(s) seen. Please resolve.\n"%cntErr)
+        else:
+            print("Consistency check: OK.\n")
+        print("Reset sup-sub relations count: %s\n" % len(sups_))
+
+
+class Variant(Sort):
+
+    def __init__(self):
+        Sort.__init__(self)
 
     def proc(self,vname):
         #Note: just process one variant 
@@ -84,13 +867,13 @@ class Variant(object):
     def matrix(self,argL,perfOnly=False,imperfOnly=False):
         #Note: calls stdout_matrix
 
-        self.sort.restore_mx_data()
+        self.restore_mx_data()
 
         #Note: perfect/imperfect only matrix
         if perfOnly:
-            vix = self.sort.get_perfect_variants_idx()
+            vix = self.perfectDATA.keys()
         elif imperfOnly:
-            vix = self.sort.get_imperfect_variants_idx()
+            vix = self.mixedDATA.keys()
         if perfOnly or imperfOnly:
             if len(argL)>0:
                 outK = argL[0]
@@ -133,7 +916,7 @@ class Variant(object):
                     sys.exit()
             else: #default (show everything)
                 kix = None
-        self.sort.stdout_matrix(vix=vix,kix=kix)
+        self.stdout_matrix(self.perfectDATA)
     def clade_priority(self,argL):
         #argL parsing
         argL = [x.upper() for x in argL]
@@ -1476,861 +2259,3 @@ class Variant(object):
         if config['DBG_SUPS_IN']: print("[supin.3] intersectCnts: %s"%IC)
         return IC
 
-class Sort(object):
-
-    def __init__(self):
-        self.dbo = DB(drop=False)
-        self.KITS = None
-        self.VARIANTS = None
-        self.NP = None #matrix
-        self.SS = None #sups+subs
-
-    # stdout
-
-    def stdout_matrix(self,vix=None,kix=None):
-        if vix is not None and kix is not None:
-            vix = sorted(vix)
-            kix = sorted(kix)
-            NP = self.NP[vix]
-            NP = NP[:,kix]
-            VARIANTS = self.get_vix_by_vix(vix)
-            KITS = self.get_kname_by_kix(kix)
-        elif kix is not None:
-            kix = sorted(kix)
-            NP = self.NP[:,kix]
-            VARIANTS = self.get_axis('variants')
-            KITS = self.get_kname_by_kix(kix)
-        elif vix is not None:
-            vix = sorted(vix)
-            NP = self.NP[vix]
-            VARIANTS = self.get_vix_by_vix(vix)
-            KITS = self.get_axis('kits',keysOnly=True)
-        else:
-            NP = self.NP
-            VARIANTS = self.get_axis('variants')
-            KITS = self.get_axis('kits',keysOnly=True)
-
-        print("beg stdout-matrix: %s" % format(time.clock()))
-        print("")
-
-        #matrix size chk
-        if config['SHOW_STDOUT_MATRIX_OVER_50_ROWS'] is False and len(NP) > 50:
-            print("Matrix too large for presentation.")
-            np.set_printoptions(threshold=np.inf)
-            print(NP)
-            return
-
-        #debugging
-        if config['DBG_MATRIX']:
-            print("---------------------------------------")
-            print("Matrix: bef stdout")
-            print("---------------------------------------")
-            print(NP)
-            print("")
-
-        #col nums
-        if kix:
-            lenCols = len(kix)
-            kixCols = kix
-        else:
-            lenCols = len(self.KITS)
-            kixCols = [str(x) for x in list(range(lenCols))]
-
-        #matrix
-        table = BeautifulTable(max_width=155)
-        table.column_headers = ['c']+['p']+['v']+[str(x) for x in KITS]
-        table.append_row(['']+['']+['']+kixCols)
-        table.append_row(['']+['']+['']+['']*lenCols)
-        cntV = 0
-        for K,V in VARIANTS:
-            table.append_row([self.get_vix_by_name(K)]+[str(V[2])]+[K]+[str(x).replace('-1','') for x in NP[cntV,:].tolist()[0]])
-            table.row_seperator_char = ''
-            table.column_seperator_char = ''
-            table.column_alignments['v'] = BeautifulTable.ALIGN_LEFT
-            cntV = cntV + 1
-        print(table)
-
-        #Note: counts for stdout
-        print("\nTotal matrix kits: %s" % len(self.KITS))
-        print("Total perfect matrix variants: %s" % len(self.get_perfect_variants_idx()))
-        print("Total imperfect matrix variants: %s" % len(self.get_imperfect_variants_idx()))
-        print("Total matrix variants: %s\n" % len(self.VARIANTS))
-
-        #done
-        print("")
-        print("end stdout-matrix: %s" % format(time.clock()))
-        
-    def stdout_unknowns(self):
-        self.dbo.db = self.dbo.db_init()
-        self.dbo.dc = self.dbo.cursor()
-        self.restore_mx_data()
-        print("")
-        print("---------------------------------------------------------------------")
-        print("")
-        cnt = 1
-        if len(self.get_imperfect_variants_idx()) == 0:
-            print("There are no imperfect variants in this matrix.")
-            print("")
-
-        for vix in self.get_imperfect_variants_idx():
-            name = self.get_vname_by_vix(vix)
-            kuc = self.get_kixs_by_val(val=0,vix=vix)
-            kucn = "kuc: %s [%s]"%(l2s(self.get_kname_by_kix(kuc)),l2s(kuc))
-            print("[%s]  var: %s" %(vix,name))
-            print("     %s" %kucn)
-            print("")
-            cnt = cnt + 1
-        print("---------------------------------------------------------------------")
-        print("")
-
-    # matrix 
-
-    def sort_matrix(self):
-        #get data
-        self.create_mx_data()
-
-        #sort
-        self.mx_vandh_sort()
-
-        #cache sups + subs
-        self.reset_ss_data()
-
-        #save data
-        self.save_mx()
-
-    def get_vix_by_vix(self,vix):
-        newVix = []
-        for vo in list(vix):
-            for itm in list(self.VARIANTS.items()):
-                if itm[1][1] == vo:
-                    newVix.append(itm)
-                    break
-        return(newVix)
-        
-    def get_kix_by_kix(self,kix):
-        newKix = []
-        for ko in list(kix):
-            for itm in list(self.KITS.items()):
-                if itm[1][1] == ko:
-                    newKix.append(itm)
-                    break
-        return(newKix)
-        
-    def get_vid_by_vix(self,vix):
-        intFlg = True
-        try:
-            value = int(vix)
-        except:
-            intFlg = False
-        if intFlg:
-            vix = [vix]
-        vidList = []
-        for vo in vix:
-            for itm in list(self.VARIANTS.items()):
-                if itm[1][1] == vo:
-                    vidList.append(itm[1][0])
-                    break
-        if intFlg:
-            return vidList[0]
-        else:
-            return vidList
-        
-    def get_kid_by_kix(self,kix):
-        intFlg = True
-        try:
-            value = int(kix)
-        except:
-            intFlg = False
-        if intFlg:
-            kix = [kix]
-        kidList = []
-        for ko in kix:
-            for itm in list(self.KITS.items()):
-                if itm[1][1] == ko:
-                    kidList.append(itm[1][0])
-                    break
-        if intFlg:
-            return kidList[0]
-        else:
-            return kidList
-        
-    def get_vname_by_vix(self,vix):
-        intFlg = True
-        try:
-            value = int(vix)
-        except:
-            intFlg = False
-        if intFlg:
-            vix = [vix]
-        vnList = []
-        for vo in vix:
-            if vo == -999: #top handling
-                vnList.append('top')
-            else:
-                for itm in list(self.VARIANTS.items()):
-                    if itm[1][1] == vo:
-                        vnList.append(itm[0])
-                        break
-        if intFlg:
-            return vnList[0]
-        else:
-            return vnList
-        
-    def get_kname_by_kix(self,kix):
-        intFlg = True
-        try:
-            value = int(kix)
-        except:
-            intFlg = False
-        if intFlg:
-            kix = [kix]
-        knList = []
-        for ko in kix:
-            for itm in list(self.KITS.items()):
-                if itm[1][1] == ko:
-                    knList.append(itm[0])
-                    break
-        if intFlg:
-            return knList[0]
-        else:
-            return knList
-
-    def get_vix_by_name(self,vnames):
-        vixs = []
-        strFlg = isinstance(vnames, str)
-        if strFlg:
-            vnames = [vnames]
-        for vn in vnames:
-            if vn.upper() in self.VARIANTS.keys():
-                vixs.append(self.VARIANTS[vn.upper()][1])
-        if strFlg:
-            if len(vixs):
-                return vixs[0]
-            else:
-                return None
-        else:
-            return vixs
-        
-    def get_kix_by_name(self,knames):
-        kixs = []
-        strFlg = isinstance(knames, str)
-        if strFlg:
-            knames = [knames]
-        for kn in knames:
-            kixs.append(self.KITS[kn][1])
-        if strFlg:
-            return kixs[0]
-        else:
-           return kixs
-        
-    def get_kid_by_name(self,kname):
-        return self.KITS[kname][0]
-        
-    def get_vid_by_name(self,vname):
-        return self.VARIANTS[vname][0]
-
-    def get_vixs_by_vids(self,vids):
-        intFlg = True
-        try:
-            value = int(vids)
-        except:
-            intFlg = False
-        if intFlg:
-            vids = [vids]
-        vixs = []
-        for v in vids:
-            for itm in list(self.VARIANTS.items()):
-                if itm[1][0] == v:
-                    vixs.append(itm[1][1])
-                    break
-        if intFlg:
-            return vixs[0]
-        else:
-            return vixs
-    def get_kixs_by_kids(self,kids):
-        intFlg = True
-        try:
-            value = int(kids)
-        except:
-            intFlg = False
-        if intFlg:
-            kids = [kids]
-        kixs = []
-        for k in kids:
-            for itm in list(self.KITS.items()):
-                if itm[1][0] == k:
-                    kixs.append(itm[1][1])
-                    break
-        if intFlg:
-            return kixs[0]
-        else:
-            return kixs
-
-    def get_kixs_by_val(self,val,vix=None,vname=None,overrideData=None):
-        if vname is not None:
-            vix = self.get_vix_by_name(vname)
-        if vix is not None and overrideData is not None: # we're sending in a custom evaluation
-            return list(np.argwhere(overrideData[0,] == val).T[1,]) #with override data, there's only one line evaluated - 1d datset
-        elif vix is not None: #no override -- use self.NP (all data)
-            if vix == -999: #top handling
-                if val == 1:
-                    return list(range(len(self.KITS)))
-                if val in [-1,0]:
-                    return []
-            return list(np.argwhere(self.NP[vix,] == val).T[1,]) #default data, it's the entire matrix - 2d dataset 
-        
-    def get_vixs_by_val(self,val,kix=None,kname=None,overrideData=None):
-        if kname is not None:
-            kix = self.get_kix_by_name(kname)
-        if kix is not None and overrideData is not None:
-            return np.argwhere(overrideData[:,0] == val).T[0,] #with override data, there's only one line evaluated - 1d dataset
-        elif kix is not None: #no override -- use self.NP (all data)
-            return np.argwhere(self.NP[:,kix] == val).T[0,] #default data, it's the entire matrix - 2d dataset
-        
-    def get_knames_by_val(self,val,vix=None,vname=None,overrideData=None):
-        return self.get_kname_by_kix(self.get_kix_by_val(val,vix,vname,overrideData))
-        
-    def get_vnames_by_val(self,val,kix=None,kname=None,overrideData=None):
-        return self.get_vname_by_vix(self.get_vixs_by_val(val,kix,kname,overrideData))
-
-    def mx_vandh_sort(self):
-        #Note: vertical/horizontal sort of the matrix
-
-        def return_counts(idx,inv):
-            count = np.zeros(len(idx), np.int)
-            np.add.at(count, inv, 1)
-            return count
-
-        #Note: debugging line outs
-        if config['DBG_MATRIX']:
-            print("\n=================================")
-            print("inside vandh sort")
-            print("=================================\n")
-            print("\n---------------------------------------")
-            print("Matrix: beg vandh sort")
-            print("---------------------------------------")
-            print(self.NP)
-            print("")
-
-        #Note: perfect variants
-        prfVix = self.get_perfect_variants_idx()
-
-        #Note: needs a certain amount of perfect vix (or it breaks)
-        if len(prfVix) < 2:
-            print("Only %s perfect vix found. Not enough. Exiting.\n" % len(prfVix))
-            sys.exit()
-
-        #Note: panda special handling to coord perfect vix + kix sorting
-        C = pd.DataFrame(np.argwhere(self.NP[prfVix]==1),columns=['vix2','kix'])
-        VX = pd.DataFrame(prfVix,columns=['vix1'])
-        VX['vix2'] = range(len(VX))
-        VC = pd.DataFrame(return_counts(list(range(len(prfVix))),np.argwhere(self.NP[prfVix]==1)[:,0]),columns=['cntV'])
-        KC = pd.DataFrame(return_counts(list(range(len(self.KITS))),np.argwhere(self.NP[prfVix]==1)[:,1]),columns=['cntK'])
-        KC['kix'] = range(len(KC))
-        VC2 = pd.concat([VX,VC], axis=1, join_axes=[VC.index])
-        C_VX = pd.merge(pd.merge(C,VC2, on='vix2'),KC,on='kix').sort_values(['cntV','cntK'], ascending=[False, False]).reset_index(drop=True)
-        prfVixSorted = list(C_VX.groupby('vix1',as_index=False).head(1)['vix1'].as_matrix())
-        KixSorted = list(C_VX.groupby('kix',as_index=False).head(1)['kix'].as_matrix())
-
-        #Note: imperfect variants
-        impVix = self.get_imperfect_variants_idx()
-        impVixPosV = np.argwhere(self.NP[impVix]==1)[:,0]
-        unqIV, cntIV = np.unique(impVixPosV, return_counts=True)
-        allIV = np.asarray((impVix,cntIV)) #idx w/counts
-        allIV = allIV[:,np.argsort(-allIV[1])] #vsort
-        impVixSorted = allIV.T[:,0] #sorted vix
-
-        #Note: vsort
-        VixSorted = np.concatenate((prfVixSorted,impVixSorted))
-        self.NP = self.NP[np.concatenate((prfVixSorted,impVixSorted)),]
-
-        #Note: if there are any kits w/o positives, figure it out here
-        cnts = return_counts(list(range(len(self.KITS))),KixSorted)
-        if 0 in list(cnts):
-            KixSorted = KixSorted + [i for i in list(range(len(self.KITS))) if cnts[i] == 0]
-
-        #re-map variant names with new indexes
-        vnamesL = self.get_vname_by_vix(VixSorted)
-        #re-map kit names with new indexes
-        knamesL = self.get_kname_by_kix(KixSorted)
-
-        #new matrix
-        if config['DBG_MATRIX']:
-            print("---------------------------------------")
-            print("Matrix: vandh - aft vsort")
-            print("---------------------------------------")
-            print(self.NP)
-
-        #hsort
-        self.NP = self.NP[:,KixSorted]
-        if config['DBG_MATRIX']:
-            print("\n---------------------------------------")
-            print("Matrix: vandh - aft hsort")
-            print("---------------------------------------")
-            print(self.NP)
-            print("")
-
-        #variants
-        for ix,v in enumerate(vnamesL):
-            #self.VARIANTS[v][1] = ix
-            self.VARIANTS[v] = (self.VARIANTS[v][0],ix,self.VARIANTS[v][2])
-
-        #kits
-        for ix,k in enumerate(knamesL):
-            #self.KITS[k][1] = ix
-            self.KITS[k] = (self.KITS[k][0],ix)
-
-    def get_axis(self,orderByType=None,keysOnly=False):
-        #Note: this is a useful function for being able to enumerate the VARIANTS/KITS dictionaries
-
-        if orderByType in ['variants','kits']:
-            if orderByType == 'variants' : SCH = self.VARIANTS
-            if orderByType == 'kits' : SCH = self.KITS
-            if keysOnly:
-                return [i[0] for i in sorted(SCH.items(), key=lambda e: e[1][1])]
-            else:
-                return sorted(SCH.items(), key=lambda e: e[1][1])
-
-    def get_mx_row_as_list(self,rownum,NP=None):
-        #TODO: this NP override is a hack, need to work out why I need this
-
-        if NP is not None:
-            NP = self.NP
-        else:
-            NP = NP
-        return NP[rownum,:].tolist()[0]
-        
-    def get_mx_kit_data(self,vix=None,vname=None):
-        if vname is not None:
-            vix = self.get_vix_by_name(vname)
-        if vix is not None:
-            return self.NP[vix,]
-        
-    def get_mx_variant_data(self,kix=None,kname=None):
-        if kname is not None:
-            kix = self.get_kix_by_name(kname)
-        if kix is not None:
-            return self.NP[:,kix].T
-
-    def get_perfect_variants_idx(self):
-        idx = list(range(len(self.VARIANTS)))
-        prf_idx = idx[:]
-        unk_idx = list(np.unique(np.argwhere(self.NP==0)[:,0]))
-        for x in idx:
-            if x in unk_idx:
-                prf_idx.remove(x)
-        return prf_idx
-        
-    def get_imperfect_variants_idx(self):
-        return list(np.unique(np.argwhere(self.NP==0)[:,0])) #make it a copy
-        
-    def filter_perfect_variants(self,vix):
-        if any(isinstance(el, list) for el in vix):
-            for itm in reversed([[n,v] for (n,(v,c)) in enumerate(vix)]):
-                if itm[1] in self.get_imperfect_variants_idx():
-                    vix.remove(vix[itm[0]])
-            return vix
-        else:
-            for itm in reversed([[n,v] for n,v in enumerate(vix)]):
-                if itm[1] in self.get_imperfect_variants_idx():
-                    vix.remove(vix[itm[0]])
-            return vix
-
-    def get_row_when_override_kixs(self,override_val,vix,kixs):
-        row = self.get_mx_kit_data(vix=vix)
-        if len(kixs) == 0:
-            return row
-        rowO = np.empty_like(row)
-        rowO[:] = row #make duplicate copy - important!
-        for kx in kixs:
-            rowO[0,kx] = override_val
-        return rowO
-        
-    def get_row_when_override_coord(self,override_val,kix=None,vix=None,kname=None,vname=None):
-        row = self.get_mx_kit_data(vix=vix)
-        rowO = np.empty_like(row)
-        rowO[:] = row #make duplicate copy - important!
-        rowO[0,kix] = override_val
-        return rowO
-
-    def mx_remove_vix(self,vix):
-        vid_ = self.get_vid_by_vix(vix)
-        vname = self.get_vname_by_vix(vix)
-
-        #TODO: need to check if there are other dupes to represent the missing variant. 
-
-        #remove variant from self.VARIANTS
-        idx_ = list(range(len(self.VARIANTS)))
-        idx_.pop(vix)
-        self.VARIANTS.pop(vname,None)
-
-        #reset the matrix idxs
-        for ix,vn in enumerate(self.get_vname_by_vix(idx_)):
-            self.VARIANTS[vn] = (self.VARIANTS[vn][0],ix,self.VARIANTS[vn][2])
-
-        #update mx_variants table
-        sql = "delete from mx_variants;"
-        self.dbo.dc.execute(sql)
-        sql = "insert into mx_variants (ID,name,pos) values (?,?,?);"
-        self.dbo.dc.executemany(sql,[(tuple([vid,nm,pos])) for (n,(nm,(vid,idx,pos))) in enumerate(self.get_axis('variants'))])
-
-        #remove vid from mx_sups_subs
-        sql = "delete from mx_sups_subs where sup = %s or sub = %s" % (vid_,vid_)
-        self.dbo.dc.execute(sql)
-
-        #update panda version of mx_sups_subs
-        sql = "select distinct * from mx_sups_subs;"
-        self.dbo.dc.execute(sql)
-        sups_ = self.dbo.fetchall()
-        self.SS = pd.DataFrame(sups_,columns=['sup','sub'])
-
-        #remove vid from mx_dupe_variants
-        sql = "delete from mx_dupe_variants where vID = %s or dupe_vID = %s" % (vid_,vid_)
-        self.dbo.dc.execute(sql)
-
-        #reset the matrix
-        self.NP = self.NP[idx_,]
-        self.mx_vandh_sort()
-        self.save_mx()
-
-        #reset mx_sort_recommendations
-        sql = "delete from mx_sort_recommendations"
-        self.dbo.dc.execute(sql)
-
-    # data 
-
-    def sort_schema(self):
-        #Note: where the sort DDL schema is first run
-        self.dbo.create_schema(schemafile='sort-schema.sql')
-        
-    def save_mx(self):
-        #Note: push kit/variant/numpy data into saved/matrix tbls + h5py file
-
-        #deletes
-        sql = "delete from mx_variants;"
-        self.dbo.dc.execute(sql)
-        sql = "delete from mx_kits;"
-        self.dbo.dc.execute(sql)
-        sql = "delete from mx_idxs;"
-        self.dbo.dc.execute(sql)
-
-        #save matrix variants
-        sql = "insert into mx_variants (ID,name,pos) values (?,?,?);"
-        self.dbo.dc.executemany(sql,[(tuple([vid,nm,pos])) for (n,(nm,(vid,idx,pos))) in enumerate(self.get_axis('variants'))])
-
-        #save matrix variants (idx order)
-        sql = "insert into mx_idxs (type_id,axis_id,idx) values (0,?,?);"
-        self.dbo.dc.executemany(sql,[(tuple([vid,idx])) for (n,(nm,(vid,idx,pos))) in enumerate(self.get_axis('variants'))])
-
-        #save matrix kits
-        sql = "insert into mx_kits (ID,kitId) values (?,?);"
-        self.dbo.dc.executemany(sql,[(tuple([kid,nm])) for (n,(nm,(kid,idx))) in enumerate(self.get_axis('kits'))])
-
-        #save matrix kits (idx order)
-        sql = "insert into mx_idxs (type_id,axis_id,idx) values (1,?,?);"
-        self.dbo.dc.executemany(sql,[(tuple([kid,idx])) for (n,(nm,(kid,idx))) in enumerate(self.get_axis('kits'))])
-
-        #save numpy data
-        if 1==2:
-            devnull = open(os.devnull, 'w')
-            from mock import patch
-            with patch('sys.stdout', devnull):
-                with patch('sys.stderr', devnull):
-                    import h5py
-            h5f = h5py.File('data.h5', 'w')
-            h5f.create_dataset('dataset_1', data=self.NP)
-            h5f.close()
-
-        if 1==1:
-            with open('data.pickle', 'wb') as handle:
-                pickle.dump(self.NP, handle, protocol=pickle.HIGHEST_PROTOCOL)
-        
-    def restore_mx_data(self):
-        print("beg MatrixData restore: %s" % format(time.clock()))
-        self.VARIANTS = {}
-        self.KITS = {}
-
-        #variants
-        sql = '''
-            SELECT DISTINCT V.name, V.ID, IX.idx, V.pos
-            FROM mx_idxs IX
-            INNER JOIN mx_variants V
-            ON IX.axis_id = V.ID
-            WHERE IX.type_id = 0
-            ORDER BY IX.idx;
-            ''';
-        self.dbo.dc.execute(sql)
-        F = self.dbo.fetchall()
-        for row in F:
-            self.VARIANTS[row[0]] = (row[1],row[2],row[3]) #self.VARIANTS[name] = [vID,idx]
-
-        #kits
-        sql = '''
-            SELECT DISTINCT K.kitId, K.ID, IX.idx
-            FROM mx_idxs IX
-            INNER JOIN mx_kits K
-            ON IX.axis_id = K.ID
-            WHERE IX.type_id = 1
-            ORDER BY IX.idx;
-            ''';
-        self.dbo.dc.execute(sql)
-        F = self.dbo.fetchall()
-        for row in F:
-            self.KITS[row[0]] = (row[1],row[2]) #self.VARIANTS[name] = [vID,idx]
-
-        #numpy data
-        if 1==2:
-            devnull = open(os.devnull, 'w')
-            from mock import patch
-            with patch('sys.stdout', devnull):
-                with patch('sys.stderr', devnull):
-                    import h5py
-            h5f = h5py.File('data.h5','r')
-            self.NP = np.asmatrix(h5f['dataset_1'][:])
-            h5f.close()
-        if 1==1:
-            with open('data.pickle', 'rb') as handle:
-                self.NP = pickle.load(handle)
-
-        #sups+subs
-        sql = "SELECT DISTINCT * FROM mx_sups_subs;"
-        self.dbo.dc.execute(sql)
-        sups_ = self.dbo.fetchall()
-        self.SS = pd.DataFrame(sups_,columns=['sup','sub'])
-        print("end MatrixData restore: %s" % format(time.clock()))
-        
-    # Method: create_mx_data
-    # Purpose: create an array of genotypes out of call data
-    # Info:
-    #   DATA[vid] is a vector of genotype IDs for the given variant
-    #   a genotype of -1 means unknown due to poor coverage
-    #   variants that don't have at least one + and one - are not kept
-    def create_mx_data(self):
-
-        print("beg MatrixData create: %s" % format(time.clock()))
-
-        # get all call info (arr) and coverage info (cov) -treece
-        ppl = get_analysis_ids(self.dbo)
-        arr, ppl, vids = get_variant_array(self.dbo, ppl)
-        trace(2, 'people: {}'.format(ppl))
-        trace(5, 'variants: {}...'.format(vids[:100]))
-        trace(5, 'arr: {}...'.format(arr[ppl[0]]))
-        cov = get_kit_coverages(self.dbo, ppl, vids)
-
-        # ----- MERGE CONFLICT LINES DELETED -----
-
-        # loop through (vid,refid,altid) for our vids of interest
-        # collect covered and gt = allele ID if genotype is known or -1 if not
-        identcallDATA = OrderedDict()
-        perfectDATA = OrderedDict()
-        unknownDATA = OrderedDict()
-        mixedDATA = OrderedDict()
-        self.KITS = {}
-        self.VARIANTS = {}
-        vdefs = get_variant_defs(self.dbo, vids)
-        trace(2, 'vdefs: {}...'.format(vdefs[:20]))
-        for tup in vdefs:
-            vv = tup[0]
-            vect = []
-            for pp in ppl:
-                gt = None
-                try:
-                    # there is a call for this pid,vid
-                    pf,igt = arr[pp][vv]
-                    covered = pf
-                    if igt in (0,1):
-                        # gt from get_variant_array is 0,1 ==> anc,der
-                        gt = tup[igt+1]
-                    else:
-                        # gt is not 0,1 ==> ambiguous call: don't know
-                        gt = -2
-                except:
-                    # no call for this pid,vid
-                    try:
-                        # if variant is not covered, we don't know genotype
-                        if cov[pp][vv] == 0:
-                            covered = False
-                            gt = -1
-                        else:
-                            # covered, gt=anc by get_variant_array convention
-                            covered = True
-                            gt = tup[1]
-                    except:
-                        trace(0, 'FIXME: coverage for {},{}'.format(pp,vv))
-                if not gt:
-                    raise ValueError('gt not set')
-                vect.append(gt)
-                if vv in (396568, 406650, 367821, 309494):
-                    trace(4,'kit {}, variant {}, gt {}'.format(pp,vv,gt))
-            trace(3,'vect: {}...'.format(vect[:10]))
-
-            # no unknowns
-            if -1 not in vect and -2 not in vect:
-                # we have at least one ref and one alt
-                if (tup[1] in vect) and (tup[2] in vect):
-                    perfectDATA[vv] = vect
-                # all the same genotype across kits
-                elif vect.count(vect[0]) == len(vect):
-                    identcallDATA[vv] = vect
-            # some unknowns (due to no coverage or mixed calls)
-            else:
-                # there's at least one with a call
-                if (len([t for t in vect if t>=0]) > 0):
-                    mixedDATA[vv] = vect
-                else:
-                    unknownDATA[vv] = vect
-
-            if vv in (396568, 406650, 367821, 309494):
-                try:
-                    trace(4, '{}:{}'.format(vv, mixedDATA[vv]))
-                except:
-                    pass
-        trace(2,'kits: {}'.format(ppl))
-        trace(3,'perfectDATA: {}...'.format(perfectDATA))
-
-        # ----- MERGE CONFLICT LINES DELETED -----
-
-        #debugging
-        trace(5,'variants in perfectDATA: {}'.format(perfectDATA.keys()))
-        self.NP = np.matrix(list(perfectDATA.values()))
-        trace(2,'NP:\n{}'.format(self.NP))
-        self.NP2 = np.matrix(list(identcallDATA.values()))
-        trace(2,'NP2:\n{}'.format(self.NP2))
-        self.NP3 = np.matrix(list(mixedDATA.values()))
-        trace(2,'NP3:\n{}'.format(self.NP3))
-        if config['DBG_MATRIX']:
-            print("\n---------------------------------------")
-            print("Matrix: just created data")
-            print("---------------------------------------")
-            print(self.NP)
-
-        # ----- MERGE RESOLUTION LINES DELETED -----
-
-        #Note: counts for stdout
-        print("Total matrix kits: %s" % len(self.KITS))
-        print("Total perfect matrix variants: %s" % len(self.get_perfect_variants_idx()))
-        print("Total imperfect matrix variants: %s" % len(self.get_imperfect_variants_idx()))
-        print("Total matrix variants: %s\n" % len(self.VARIANTS))
-
-        #Note: done (stdout)
-        print("end MatrixData create: %s" % format(time.clock()))
-        if config['DBG_MATRIX']:
-            print("\n---------------------------------------")
-            print("Matrix: end of create data routine")
-            print("---------------------------------------")
-            print(self.NP)
-
-    def mx_remove_dupes(self,auto_nonsplits=False):
-        #Note: this is where dupe variant profiles are removed from the matrix and stored in the DB
-
-        def return_counts(idx, inv):
-            count = np.zeros(len(idx), np.int)
-            np.add.at(count, inv, 1)
-            return count
-
-        #create variables that we'll need for finding duplicates among the variants
-        b = np.ascontiguousarray(self.NP).view(np.dtype((np.void, self.NP.dtype.itemsize * self.NP.shape[1])))
-        _, idx, inv = np.unique(b, return_index=True, return_inverse=True)
-
-        cnts = return_counts(idx,inv)
-        dupes = [(i,j) for i,j in enumerate(idx) if cnts[i] > 1]
-
-        if auto_nonsplits is False:
-            print("\nThere are %s variants pre-dupe" % len(self.NP))
-            if len(dupes) > 0:
-                print("There are dupes: moving them\n")
-            else:
-                print("There are 0 dupes\n")
-
-        idx_uniq = [i for i, j in enumerate(idx) if cnts[i] == 1]
-        idx_dupe = [i for i, j in enumerate(idx) if cnts[i] > 1]
-
-        dupe_cnt = 0
-        for itm in dupes:
-
-            #this gets the duplicate variants (based on idx order) 
-            itms = list(np.delete(np.argwhere(inv==itm[0]),0))
-            new_vid = self.get_vid_by_vix(itm[1])
-            old_vids = self.get_vid_by_vix(itms)
-
-            #add new dupe variants to mx_dupe_variants table
-            sql = "insert into mx_dupe_variants(vID,dupe_vID) values (%s,?);" % new_vid
-            dupe_itms = [tuple([l]) for l in old_vids]
-            self.dbo.dc.executemany(sql,dupe_itms)
-
-            #track what's been changed
-            dupe_cnt = dupe_cnt + len(dupe_itms)
-            if config['DBG_DUPE_MSGS']:
-                print("removing %s dupes (total: %s)" % (len(dupe_itms),dupe_cnt))
-
-            #reset primary vID in the mx_dupe_variants table when there are dupe removals
-            sql = "update mx_dupe_variants set vID = %s where vID in (%s);" % (new_vid,l2s(old_vids))
-            self.dbo.dc.execute(sql)
-
-            #reset any sup references in the mx_sups_subs table for removed variants
-            sql = "update mx_sups_subs set sup = %s where sup in (%s);" % (new_vid,l2s(old_vids))
-            self.dbo.dc.execute(sql)
-
-            #reset any sub references in the mx_sups_subs table for removed variants
-            sql = "update mx_sups_subs set sub = %s where sub in (%s);" % (new_vid,l2s(old_vids))
-            self.dbo.dc.execute(sql)
-
-            #remove dupe variants from the self.VARIANTS var
-            for k in self.get_vname_by_vix(itms):
-                self.VARIANTS.pop(k,None)
-
-        if config['DBG_DUPE_MSGS']:
-            print("")
-
-        #reset the matrix idxs for the remaining non-dupe variants
-        for ix,vn in enumerate(self.get_vname_by_vix(idx)):
-            self.VARIANTS[vn] = (self.VARIANTS[vn][0],ix,self.VARIANTS[vn][2])
-            
-        #reset the matrix (now that the dupes are out)
-        self.NP = self.NP[idx,]
-        if dupe_cnt > 0:
-            print("Total dupes removed: %s\n" % dupe_cnt)
-        
-    def reset_ss_data(self):
-        #Note: this is where sups and subs are assembled, cached, and put into the DB
-
-        #reset tbl
-        sql = "delete from mx_sups_subs"
-        self.dbo.dc.execute(sql)
-
-        #perfect variants only
-        NP = self.NP[self.get_perfect_variants_idx()]
-        nrows, ncols = NP.shape
-        sups_ = []
-        vt = Variant()
-        for vix in list(range(nrows)):
-            vid = self.get_vid_by_vix(vix)
-            vt.vix = vix
-            vt.sort = self
-            sups = vt.get_rel(relType=1,allowImperfect=False)
-            if len(sups):
-                for sup_i in self.get_vid_by_vix(sups):
-                    sups_.append((sup_i,vid))
-
-        #sqlite tbl
-        sql = "insert into mx_sups_subs (sup,sub) values (?,?);"
-        self.dbo.dc.executemany(sql,sups_)
-
-        #panda tbl
-        self.SS = pd.DataFrame(sups_,columns=['sup','sub'])
-
-        #check consistencies of perfect variants (this needs to be after self.SS created)
-        print("\nChecking consistencies for perfect variants...")
-        cntErr = 0
-        for vix in list(range(nrows)):
-            vt.vix = vix
-            vt.kpc = self.get_kixs_by_val(val=1,vix=vt.vix)
-            cntErr = cntErr + vt.proc_chk(allowImperfect=False,auto_perfVariants=True)
-        if cntErr>0:
-            print("\n%s consistency problem(s) seen. Please resolve.\n"%cntErr)
-        else:
-            print("Consistency check: OK.\n")
-        print("Reset sup-sub relations count: %s\n" % len(sups_))
-
-
-        

@@ -144,12 +144,8 @@ if args.testdrive:
 
 def init_vt(initSort=False):
     vt = Variant()
-    vt.dbo = DB()
-    vt.dbo.db = vt.dbo.db_init()
-    vt.dbo.dc = vt.dbo.cursor()
     if initSort:
         vt.sort = Sort()
-        vt.sort.dbo = vt.dbo
     return vt
     
 if args.sort:
