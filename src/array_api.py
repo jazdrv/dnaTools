@@ -152,12 +152,28 @@ def in_range(v_vect, ranges, spans):
 #   a db instance
 #   a list of variant ids
 # Returns:
-#   (vid, anc, der) for vid in variants
+#   (vid, pos, anc, der) for vid in variants
 def get_variant_defs(db, vids):
     dc = db.cursor()
     rval = []
     for v in vids:
-        dc.execute('select id,anc,der from variants where id=?', (v,))
+        dc.execute('select id,pos,anc,der from variants where id=?', (v,))
+        rval.append(dc.fetchone())
+    return rval
+
+
+# Procedure: get_kit_ids
+# Purpose: get the lab-assigned kitid corresponding to dnaid
+# Input:
+#   a db instance
+#   a list of dna ids
+# Returns:
+#   (dnaid, kitid) for dnaid in pids
+def get_kit_ids(db, pids):
+    dc = db.cursor()
+    rval = []
+    for p in pids:
+        dc.execute('select dnaid,kitid from dataset where dnaid=?', (p,))
         rval.append(dc.fetchone())
     return rval
 
