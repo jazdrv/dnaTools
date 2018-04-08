@@ -208,7 +208,7 @@ class Sort(object):
         #sort
 
         #cache sups + subs
-        self.reset_ss_data()
+        # self.reset_ss_data()
 
         #save data
         self.save_mx()
