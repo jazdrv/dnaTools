@@ -656,15 +656,6 @@ def populate_from_VCF_file(dbo, bid, pid, fileobj):
     dc.executemany('insert into tmpt values(?,?,?,?,?,?,?,?)',
                     [[bid]+v[0:3]+[pid]+[v[3]]+v[-2:] for v in call_info])
 
-    # ----- merge for sort prototype -----
-    # dc.execute('''create table if not exists tmpta(a int, b int, c text, d text, g text, e int, f int, h text)''')
-    # dc.execute('''create temporary table tmpt(a int, b int, c text, d text, g text, e int, f int, h text)''')
-    # dc.executemany("insert into tmpt values(?,?,?,?,?,?,?,?)",
-    #                      [[bid]+v[0:4]+[pid]+[v[-1]]+[v[-2]] for v in call_info])
-    # dc.executemany("insert into tmpta values(?,?,?,?,?,?,?,?)",
-    #                      [[bid]+v[0:4]+[pid]+[v[-1]]+[v[-2]] for v in call_info])
-    # ----- merge for sort prototype -----
-
     # don't insert clear reference calls unless they are refpos
     dc.execute('''delete from tmpt where g='0/0' and d='.' and f='PASS'
                   and b not in (select v.pos from variants v
@@ -679,10 +670,6 @@ def populate_from_VCF_file(dbo, bid, pid, fileobj):
     # fixme - performance?
     trace(4,'VCF update variants at {}'.format(time.clock()))
 
-    # ----- merge for sort prototype -----
-    # dc.execute('''insert into vcfcalls (pid,vid,callinfo,assigned,genotype)
-    #              select e, v.id, f, case when g = 'PASS' then 1 else -1 end as g, h from tmpt
-    # ----- merge -----
     dc.execute('''insert into vcfcalls (pid,vid,callinfo)
                   select e, v.id, h from tmpt
                   inner join alleles an on an.allele = c
