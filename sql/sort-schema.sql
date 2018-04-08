@@ -161,14 +161,14 @@ create table mx_call_negs (
 -- }}}
 -- CREATE VIEWS (import to matrix) {{{
 
-CREATE VIEW v_max_snpnames AS
-  SELECT max(snpname) as snpname,vID from snpnames group by 2;
+--jct CREATE VIEW v_max_snpnames AS
+--jct   SELECT max(snpname) as snpname,vID from snpnames group by 2;
 
-CREATE VIEW v_imx_kits AS 
-  SELECT DISTINCT C.pID, max(D.kitId) as kitId from vcfcalls C 
-  INNER JOIN dataset D 
-  ON C.pID = D.ID 
-  GROUP BY 1;
+--jct CREATE VIEW v_imx_kits AS 
+--jct   SELECT DISTINCT C.pID, max(D.kitId) as kitId from vcfcalls C 
+--jct   INNER JOIN dataset D 
+--jct   ON C.pID = D.ID 
+--jct   GROUP BY 1;
 
 --jct CREATE VIEW v_pos_call_chk as 
 --jct   SELECT DISTINCT C.vID, V.pos
@@ -189,11 +189,11 @@ CREATE VIEW v_imx_kits AS
 --jct   INNER JOIN variants V
 --jct   ON C.vID  = V.ID and C.assigned = -1;
 
-CREATE VIEW v_all_calls_with_kits as 
-  SELECT DISTINCT C.vID, V.pos, C.pID, cast(C.pID as varchar(15))||'|'||cast(C.vID as varchar(15)) as pidvid
-  FROM vcfcalls C 
-  INNER JOIN variants V
-  ON C.vID  = V.ID; 
+--jct CREATE VIEW v_all_calls_with_kits as 
+--jct   SELECT DISTINCT C.vID, V.pos, C.pID, cast(C.pID as varchar(15))||'|'||cast(C.vID as varchar(15)) as pidvid
+--jct   FROM vcfcalls C 
+--jct   INNER JOIN variants V
+--jct   ON C.vID  = V.ID; 
 
 --jct CREATE VIEW v_neg_call_chk1 as 
 --jct   SELECT DISTINCT C.vID
@@ -203,18 +203,18 @@ CREATE VIEW v_all_calls_with_kits as
 --jct   select distinct vid2 as vID from mx_call_negs
 --jct   ;
 
-CREATE VIEW v_pos_neg_call_chk as 
-  SELECT DISTINCT vID FROM v_pos_call_chk UNION SELECT vID FROM v_neg_call_chk1;
+--jct CREATE VIEW v_pos_neg_call_chk as 
+--jct   SELECT DISTINCT vID FROM v_pos_call_chk UNION SELECT vID FROM v_neg_call_chk1;
 
-CREATE VIEW v_neg_call_chk2 as 
-  SELECT DISTINCT vID FROM v_neg_call_chk1 UNION SELECT DISTINCT vID FROM tmp2;
+--jct CREATE VIEW v_neg_call_chk2 as 
+--jct   SELECT DISTINCT vID FROM v_neg_call_chk1 UNION SELECT DISTINCT vID FROM tmp2;
 
-CREATE VIEW v_imx_variants AS
-  SELECT DISTINCT ifnull(S.snpname,V.ID) as name, V.pos, V.ID 
-  FROM vcfcalls C, v_pos_call_chk P, v_neg_call_chk2 N, variants V
-  LEFT JOIN v_max_snpnames S
-  ON S.vID = V.ID
-  WHERE N.vID = V.ID AND P.vID = V.ID AND V.ID = C.vID;
+--jct CREATE VIEW v_imx_variants AS
+--jct   SELECT DISTINCT ifnull(S.snpname,V.ID) as name, V.pos, V.ID 
+--jct   FROM vcfcalls C, v_pos_call_chk P, v_neg_call_chk2 N, variants V
+--jct   LEFT JOIN v_max_snpnames S
+--jct   ON S.vID = V.ID
+--jct   WHERE N.vID = V.ID AND P.vID = V.ID AND V.ID = C.vID;
 
 -- CREATE VIEW v_imx_variants_pos AS
 --   SELECT DISTINCT ifnull(S.snpname,V.ID) as name, V.pos, V.ID 
@@ -236,10 +236,10 @@ CREATE VIEW v_imx_variants AS
 --jct   ON P.vID = N.vID
 --jct   WHERE P.vID is Null;
   
-CREATE VIEW v_imx_variants_with_kits AS
-  SELECT DISTINCT K.pID, PV.name, PV.pos, PV.ID as vID, K.kitId
-  FROM v_imx_variants PV
-  CROSS JOIN v_imx_kits K;
+--jct CREATE VIEW v_imx_variants_with_kits AS
+--jct   SELECT DISTINCT K.pID, PV.name, PV.pos, PV.ID as vID, K.kitId
+--jct   FROM v_imx_variants PV
+--jct   CROSS JOIN v_imx_kits K;
 
 --jct CREATE VIEW v_imx_assignments AS
 --jct   SELECT DISTINCT C.pID, PV.name, PV.pos, PV.ID as vID, C.assigned,C.genotype
@@ -256,46 +256,46 @@ CREATE VIEW v_imx_variants_with_kits AS
 --jct   ON CN.pos = PVK.pos and CN.pID = PVK.pID and CN.vid2 = PVK.vID
 --jct   WHERE T.pid = PVK.pID and T.vID = PVK.vID;
 
-CREATE VIEW v_ref_variants AS
-  SELECT DISTINCT S.snpname, V.ID, V.pos, B.buildNm, AA.allele as
-  anc, DA.allele as der, ifnull(IX.idx,9999999) as idx, D1.vID as vID1, D2.vID as vID2, NU.reasonId, MXV.name
-  FROM build B, alleles AA, alleles DA, variants V
-  LEFT JOIN mx_idxs IX
-  ON IX.axis_id = V.ID and IX.type_id = 0
-  LEFT JOIN mx_variants MXV
-  ON MXV.ID = V.ID
-  LEFT JOIN snpnames S
-  ON S.vID = V.ID
-  LEFT JOIN mx_dupe_variants D1 -- #is a parent to dupe "children"
-  ON D1.vID = V.ID
-  LEFT JOIN mx_dupe_variants D2 -- #is a dupe "child" of another vix
-  ON D2.dupe_vID = V.ID
-  LEFT JOIN mx_notused_variants NU
-  ON NU.vID = V.ID
-  WHERE
-  V.anc = AA.ID and V.der = DA.ID
-  and B.buildNm = 'hg38'
-  and V.buildID = B.ID
-  ORDER BY 1;
+--jct CREATE VIEW v_ref_variants AS
+--jct   SELECT DISTINCT S.snpname, V.ID, V.pos, B.buildNm, AA.allele as
+--jct   anc, DA.allele as der, ifnull(IX.idx,9999999) as idx, D1.vID as vID1, D2.vID as vID2, NU.reasonId, MXV.name
+--jct   FROM build B, alleles AA, alleles DA, variants V
+--jct   LEFT JOIN mx_idxs IX
+--jct   ON IX.axis_id = V.ID and IX.type_id = 0
+--jct   LEFT JOIN mx_variants MXV
+--jct   ON MXV.ID = V.ID
+--jct   LEFT JOIN snpnames S
+--jct   ON S.vID = V.ID
+--jct   LEFT JOIN mx_dupe_variants D1 -- #is a parent to dupe "children"
+--jct   ON D1.vID = V.ID
+--jct   LEFT JOIN mx_dupe_variants D2 -- #is a dupe "child" of another vix
+--jct   ON D2.dupe_vID = V.ID
+--jct   LEFT JOIN mx_notused_variants NU
+--jct   ON NU.vID = V.ID
+--jct   WHERE
+--jct   V.anc = AA.ID and V.der = DA.ID
+--jct   and B.buildNm = 'hg38'
+--jct   and V.buildID = B.ID
+--jct   ORDER BY 1;
 
-CREATE VIEW v_ref_variants_hg19 AS
-  SELECT DISTINCT S.snpname,V.ID,V.pos, B.buildNm
-  FROM build B, variants V
-  LEFT JOIN snpnames S
-  ON S.vID = v.ID
-  WHERE
-  B.buildNm = 'hg19'
-  and V.buildID = B.ID
-  ORDER BY 1;
+--jct CREATE VIEW v_ref_variants_hg19 AS
+--jct   SELECT DISTINCT S.snpname,V.ID,V.pos, B.buildNm
+--jct   FROM build B, variants V
+--jct   LEFT JOIN snpnames S
+--jct   ON S.vID = v.ID
+--jct   WHERE
+--jct   B.buildNm = 'hg19'
+--jct   and V.buildID = B.ID
+--jct   ORDER BY 1;
 
 -- }}}
 -- CREATE VIEWS (inside matrix) {{{
 
-CREATE VIEW v_mx_kits AS 
-  SELECT DISTINCT ID,kitId FROM mx_kits;
+--jct CREATE VIEW v_mx_kits AS 
+--jct   SELECT DISTINCT ID,kitId FROM mx_kits;
 
-CREATE VIEW v_mx_variants AS 
-  SELECT DISTINCT name, pos, ID FROM mx_variants;
+--jct CREATE VIEW v_mx_variants AS 
+--jct   SELECT DISTINCT name, pos, ID FROM mx_variants;
 
 -- }}}
 -- CREATE INDEXES{{{
