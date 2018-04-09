@@ -157,7 +157,10 @@ def get_variant_defs(db, vids):
     dc = db.cursor()
     rval = []
     for v in vids:
-        dc.execute('select id,pos,anc,der from variants where id=?', (v,))
+        dc.execute('''select v.id,v.pos,aa.allele,ab.allele from variants v
+                    inner join alleles aa on v.anc=aa.id
+                    inner join alleles ab on v.der=ab.id
+                    where v.id=?''', (v,))
         rval.append(dc.fetchone())
     return rval
 
@@ -166,15 +169,16 @@ def get_variant_defs(db, vids):
 # Purpose: get the lab-assigned kitid corresponding to dnaid
 # Input:
 #   a db instance
-#   a list of dna ids
+#   a dict of dnaid:kitid
 # Returns:
 #   (dnaid, kitid) for dnaid in pids
 def get_kit_ids(db, pids):
     dc = db.cursor()
-    rval = []
+    rval = {}
     for p in pids:
         dc.execute('select dnaid,kitid from dataset where dnaid=?', (p,))
-        rval.append(dc.fetchone())
+        pid,kit = dc.fetchone()
+        rval[pid] = kit
     return rval
 
 
@@ -438,7 +442,8 @@ def get_kit_coverages(db, pids, vids):
         trace(5, 'indels:{}..., coverage:{}...'.format([(i[0],i[1]) for i in enumerate(iv)][:50], [(i[0],i[1]) for i in enumerate(cv)][:50]))
         # store coverage information
         for cov,vid in zip(cv, iv):
-            cdict[pid][vid] = cov
+            if cov != RANGE_COV:
+                cdict[pid][vid] = cov
         # get snp coverage for a kit
         trace(3, 'snps for kit {} at {}...'.format(pid,time.clock()))
         trace(4, 'get_call_coverage(db, {}, {})'.format(pid,snp_ids))
@@ -446,7 +451,8 @@ def get_kit_coverages(db, pids, vids):
         trace(5, 'snps:{}..., coverage:{}...'.format(iv[:5], cv[:5]))
         # store "not-covered" since it's sparse
         for cov,vid in zip(cv, iv):
-            cdict[pid][vid] = cov
+            if cov != RANGE_COV:
+                cdict[pid][vid] = cov
     return cdict
 
 # test framework

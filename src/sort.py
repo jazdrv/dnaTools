@@ -38,6 +38,8 @@ class VKcalls(object):
         self.vids = list(calls_by_vid.keys())
         # number of variants
         self.nvids = len(self.vids)
+        # variant definitions
+        self.vdefs = None
         # vector of kits (pIDs) corresponding to calls per vID
         self.kits = kvect
         # number of kits
@@ -57,7 +59,7 @@ class VKcalls(object):
     # Method: update_data
     # Purpose: replace data with a new array (e.g. a sorted one)
     # Info:
-    #   does not update kdefs, which is an issue if kits changed
+    #   does not update vdefs,kdefs, which is an issue if kits changed
     def update_data(self, A):
         self.calls = A
         self.kits = list(A.axes[1])
@@ -73,8 +75,9 @@ class VKcalls(object):
             self.kdefs = get_kit_ids(self.dbo, [self.kits[ii] for ii in
                                                     self.korder])
         NP = self.calls.as_matrix()
-        table = BeautifulTable(max_width=300)
-        table.column_headers = ['vID']+[str(x[1]) for x in self.kdefs]
+        table = BeautifulTable(max_width=450)
+        table.column_headers = ['vID']+[str(self.kdefs[self.kits[ii]])
+                                            for ii in self.korder]
         table.append_row(['pID-->']+[self.kits[ii] for ii in self.korder])
         table.append_row(['']+['']*self.nkits)
         for iV in self.vorder:
@@ -88,6 +91,34 @@ class VKcalls(object):
 
         return '{}'.format(table)
 
+    # represent this data structure as a csv
+    def to_csv(self, fname):
+        if not self.kdefs:
+            self.kdefs = get_kit_ids(self.dbo, [self.kits[ii] for ii in
+                                                    self.korder])
+        if not self.vdefs:
+            vd = get_variant_defs(self.dbo, self.vids)
+            self.vdefs = dict([(v[0],(v[1],v[2],v[3])) for v in vd])
+        NP = self.calls.as_matrix()
+        fieldnames = ['vID','pos','anc','der'] +\
+                [str(self.kdefs[self.kits[ii]]) for ii in self.korder]
+        with open (fname, 'w') as csvfile:
+            cf = csv.DictWriter(csvfile, fieldnames=fieldnames)
+            cf.writeheader()
+            d = ['','','',''] + [self.kits[ii] for ii in self.korder]
+            d = dict(zip(fieldnames,d))
+            cf.writerow(d)
+            for iV in self.vorder:
+                V = self.vids[iV]
+                trace(2,'{}'.format(V))
+                pos,ref,alt = self.vdefs[V]
+                rowvals = [V, pos, ref, alt]
+                cvals =  NP[iV].tolist()
+                rowvals += [cvals[ii] for ii in self.korder]
+                rowdict = dict(zip(fieldnames,rowvals))
+                trace(2,'{}'.format(rowdict))
+                cf.writerow(rowdict)
+    
     # Method: partition4
     # Purpose: partition array into four quadrants
     #   A - upper left, contains the largest clade
@@ -227,7 +258,8 @@ class Sort(object):
             db['identcallDATA'] = self.identcallDATA
             db['unknownDATA'] = self.unknownDATA
             db['NPp'] = self.NPp
-        
+            db['vdefs'] = self.vdefs
+
     def restore_mx_data(self):
         trace(1, 'beg MatrixData restore at {}'.format(time.clock()))
         with shelve.open('saved-data') as db:
@@ -238,7 +270,8 @@ class Sort(object):
             self.identcallDATA = db['identcallDATA']
             self.unknownDATA = db['unknownDATA']
             self.NPp = db['NPp']
-        
+            self.vdefs = db['vdefs']
+
     # Method: create_mx_data
     # Purpose: create an array of genotypes out of call data
     # Side effect: matrices are populated in class variables
@@ -278,10 +311,10 @@ class Sort(object):
         vd = get_variant_defs(self.dbo, vids)
         trace(2, 'vdefs({}): [{},{}....{},{}]'.format(len(vd),
                                     vd[0],vd[1], vd[-2],vd[-1]))
-        vdefs = dict([(v[0],(v[1],v[2],v[3])) for v in vd])
+        self.vdefs = dict([(v[0],(v[1],v[2],v[3])) for v in vd])
 
         # main loop to populate the matrices
-        for vv in vdefs:
+        for vv in self.vdefs:
             vect = []
             for pp in ppl:
                 gt = None
@@ -302,12 +335,16 @@ class Sort(object):
                         if cov[pp][vv] == 0:
                             covered = False
                             gt = -1
-                        else:
+                        elif cov[pp][vv] in (1,2,3):
                             # covered, gt=anc by get_variant_array convention
                             covered = True
                             gt = 0
+                        else:
+                            trace(0, 'unexpected value for coverage')
+                    # no entry in coverage is default (covered)
                     except:
-                        trace(0, 'FIXME: coverage for {},{}'.format(pp,vv))
+                        covered = True
+                        gt = 0
                 if gt is None:
                     raise ValueError('gt not set')
                 vect.append(gt)
@@ -398,12 +435,17 @@ class Variant(Sort):
         m = VKcalls(self.dbo, self.perfectDATA, kix)
         A = m.partition_sort(m.calls)
         m.update_data(A)
-        trace(2,'m:\n{}'.format(m))
-        sys.exit(0)
+        m.to_csv('csv.out')
+        trace(3,'m:\n{}'.format(m))
 
 
 # test framework
 if __name__=='__main__':
     v = Variant()
-    v.create_mx_data()
-    v.matrix()
+    try:
+        v.matrix()
+    except:
+        raise
+        v.create_mx_data()
+        v.matrix()
+        v.to_csv('csv.out')
