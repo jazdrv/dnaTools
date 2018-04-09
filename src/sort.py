@@ -110,13 +110,12 @@ class VKcalls(object):
             cf.writerow(d)
             for iV in self.vorder:
                 V = self.vids[iV]
-                trace(2,'{}'.format(V))
                 pos,ref,alt = self.vdefs[V]
                 rowvals = [V, pos, ref, alt]
                 cvals =  NP[iV].tolist()
                 rowvals += [cvals[ii] for ii in self.korder]
                 rowdict = dict(zip(fieldnames,rowvals))
-                trace(2,'{}'.format(rowdict))
+                trace(3,'{}'.format(rowdict))
                 cf.writerow(rowdict)
     
     # Method: partition4
@@ -435,7 +434,7 @@ class Variant(Sort):
         m = VKcalls(self.dbo, self.perfectDATA, kix)
         A = m.partition_sort(m.calls)
         m.update_data(A)
-        m.to_csv('csv.out')
+        m.to_csv('out.csv')
         trace(3,'m:\n{}'.format(m))
 
 
@@ -448,4 +447,4 @@ if __name__=='__main__':
         raise
         v.create_mx_data()
         v.matrix()
-        v.to_csv('csv.out')
+        v.to_csv('out.csv')

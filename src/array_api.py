@@ -150,7 +150,7 @@ def in_range(v_vect, ranges, spans):
 # Purpose: get the ref and alt ids for a list of variants
 # Input:
 #   a db instance
-#   a list of variant ids
+#   a dict of dnaid:kitid
 # Returns:
 #   (vid, pos, anc, der) for vid in variants
 def get_variant_defs(db, vids):
@@ -300,10 +300,13 @@ def get_variant_csv(db, ppl):
         out += vtext
         out += ','
         for pid,kid in klist:
-            # indicate what coverage (blank means covered)
-            if cdict[pid][vid] < RANGE_COV:
-                ncstring = RANGE_VALS[cdict[pid][vid]]
-            else:
+            try:
+                # indicate what coverage (blank means covered)
+                if cdict[pid][vid] < RANGE_COV:
+                    ncstring = RANGE_VALS[cdict[pid][vid]]
+                else:
+                    ncstring = ''
+            except:
                 ncstring = ''
             try:
                 # entry in the array means called
@@ -458,11 +461,16 @@ def get_kit_coverages(db, pids, vids):
 # test framework
 if __name__=='__main__':
     from db import DB
+    from subprocess import call
+    t0 = time.time()
     # smoke test DB __init__
     db = DB(drop=False)
-    # smoke test trace()
+    # smoke test trace() and get_analysis_ids()
     trace(0, 'test message should display to stdout')
-    trace(0, 'analysis_ids: {} (may be empty if kits are not loaded)'.format(get_analysis_ids(db)))
+    ids = get_analysis_ids(db)
+    trace(0, 'analysis_ids: {} (empty if kits are not loaded)'.format(ids))
+    for id in ids:
+        call(['../bin/info.py', '-k', '{}'.format(id)])
     # smoke test in_range()
     v_vect = [1, 1, 5, 30, 35, 40, 42, 47, 52]
     ranges = [(0, 20), (30, 40), (41, 42), (45, 50)]
@@ -471,5 +479,11 @@ if __name__=='__main__':
     spans = [20, 1, 1, 3, 6, 2, 2, 3, 1]
     # expected: [3, 1, 4, 0, 2, 0, 0, 4, 0]
     trace(0, '{}'.format(in_range(v_vect,ranges,spans)))
+    # smoke and time test get_variant_array() and get_dna_ids()
+    trace(0, 'get_dna_ids at {:.2f} seconds...'.format(time.time() - t0))
+    ids = get_dna_ids(db)
+    trace(0, 'get_variant_array at {:.2f} seconds...'.format(time.time() - t0))
+    arr = get_variant_array(db, ids)
+    trace(0, '...done at {:.2f} seconds'.format(time.time() - t0))
     # smoke test get_variant_defs
     trace(0, '{}'.format(get_variant_defs(db, [1,2,20,21])))

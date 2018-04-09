@@ -729,10 +729,11 @@ def populate_from_dataset(dbo):
     # Query to get all known kits, with analysis_kits prioritized.
     # Prioritizing analysis_kits means they're loaded first, and we don't need
     # to load thousands of kits to get the ones we're interested in.
-    dc = dc.execute('''select fileNm,buildID,DNAID from dataset
+    dc = dc.execute('''select fileNm,buildID,DNAID,1 from dataset
                        inner join analysis_kits on pID=DNAID
                              union all
-                       select fileNm,buildID,DNAID from dataset''')
+                       select fileNm,buildID,DNAID,2 from dataset
+                       order by 4''')
     allsets = list([(t[0],t[1],t[2]) for t in dc])
     pc = dbo.cursor()
     pl = pc.execute('select distinct pid from vcfcalls')

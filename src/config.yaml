@@ -24,11 +24,11 @@ REDUX_BIN: ../bin
 
 # HOW MUCH DO YOU WANT THE PROGRAM TO SHOUT AT YOU?
 # the higher the number, the more output
-verbosity: 1
+verbosity: 2
 
 # limit the number of kits that will be processed
 # normally, process all kits available, so leave this at a high number
-kitlimit: 250
+kitlimit: 100
 
 # pull the list of kits using the HaplogroupR web API. THIS NEEDS TO BE
 # DONE ONCE, but thereafter it can be false to use the locally cached
@@ -41,7 +41,7 @@ zip_dir: zip
 unzip_dir: unzip
 
 # the name of the file on disk for sqlite3
-DB_FILE: variant-proto.db
+DB_FILE: variant.db
 
 # the name of the hg19 and hg38 named SNP definitions files
 # these should not need to be changed; they are pulled from the web
@@ -213,7 +213,7 @@ DBG_SUPS: False #True #False #True #False
 DBG_SUPS_IN: False #True #False #True #False
 DBG_SUBS: False #True #False
 DBG_SUBS_IN: False #True #False #True #False
-DBG_MATRIX: False #True
+DBG_MATRIX: True
 DBG_DUPE_MSGS: True #False #True
 
 # special handling
