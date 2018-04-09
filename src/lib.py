@@ -623,6 +623,9 @@ def populate_from_VCF_file(dbo, bid, pid, fileobj):
         return
     # parse output of getVCFvariants(fname)
     parsed = getVCFvariants(fileobj)
+    #if pid == 1040:
+    #    print(parsed)
+    #    sys.exit()
     tups = []
     for line in parsed.splitlines():
         # pos, anc, der, passfail, q1, q2, nreads, passrate, gt
@@ -652,23 +655,28 @@ def populate_from_VCF_file(dbo, bid, pid, fileobj):
                   d text, e integer, f text, g text, h integer)''')
     dc.executemany('insert into tmpt values(?,?,?,?,?,?,?,?)',
                     [[bid]+v[0:3]+[pid]+[v[3]]+v[-2:] for v in call_info])
-    # fixme - performance?
-    trace(4,'VCF update variants at {}'.format(time.clock()))
-    dc.execute('''insert or ignore into variants(buildID, pos, anc, der)
-                  select a, b, an.id, dr.id from tmpt
-                  inner join alleles an on an.allele = c
-                  inner join alleles dr on dr.allele = d''')
-    trace(4,'VCF update calls at {}'.format(time.clock()))
+
     # don't insert clear reference calls unless they are refpos
     dc.execute('''delete from tmpt where g='0/0' and d='.' and f='PASS'
                   and b not in (select v.pos from variants v
                     inner join refpos r on r.vid=v.id)''')
+
+    dc.execute('''insert or ignore into variants(buildID, pos, anc, der)
+                  select a, b, an.id, dr.id from tmpt
+                  inner join alleles an on an.allele = c
+                  inner join alleles dr on dr.allele = d''')
+
+
+    # fixme - performance?
+    trace(4,'VCF update variants at {}'.format(time.clock()))
+
     dc.execute('''insert into vcfcalls (pid,vid,callinfo)
                   select e, v.id, h from tmpt
                   inner join alleles an on an.allele = c
                   inner join alleles dr on dr.allele = d
                   inner join variants v on v.buildID = a and v.pos = b
                   and v.anc=an.id and v.der=dr.id''')
+
     trace(4,'VCF load for {} done at {}'.format(pid, time.clock()))
     dc.execute('drop table tmpt')
     dc.close()
@@ -699,11 +707,18 @@ def populate_from_zip_file(dbo, fname):
 #   unpack all zip files that can be handled from the HaplogroupR catalog.
 # Input:
 #   dbo, a database object
-#   uses zip files presumed already downloaded into the data directory
+#   uses any zip files already downloaded into the data directory
 # Info:
-#   If the zip file exists, unpack it. Skip file if already loaded.  Walk
-#   through dataset table to find these files. Assume we've already pulled the
-#   list from the H-R web API and downloaded zip files.
+#   Uses previously-populated dataset table to find these files.
+#   Assume we've already pulled the list from the H-R web API and we
+#   already downloaded some zip files.
+#
+#   Loop over kit metadata in dataset table; if zip file exists locally:
+#     if already loaded (calls exist in the db), skip this file
+#     read the BED and VCF file from it in place, without landing on disk
+#     store the VCF data in vcfcalls
+#     store the BED ranges
+#
 # Future:
 #   also download files?
 def populate_from_dataset(dbo):
@@ -711,7 +726,13 @@ def populate_from_dataset(dbo):
     dc = dbo.cursor()
     bed_re = re.compile(r'(\b(?:\w*[^_/])?regions(?:\[\d\])?\.bed)')
     vcf_re = re.compile(r'(\b(?:\w*[^_/])?variants(?:\[\d\])?\.vcf)')
-    dc = dc.execute('select fileNm,buildID,DNAID from dataset')
+    # Query to get all known kits, with analysis_kits prioritized.
+    # Prioritizing analysis_kits means they're loaded first, and we don't need
+    # to load thousands of kits to get the ones we're interested in.
+    dc = dc.execute('''select fileNm,buildID,DNAID from dataset
+                       inner join analysis_kits on pID=DNAID
+                             union all
+                       select fileNm,buildID,DNAID from dataset''')
     allsets = list([(t[0],t[1],t[2]) for t in dc])
     pc = dbo.cursor()
     pl = pc.execute('select distinct pid from vcfcalls')
@@ -719,7 +740,9 @@ def populate_from_dataset(dbo):
     trace(5,'allsets: {}'.format(allsets[:config['kitlimit']]))
     nkits = 0
 
-    # fixme - hack - better index handling (drop index for insert performance)
+    # FIXME - hack - better index handling might be desirable.
+    # Here we drop indexes while updating because inserts are faster.
+    # Later, we re-create these indexes after all of the updates are done.
     trace(3, 'drop indexes at {}'.format(time.clock()))
     dc.execute('drop index if exists bedidx')
     dc.execute('drop index if exists vcfidx')
@@ -727,8 +750,10 @@ def populate_from_dataset(dbo):
     trace(3, 'done at {}'.format(time.clock()))
 
     for (fn,buildid,pid) in allsets:
-        # if there are already calls for this person, skip the load
-        # fixme - should also skip if BED entries exist
+        # Loop over the kits we know about.
+        # If there are already calls for this person, skip the load.
+        # FIXME - should also skip if BED entries exist, as otherwise it could
+        # result in duplicated BED entries for this kit.
         if (not config['drop_tables']) and pid in pexists:
             trace(2, 'calls exist - skip {}'.format(fn[:50]))
             continue
@@ -737,6 +762,7 @@ def populate_from_dataset(dbo):
             trace(10, 'not present: {}'.format(zipf))
             continue
         try:
+            # open the zip file and pull out the BED and VCF
             with zipfile.ZipFile(zipf) as zf:
                 trace(1, '{}-{}'.format(nkits,zf.filename[:70]))
                 listfiles = zf.namelist()
@@ -762,14 +788,22 @@ def populate_from_dataset(dbo):
             dbo.commit()
             dbo.close()
             trace(0, 'commit and close db')
-            raise # FIXME what to do on error
+
+            # FIXME what to do on error. By raising an exception here, we fail
+            # ungracefully if a bad file is encountered. For now, it's OK to
+            # remove that offending file and try again. If drop_tables is
+            # False, previously-loaded data is kept
+            raise
+
         if nkits >= config['kitlimit']:
             break
-        # fixme - if BED passes and VCF fails, cruft is left behind. This loop
-        # could go into a transaction, but that slows the loading. I can't
-        # think of any harm storing the extra BED info.
+        # FIXME - if BED passes and VCF fails, cruft is left behind in the
+        # database. This loop could go into a transaction, such that any
+        # failure would roll-back the entire kit as a unit of work, but that
+        # slows the loading. I can't think of any harm storing the extra BED
+        # info, so I'm leaving this unprotected by transactions for now.
 
-    # fixme - hack
+    # re-create indexes we dropped above
     trace(3, 're-create indexes at {}'.format(time.clock()))
     dc.execute('create index bedidx on bed(pID,bID)')
     dc.execute('create index vcfidx on vcfcalls(vID)')

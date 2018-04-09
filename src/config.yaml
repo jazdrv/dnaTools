@@ -24,11 +24,11 @@ REDUX_BIN: ../bin
 
 # HOW MUCH DO YOU WANT THE PROGRAM TO SHOUT AT YOU?
 # the higher the number, the more output
-verbosity: 3
+verbosity: 1
 
 # limit the number of kits that will be processed
 # normally, process all kits available, so leave this at a high number
-kitlimit: 5
+kitlimit: 250
 
 # pull the list of kits using the HaplogroupR web API. THIS NEEDS TO BE
 # DONE ONCE, but thereafter it can be false to use the locally cached
@@ -41,7 +41,7 @@ zip_dir: zip
 unzip_dir: unzip
 
 # the name of the file on disk for sqlite3
-DB_FILE: variant.db
+DB_FILE: variant-proto.db
 
 # the name of the hg19 and hg38 named SNP definitions files
 # these should not need to be changed; they are pulled from the web
@@ -51,7 +51,7 @@ b38_snp_file: "snps_hg38.csv"
 # currently used during the database creation phase to cause the
 # database to be recreated every time. False means leave whatever exists
 # in the database, but that is not necessarily working yet
-drop_tables: True
+drop_tables: False
 
 # maximum age in days of SNP definitions files before we download a new
 # copy from the web
@@ -204,3 +204,32 @@ make_ages: True
 make_short_report: True
 make_html_report: True
 
+# (beg) sort - prototype
+
+# debugging
+
+DBG_RELS: False
+DBG_SUPS: False #True #False #True #False
+DBG_SUPS_IN: False #True #False #True #False
+DBG_SUBS: False #True #False
+DBG_SUBS_IN: False #True #False #True #False
+DBG_MATRIX: False #True
+DBG_DUPE_MSGS: True #False #True
+
+# special handling
+
+allowImperfectWithVInfo: True
+SHOW_STDOUT_MATRIX_OVER_50_ROWS: True
+SHOW_PROC_CHK_DETAILS: False
+
+# db
+
+GEN_ALL_DATA: all # options: test1, test2, all
+ALL_DATA_MATRIX_AFT_SORT: False
+TEST_DATA_MATRIX_AFT_SORT: True
+DBG_SQL: False
+COMMITS_ON: True
+
+# (end) sort - prototype
+
+#DB_FILE: sort.dbk

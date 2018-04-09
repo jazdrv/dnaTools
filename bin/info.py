@@ -101,7 +101,9 @@ def querysnp(snp):
                  where v.pos=? and a.allele=? and b.allele=?''',
                  (pos,ref,alt))
     except:
-        c1.execute('''select v.id from variants v where pos=?''', (snp,))
+        c1.execute('''select v.id from variants v where pos=?
+                           union
+                      select v.id from variants v where id=?''', (snp,snp))
     for row in c1:
         ids.add(row[0])
     c1 = c1.execute('select vid from snpnames where snpname=?', (snp.upper(),))
@@ -128,23 +130,24 @@ def querysnp(snp):
                            inner join build bld on bld.id=v.buildid
                            where pos=?''', (pos,))
         for row in c1:
-            print('{} {:>8}.{}.{} - {} (id={})'.format(row[0], row[1], row[2],
-                                                       row[3],
-                                                       '/'.join(nams),
-                                                       row[4]))
+            if row[4] in ids:
+                print('{} {:>8}.{}.{} - {} (id={})'.format(row[0], row[1],
+                                                        row[2], row[3],
+                                                        '/'.join(nams),
+                                                        row[4]))
     if not ids:
         print('No data on {}'.format(snp))
 
     kitids = set()
     for iid in ids:
-        c1 = c1.execute('select distinct pid from vcfcalls where vid=?', (iid,))
+        c1.execute('select distinct pid from vcfcalls where vid=?', (iid,))
         for row in c1:
             kitids.add(row[0])
     print('Found in {} kits'.format(len(kitids)))
     for iid in kitids:
-        c1 = c1.execute('''select d.kitid,b.buildnm from dataset d
-                           inner join build b on b.id=d.buildid
-                           where d.dnaid=?''', (iid,))
+        c1.execute('''select d.kitid,b.buildnm from dataset d
+                      inner join build b on b.id=d.buildid
+                      where d.dnaid=?''', (iid,))
         kitid, buildnm = c1.fetchone()
         print('{} {}'.format(kitid,buildnm))
 
