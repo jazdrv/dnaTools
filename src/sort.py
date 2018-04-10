@@ -99,19 +99,20 @@ class VKcalls(object):
         if not self.vdefs:
             vd = get_variant_defs(self.dbo, self.vids)
             self.vdefs = dict([(v[0],(v[1],v[2],v[3])) for v in vd])
+        snpnames = get_variant_snpnames(self.dbo, self.vids)
         NP = self.calls.as_matrix()
-        fieldnames = ['vID','pos','anc','der'] +\
+        fieldnames = ['vID','pos','anc','der','name'] +\
                 [str(self.kdefs[self.kits[ii]]) for ii in self.korder]
         with open (fname, 'w') as csvfile:
             cf = csv.DictWriter(csvfile, fieldnames=fieldnames)
             cf.writeheader()
-            d = ['','','',''] + [self.kits[ii] for ii in self.korder]
+            d = [''] * 5 + [self.kits[ii] for ii in self.korder]
             d = dict(zip(fieldnames,d))
             cf.writerow(d)
             for iV in self.vorder:
                 V = self.vids[iV]
                 pos,ref,alt = self.vdefs[V]
-                rowvals = [V, pos, ref, alt]
+                rowvals = [V, pos, ref, alt, snpnames[V]]
                 cvals =  NP[iV].tolist()
                 rowvals += [cvals[ii] for ii in self.korder]
                 rowdict = dict(zip(fieldnames,rowvals))
@@ -447,4 +448,4 @@ if __name__=='__main__':
         raise
         v.create_mx_data()
         v.matrix()
-        v.to_csv('out.csv')
+

@@ -165,6 +165,26 @@ def get_variant_defs(db, vids):
     return rval
 
 
+# Procedure: get_variant_defs
+# Purpose: get the ref and alt ids for a list of variants
+# Input:
+#   a db instance
+#   a dict of dnaid:kitid
+# Returns:
+#   (vid, pos, anc, der) for vid in variants
+def get_variant_snpnames(db, vids):
+    dc = db.cursor()
+    rval = {}
+    for v in vids:
+        dc.execute('''select v.id,s.snpname from variants v
+                    inner join snpnames s on s.vid=v.id
+                    where v.id=?''', (v,))
+        sn = '/'.join([s[1] for s in dc])
+        # note sn might be empty, one, or multiple names, e.g. 'M2986/Z4303'
+        rval[v] = sn
+    return rval
+
+
 # Procedure: get_kit_ids
 # Purpose: get the lab-assigned kitid corresponding to dnaid
 # Input:
