@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# coding: utf-8
 #
 # Copyright (c) 2018 the Authors
 #
@@ -213,6 +214,72 @@ class VKcalls(object):
         trace(10, 'cols: {}'.format(c1A+c2D))
         return A.reindex(rows).reindex(columns=cols)
 
+    # Method: get_blocks
+    # Purpose: find blocks (variants x kits) from the data
+    # Return:
+    #   coordinates (kitmin,kitmax,varmin,varmax) for each block
+    # Info:
+    #   This method should be called on an array that has already been sorted
+    #   from the partition_sort method. It looks for contiguous blocks of
+    #   calls. A block is a set of kits that all have the set of variants
+    #   called or all don't have the set of variants called.
+    def get_blocks(self, A):
+
+        # if calls are consistent, no recurrencies or bad calls, and they are
+        # sorted properly from partition_sort, all blocks discovered are
+        # homogeneous (all the same val). This check returns blocks that do not
+        # pass the homogeneous test. In each block returned, there's some
+        # "problem" that needs to be looked into.
+        def check_blocks(A,coords,val):
+            badblocks = []
+            for coord in coords:
+                r1,r2 = coord[2:4]
+                c1,c2 = coord[0:2]
+                tot = A.as_matrix()[r1:r2+1, c1:c2+1].sum()
+                if val * (r2+1-r1) * (c2+1-c1) != tot:
+                    badblocks.append(coord)
+            return badblocks
+
+        # zeroes to the left form a block that extends down
+        # ones across the row form a block of calls until the first zero
+        # the block of calls is extended down as many rows as possible
+        # zeroes to the right form a block that extends to the last kit
+        Xmin, Xmax = 0, A.shape[1]
+        Ymin, Ymax = 0, A.shape[0]
+        blocks = []
+        zeroes = []
+        rownum = Ymin
+        while rownum < Ymax:
+            zeromin = zeromax = 0
+            row = A.as_matrix()[rownum]
+            while zeromax < Xmax and row[zeromax] == 0:
+                zeromax += 1
+            onemin = onemax = zeromax
+            while onemax < Xmax and row[onemax] == 1:
+                onemax += 1
+            rowmax = rownum + 1
+            while rowmax < Ymax:
+                rowp = A.as_matrix()[rowmax]
+                if onemax > Xmax or rowp[onemax-1] == 0:
+                    break
+                rowmax += 1
+            rowmax -= 1
+            blocks.append((onemin,onemax-1, rownum,rowmax))
+            if onemax < Xmax:
+                zeroes.append((onemax,Xmax-1, rownum,rowmax))
+            if zeromax > 0:
+                zeroes.append((Xmin,zeromax-1, rownum,rowmax))
+                trace(5,'rn, rmx, zmn, zmx-1, 1mn, 1mx-1 : {},{},{},{},{},{}'.
+                          format(rownum,rowmax,zeromin,zeromax,onemin,onemax))
+            rownum = rowmax+1
+        trace(2, 'blocks: {}'.format(blocks))
+        trace(2, 'zeroes: {}'.format(zeroes))
+        badblocks = check_blocks(A, zeroes, 0)
+        trace(2, 'not all zero: {}'.format(badblocks))
+        badblocks = check_blocks(A, blocks, 1)
+        trace(2, 'not all one: {}'.format(badblocks))
+        return blocks, zeroes
+
 
 # Class: Sort
 # Purpose: container and methods for sorting variants and kits
@@ -231,23 +298,18 @@ class Sort(object):
         self.unknownDATA = {}
         self.mixedDATA = {}
 
-    def sort_matrix(self):
-        #get data
+    # Method: init_sort_matrix
+    # Purpose: fill data structure from the raw call info
+    def init_sort_matrix(self):
+        # get data and cache it because creating takes some time
         self.create_mx_data()
-
-        #sort
-
-        #cache sups + subs
-        # self.reset_ss_data()
-
-        #save data
         self.save_mx()
 
-    def sort_schema(self):
-        #Note: where the sort DDL schema is first run
-        #self.dbo.create_schema(schemafile='sort-schema.sql')
-        return
-
+    # Method: save_mx
+    # Purpose: cache the Sort data structure for fast recall
+    # Info:
+    #   it takes some time to initialize Sort from call data, so save it to
+    #   disk and it can be quickly recalled without initializing Sort again
     def save_mx(self):
         trace(1, 'beg MatrixData stash at {}'.format(time.clock()))
         with shelve.open('saved-data') as db:
@@ -260,6 +322,10 @@ class Sort(object):
             db['NPp'] = self.NPp
             db['vdefs'] = self.vdefs
 
+    # Method: restore_mx_data
+    # Purpose: recall the initialized Sort data from the cache
+    # Info:
+    #   corresponds to save_mx
     def restore_mx_data(self):
         trace(1, 'beg MatrixData restore at {}'.format(time.clock()))
         with shelve.open('saved-data') as db:
@@ -393,7 +459,6 @@ class Sort(object):
         self.perfectDATA = perfectDATA
         self.unknownDATA = unknownDATA
         self.mixedDATA = mixedDATA
-        self.save_mx()
 
 
 # Class: Variant
@@ -419,24 +484,43 @@ class Variant(Sort):
         self.set_info(lev=2,allowImperfect=allowImperfect)
         self.stdout_info()
         
+    # Method: matrix
+    # Purpose: manipulate calls as a matrix
+    # Info:
+    #   This is work in progress. Currently, we sort the kits and pull out
+    #   blocks and write out a .csv file. It's the main entry point for doing
+    #   work and analysis with the calls we just stored.
     def matrix(self,argL=None):
-
+        # restore the data that was set up when we initialized sort
         self.restore_mx_data()
-        kix = self.KITS
-        #m = VKcalls(self.dbo, self.mixedDATA, kix)
-        #trace(1,'{}'.format(m))
-        #m = VKcalls(self.dbo, self.unknownDATA, kix)
-        #trace(1,'{}'.format(m))
-        #m = VKcalls(self.dbo, self.identcallDATA, kix)
-        #trace(1,'{}'.format(m))
-        m = VKcalls(self.dbo, self.perfectDATA, kix)
+
+        # set up a VKcalls data structure for sorting, printing and analysis
+        #m = VKcalls(self.dbo, self.mixedDATA, self.KITS)
+        #m = VKcalls(self.dbo, self.unknownDATA, self.KITS)
+        #m = VKcalls(self.dbo, self.identcallDATA, self.KITS)
+        m = VKcalls(self.dbo, self.perfectDATA, self.KITS)
+
+        # sort data into a logical order/grouping
         A = m.partition_sort(m.calls)
         m.update_data(A)
+
+        # write a csv file for inspecting this result
         m.to_csv('out.csv')
+
+        # see what blocks we can pull out of the calls [experimental]
+        coords, zcoords = m.get_blocks(A)
+        snps,kits = A.axes
+        for ii,coord in enumerate(coords):
+            kitlist = list(kits[coord[0]:coord[1]+1])
+            snplist = list(snps[coord[2]:coord[3]+1])
+            trace(2, 'block {}:\n  kits: {}\n  snps: {}'.
+                      format(ii,kitlist,snplist))
+
+        # display the matrix - mostly obviated by the csv file
         trace(3,'m:\n{}'.format(m))
 
 
-# test framework
+# test framework to exercise the code
 if __name__=='__main__':
     v = Variant()
     try:

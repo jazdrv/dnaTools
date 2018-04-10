@@ -150,8 +150,7 @@ def init_vt(initSort=False):
     
 if args.sort:
     sort = Sort()
-    sort.sort_schema()
-    sort.sort_matrix()
+    sort.init_sort_matrix()
 
 if args.variant_info:
     vt = init_vt(initSort=True)
