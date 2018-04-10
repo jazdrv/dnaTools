@@ -97,8 +97,7 @@ class VKcalls(object):
             self.kdefs = get_kit_ids(self.dbo, [self.kits[ii] for ii in
                                                     self.korder])
         if not self.vdefs:
-            vd = get_variant_defs(self.dbo, self.vids)
-            self.vdefs = dict([(v[0],(v[1],v[2],v[3])) for v in vd])
+            self.vdefs = get_variant_defs(self.dbo, self.vids)
         snpnames = get_variant_snpnames(self.dbo, self.vids)
         NP = self.calls.as_matrix()
         fieldnames = ['vID','pos','anc','der','name'] +\
@@ -246,7 +245,8 @@ class Sort(object):
 
     def sort_schema(self):
         #Note: where the sort DDL schema is first run
-        self.dbo.create_schema(schemafile='sort-schema.sql')
+        #self.dbo.create_schema(schemafile='sort-schema.sql')
+        return
 
     def save_mx(self):
         trace(1, 'beg MatrixData stash at {}'.format(time.clock()))
@@ -308,10 +308,7 @@ class Sort(object):
         # variants that have some solid calls and some unknowns
         mixedDATA = {}
 
-        vd = get_variant_defs(self.dbo, vids)
-        trace(2, 'vdefs({}): [{},{}....{},{}]'.format(len(vd),
-                                    vd[0],vd[1], vd[-2],vd[-1]))
-        self.vdefs = dict([(v[0],(v[1],v[2],v[3])) for v in vd])
+        self.vdefs = get_variant_defs(self.dbo, vids)
 
         # main loop to populate the matrices
         for vv in self.vdefs:

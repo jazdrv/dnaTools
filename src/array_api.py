@@ -155,13 +155,14 @@ def in_range(v_vect, ranges, spans):
 #   (vid, pos, anc, der) for vid in variants
 def get_variant_defs(db, vids):
     dc = db.cursor()
-    rval = []
+    rval = {}
     for v in vids:
         dc.execute('''select v.id,v.pos,aa.allele,ab.allele from variants v
                     inner join alleles aa on v.anc=aa.id
                     inner join alleles ab on v.der=ab.id
                     where v.id=?''', (v,))
-        rval.append(dc.fetchone())
+        tup = dc.fetchone()
+        rval[tup[0]] = (tup[1], tup[2], tup[3])
     return rval
 
 
