@@ -657,6 +657,8 @@ def populate_from_VCF_file(dbo, bid, pid, fileobj):
                     [[bid]+v[0:3]+[pid]+[v[3]]+v[-2:] for v in call_info])
 
     # don't insert clear reference calls unless they are refpos
+    # FIXME - refpos test is not needed here because refpos variants do not
+    # show up in the .vcf with derived = "." (but this line is not harmful)
     dc.execute('''delete from tmpt where g='0/0' and d='.' and f='PASS'
                   and b not in (select v.pos from variants v
                     inner join refpos r on r.vid=v.id)''')

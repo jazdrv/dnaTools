@@ -155,13 +155,34 @@ def in_range(v_vect, ranges, spans):
 #   (vid, pos, anc, der) for vid in variants
 def get_variant_defs(db, vids):
     dc = db.cursor()
-    rval = []
+    rval = {}
     for v in vids:
         dc.execute('''select v.id,v.pos,aa.allele,ab.allele from variants v
                     inner join alleles aa on v.anc=aa.id
                     inner join alleles ab on v.der=ab.id
                     where v.id=?''', (v,))
-        rval.append(dc.fetchone())
+        tup = dc.fetchone()
+        rval[tup[0]] = (tup[1], tup[2], tup[3])
+    return rval
+
+
+# Procedure: get_variant_defs
+# Purpose: get the ref and alt ids for a list of variants
+# Input:
+#   a db instance
+#   a dict of dnaid:kitid
+# Returns:
+#   (vid, pos, anc, der) for vid in variants
+def get_variant_snpnames(db, vids):
+    dc = db.cursor()
+    rval = {}
+    for v in vids:
+        dc.execute('''select v.id,s.snpname from variants v
+                    inner join snpnames s on s.vid=v.id
+                    where v.id=?''', (v,))
+        sn = '/'.join([s[1] for s in dc])
+        # note sn might be empty, one, or multiple names, e.g. 'M2986/Z4303'
+        rval[v] = sn
     return rval
 
 
@@ -213,13 +234,24 @@ def get_variant_array(db, ppl=None):
                      inner join tmpt t on c.pid=t.id''')
 
     # refpos processing
+    #
+    # FIXME? It appears that all refpos calls show up in the .vcf as the "evil
+    # twin" variant (swapped anc and der). NB: they could show up differently,
+    # and how they are presented in the .vcf appears to be a choice of the
+    # testing company. Code below assumes the .vcf call is the evil
+    # twin. Strategy is build a dictionary of evil twin variants and later in
+    # processing if we find it's one of those, swap the variant out for the
+    # refpos version and swap the sense of GT
+    #
+    # variant: pos.anc.der  (the actual variant, e.g. the def'n of U152)
+    # evil twin: pos.der.anc
     c2 = db.db.cursor()
     c2.execute('''select distinct r.vid, rv.id from refpos r
                   inner join variants v on v.id=r.vid
                   inner join variants rv on rv.anc=v.der and
                      rv.der=v.anc and rv.pos=v.pos and rv.buildid=v.buildid
                ''')
-    refpos = dict([(rp[0],rp[1]) for rp in c2])
+    refpos = dict([(rp[1],rp[0]) for rp in c2])
     c2.close()
 
     # build a 2d array
@@ -232,7 +264,9 @@ def get_variant_array(db, ppl=None):
         passfail, gt, q1, q2, numcalls, passrate = unpack_call(c)
         # handle refpos variants
         try:
-            # swap variant and call's genotype
+            # swap variant and call's genotype; if we find the variant in the
+            # refpos dict (queried above), the meaning of the call needs to be
+            # swapped (0/0 becomes 1/1 and 1/1 becomes 0/0)
             v = refpos[v]
             gt = {0:1, 1:0, 2:2, 3:3}[gt]
         except:
