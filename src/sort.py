@@ -15,7 +15,7 @@ import pandas as pd
 from array_api import *
 import pickle
 from db import DB
-from lib import Trace
+from lib import Trace, md5, data_path
 import shelve
 
 REDUX_CONF = os.path.join(os.environ['REDUX_PATH'], 'config.yaml')
@@ -288,11 +288,6 @@ class Sort(object):
         self.dbo = DB(drop=False)
         self.KITS = None
         self.VARIANTS = None
-        self.NPu = None # unknowns matrix
-        self.NPp = None # perfect calls matrix
-        self.NPi = None # identical calls matrix
-        self.NPm = None # mixed calls matrix
-        self.SS = None #sups+subs
         self.identcallDATA = {}
         self.perfectDATA = {}
         self.unknownDATA = {}
@@ -311,32 +306,38 @@ class Sort(object):
     #   it takes some time to initialize Sort from call data, so save it to
     #   disk and it can be quickly recalled without initializing Sort again
     def save_mx(self):
-        trace(1, 'beg MatrixData stash at {}'.format(time.clock()))
-        with shelve.open('saved-data') as db:
+        trace(2, 'begin caching data at {}...'.format(time.clock()))
+        signature = md5(sorted(self.KITS))
+        fname = data_path(os.path.join('cache',
+                                       'saved-data-{}'.format(signature)))
+        with shelve.open(fname) as db:
             db['KITS'] = self.KITS
             db['VARIANTS'] = self.VARIANTS
             db['perfectDATA'] = self.perfectDATA
             db['mixedDATA'] = self.mixedDATA
             db['identcallDATA'] = self.identcallDATA
             db['unknownDATA'] = self.unknownDATA
-            db['NPp'] = self.NPp
             db['vdefs'] = self.vdefs
+        trace(2, '...done')
 
     # Method: restore_mx_data
     # Purpose: recall the initialized Sort data from the cache
     # Info:
     #   corresponds to save_mx
     def restore_mx_data(self):
-        trace(1, 'beg MatrixData restore at {}'.format(time.clock()))
-        with shelve.open('saved-data') as db:
+        trace(2, 'begin restoring data at {}...'.format(time.clock()))
+        signature = md5(sorted(self.KITS))
+        fname = data_path(os.path.join('cache',
+                                       'saved-data-{}'.format(signature)))
+        with shelve.open(fname) as db:
             self.KITS = db['KITS']
             self.VARIANTS = db['VARIANTS']
             self.perfectDATA = db['perfectDATA']
             self.mixedDATA = db['mixedDATA']
             self.identcallDATA = db['identcallDATA']
             self.unknownDATA = db['unknownDATA']
-            self.NPp = db['NPp']
             self.vdefs = db['vdefs']
+        trace(2, '...done')
 
     # Method: create_mx_data
     # Purpose: create an array of genotypes out of call data
@@ -437,22 +438,12 @@ class Sort(object):
         trace(2,'KITS: {}'.format(self.KITS))
         trace(2,'VARIANTS: {}...'.format(self.VARIANTS[:20]))
 
-        # show some debugging info
-        self.NPp = np.matrix(list(perfectDATA.values()))
-        trace(2,'NPp:\n{}'.format(self.NPp))
-        self.NPi = np.matrix(list(identcallDATA.values()))
-        trace(2,'NPi:\n{}'.format(self.NPi))
-        self.NPm = np.matrix(list(mixedDATA.values()))
-        trace(2,'NPm:\n{}'.format(self.NPm))
-        self.NPu = np.matrix(list(unknownDATA.values()))
-        trace(2,'NPu:\n{}'.format(self.NPu))
-
         # summarize the results for diagnostics
         trace(1,'Total matrix kits: {}'.format(len(self.KITS)))
-        trace(1,'Total perfect matrix variants: {}'.format(len(self.NPp)))
-        trace(1,'Total identical matrix variants: {}'.format(len(self.NPi)))
-        trace(1,'Total mixed matrix variants: {}'.format(len(self.NPm)))
-        trace(1,'Total unknowns matrix variants: {}'.format(len(self.NPu)))
+        trace(1,'Total perfect variants: {}'.format(len(perfectDATA)))
+        trace(1,'Total identical variants: {}'.format(len(identcallDATA)))
+        trace(1,'Total mixed call variants: {}'.format(len(mixedDATA)))
+        trace(1,'Total unknowns variants: {}'.format(len(unknownDATA)))
         trace(1,'Total matrix variants: {}'.format(len(self.VARIANTS)))
 
         self.identcallDATA = identcallDATA
@@ -492,7 +483,12 @@ class Variant(Sort):
     #   work and analysis with the calls we just stored.
     def matrix(self,argL=None):
         # restore the data that was set up when we initialized sort
-        self.restore_mx_data()
+        self.KITS = get_analysis_ids(self.dbo)
+        try:
+            self.restore_mx_data()
+        except:
+            trace(0, 'Sort data structure not populated. First run -o')
+            sys.exit(0)
 
         # set up a VKcalls data structure for sorting, printing and analysis
         #m = VKcalls(self.dbo, self.mixedDATA, self.KITS)
