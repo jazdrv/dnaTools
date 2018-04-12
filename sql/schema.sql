@@ -140,10 +140,6 @@ create table vcfcalls(
     pID INTEGER REFERENCES dataset(ID),
     vID INTEGER REFERENCES variants(ID),
     callinfo INTEGER   --some info about this call packed into an int
-    -- zak (beg) sort prototype
-    -- assigned INTEGER, -- just to get this working
-    -- genotype TEXT -- just to get this working
-    -- zak (end) sort prototype
     );
 
 create index vcfidx on vcfcalls(vID);
@@ -255,41 +251,50 @@ create table agebed(
     );
 
 /* tree data structure - this probably still needs work */
-/* fixme? store trees using some commonly used tree standard? */
-drop table if exists tree;
-CREATE TABLE tree(
-    id INTEGER PRIMARY KEY,
-    parendid INTEGER,
-    clade CHARACTER(16),
-    variants BLOB,
-    qualities BLOB,
-    ageflags BLOB,
-    children BLOB,
-    ancestralstrs BLOB,
-    originlat REAL,
-    originlong REAL,
-    coverage INTEGER,
-    agecoverage INTEGER,
-    poznikcoverage INTEGER,
-    combbedcoverage INTEGER,
-    olderthan SMALLINT,
-    olderthanunc SMALLINT,
-    olderthankit INTEGER,
-    youngerthan SMALLINT,
-    yongerthanunc SMALLINT,
-    youngerthankit1 INTEGER,
-    youngerthankit2 INTEGER,
-    snpage SMALLINT,
-    snpagelo SMALLINT,
-    snpagehi SMALLINT,
-    snpagepdf BLOB,
-    snpparentpdf BLOB,
-    strage SMALLINT,
-    stragelo SMALLINT,
-    stragehi SMALLINT,
-    stragepdf BLOB,
-    strparentpdf BLOB,
-    combage SMALLINT,
-    combagelo SMALLINT,
-    combagehi SMALLINT,
-    combagepdf BLOB);
+
+/*
+ * For sql processing of the tree, use a closure table.
+ * E.g. see https://www.slideshare.net/billkarwin/sql-antipatterns-strike-back/68-Naive_Trees_Solution_3_Closure
+ * This table lists paths all nodes to all of their descendants.
+ */
+drop table if exists treepaths;
+CREATE TABLE treepaths(
+    ancestor INTEGER REFERENCES treeclade(ID),
+    descendant INTEGER REFERENCES treeclade(ID),
+    treedepth integer,
+    UNIQUE(ancestor,descendant,treedepth)
+    );
+
+/*
+ * Tree clade, aka block, part of tree definition
+ * A clade represents a set of variants that a set of people (DNAIDs)
+ * all have.  Additional information about a clade can go in this
+ * table. E.g. we might want to store age information here.
+ */
+drop table if exists treeclade;
+CREATE TABLE treeclade(
+    ID INTEGER PRIMARY KEY,
+    cladeName CHARACTER --the name we prefer, e.g. dominant SNP name
+    );
+
+/*
+ * Clade variants, part of tree definition
+ * This simple table links variant IDs to a clade
+ */
+drop table if exists cladevariants;
+CREATE TABLE cladevariants(
+    cladeID INTEGER REFERENCES treeclade(ID),
+    vID INTEGER REFERENCES variants(ID),
+    UNIQUE(cladeID,vID)
+    );
+
+/*
+ * Clade kits, part of tree definition
+ * This simple table links DNAIDs to a clade
+ */
+drop table if exists cladekits;
+CREATE TABLE cladekits(
+    cladeID INTEGER REFERENCES treeclade(ID),
+    pID INTEGER REFERENCES person(ID),
+    UNIQUE(cladeID,pID)
+    );

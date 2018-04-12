@@ -469,6 +469,7 @@ def updatesnps(db, snp_reference, buildname='hg38'):
 #   older than maxage; do nothing if maxage < 0
 def get_SNPdefs_fromweb(db, maxage, url='http://ybrowse.org/gbrowse2/gff'):
     import urllib, time
+    UpdatedFlag = False
     if maxage < 0:
         return
     # convert to seconds
@@ -485,11 +486,12 @@ def get_SNPdefs_fromweb(db, maxage, url='http://ybrowse.org/gbrowse2/gff'):
                 trace (1, 'refresh: {}'.format(fbase))
                 urllib.request.urlretrieve(fget, fname)
                 deltat = time.clock() - os.path.getmtime(fname)
+                UpdatedFlag = True
         except:
             pass
         if not os.path.exists(fname) or deltat > maxage:
             trace(0, 'failed to update {} from the web'.format(fname))
-    return
+    return UpdatedFlag
 
 # Procedure: populate_snps
 # Purpose: populate SNP definitions in the database
@@ -499,7 +501,9 @@ def get_SNPdefs_fromweb(db, maxage, url='http://ybrowse.org/gbrowse2/gff'):
 # Info:
 #   refresh from web if we have is older than maxage (in days)
 def populate_SNPs(dbo, maxage=config['max_snpdef_age']):
-    get_SNPdefs_fromweb(dbo, maxage=maxage)
+    # don't update if nothing changed
+    if not (config['drop_tables'] or get_SNPdefs_fromweb(dbo, maxage=maxage)):
+        return
     # update known snps for hg19 and hg38
     with open(os.path.join(config['REDUX_DATA'], config['b37_snp_file'])) as snpfile:
         snp_reference = csv.DictReader(snpfile)
@@ -788,15 +792,23 @@ def populate_from_dataset(dbo):
             nkits += 1
         except:
             trace(0, 'FAIL on file {} (not loaded)'.format(zipf))
+
             dbo.commit()
-            dbo.close()
-            trace(0, 'commit and close db')
+            trace(0, 'commit work and continue')
 
             # FIXME what to do on error. By raising an exception here, we fail
             # ungracefully if a bad file is encountered. For now, it's OK to
             # remove that offending file and try again. If drop_tables is
             # False, previously-loaded data is kept
-            raise
+
+            # dbo.close()
+            # trace(0, 'commit and close db')
+            # raise
+
+        # don't go forever without committing
+        if nkits % 30 == 10:
+            trace(1, 'committing work')
+            dbo.commit()
 
         if nkits >= config['kitlimit']:
             break
