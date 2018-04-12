@@ -63,6 +63,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('-a', '--all', help='perform all possible steps (prob best not to use for now)', action='store_true')
 parser.add_argument('-c', '--create', help='clean start with a new database', action='store_true')
 parser.add_argument('-l', '--loadkits', help='load all of the kits', action='store_true')
+parser.add_argument('-k', '--kits', help='update list of the kits from kits.txt', action='store_true')
 parser.add_argument('-t', '--testdrive', help='runs some unit tests', action='store_true')
 
 # (beg) sort prototype stuff
@@ -116,7 +117,13 @@ if args.create:
 
 # load kits that were found in H-R web API and in zipdirs
 if args.loadkits:
+    db = db_creation()
     populate_from_dataset(db)
+
+# load kits that were found in H-R web API and in zipdirs
+if args.kits:
+    db = db_creation()
+    populate_analysis_kits(db)
 
 # run unit tests - this is for development, test and prototyping
 # not part of the actual program
