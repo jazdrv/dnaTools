@@ -18,6 +18,10 @@ import os, yaml, shutil, re, csv, zipfile, subprocess
 from db import DB
 import time
 import sys
+import hashlib
+import requests, json
+import urllib, time
+
 
 # read the config file
 sys.path.insert(0, os.environ['REDUX_PATH'])
@@ -70,6 +74,13 @@ class Trace(DisplayMsg):
         self.trace (level, msg)
 
 trace = Trace(config['verbosity'])
+
+# Procedure: md5
+# Purpose: return a md5 hash of a given object as a string signature
+def md5(obj):
+    md5hash = hashlib.md5()
+    md5hash.update(str(obj).encode('utf-8'))
+    return md5hash.hexdigest()
 
 # Procedure: data_path
 # Purpose: return a path to a file or directory in the configured data dir
@@ -261,8 +272,7 @@ def populate_STRs(dbo, ordering=None):
 # Procedure: get_kits
 # Purpose: pull information about the kits from the web api of haplogroup-r
 # Input:
-#   API (optional) if None, read from json.out cached file
-#   qry - optional query string
+#   fromweb: if True, try to refresh from the web; else, prefer cached
 # Returns:
 #   js, a json object with all of the metadata records
 # Info:
@@ -271,23 +281,30 @@ def populate_STRs(dbo, ordering=None):
 #   many repeated calls to the API when testing and developing, the json record
 #   is cached on disk. When the API parameter is empty, satisfy the request
 #   from the cached copy.
-def get_kits (API='http://haplogroup-r.org/api/v1/uploads.php', qry='format=json'):
-    import requests, json
+def get_kits (fromweb=True):
+    # if pulling from the web, where to get the result
+    API = 'http://haplogroup-r.org/api/v1/uploads.php'
+    qry = 'format=json'
+    # if re-using cached data from a previous web pull, where to find the file
+    fname = data_path(os.path.join('cache','dataset.json'))
+    if not fromweb:
+        try:
+            trace(1, 'reading kit info from {}'.format(fname))
+            js = json.loads(open(fname).read())
+            return js
+        except:
+            trace(0, 'no cached {} - trying web'.format(fname))
+
     try:
-        # choose where to pull the kit data
-        if not API:
-            trace(1, 'reading kit info from json.out')
-            js = json.loads(open('json.out').read())
-        else:
-            trace(1, 'reading kit info from the web')
-            url = '?'.join([API, qry])
-            res = requests.get(url)
-            js = res.json()
-            open('json.out','w').write(json.dumps(js))
+        trace(1, 'reading kit info from the web')
+        url = '?'.join([API, qry])
+        res = requests.get(url)
+        js = res.json()
+        open(fname,'w').write(json.dumps(js))
+        return js
     except:
         trace(0, 'Failed to pull kit metadata from {}'.format(API))
         raise # fixme - what to do on error?
-    return js
 
 # Procedure: update_metadata
 # Purpose: update the kit information in the database
@@ -409,17 +426,14 @@ def populate_contigs(db):
 # Purpose: populate dataset information from Haplogroup-R data warehouse API
 # Input:
 #   db, a database object
-#   fromweb, if True then pull fresh data via the web
+#   fromweb, if True then request a pull of fresh data via the web
 # Info:
 #   This is all that needs to be called to update metadata about available kits
 #   from haplogroup-r. In the normal case, it reaches out using the web API and
 #   stores the latest data. It can also store the most-recent cached data
 #   without calling the web API
 def populate_fileinfo(dbo, fromweb=True):
-    if fromweb:
-        js = get_kits()
-    else:
-        js = get_kits(API=None)
+    js = get_kits(fromweb)
     update_metadata(dbo, js)
 
 # Procedure: updatesnps
@@ -468,7 +482,6 @@ def updatesnps(db, snp_reference, buildname='hg38'):
 #   having to download the large files repeatedly. Refresh files if they are
 #   older than maxage; do nothing if maxage < 0
 def get_SNPdefs_fromweb(db, maxage, url='http://ybrowse.org/gbrowse2/gff'):
-    import urllib, time
     UpdatedFlag = False
     if maxage < 0:
         return
@@ -477,8 +490,8 @@ def get_SNPdefs_fromweb(db, maxage, url='http://ybrowse.org/gbrowse2/gff'):
     for (build,) in db.dc.execute('select buildNm from build'):
         deltat = maxage + 1
         fbase = 'snps_{}.csv'.format(build)
+        fname = data_path(os.path.join('cache', fbase))
         fget = os.path.join(url, fbase)
-        fname = os.path.join(config['REDUX_DATA'], fbase)
         try:
             if os.path.exists(fname):
                 deltat = time.clock() - os.path.getmtime(fname)

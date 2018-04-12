@@ -1,0 +1,5 @@
+cached data from previous runs
+
+it's always OK to remove the files in this directory
+
+removing a file here means it may need to be re-calculated
