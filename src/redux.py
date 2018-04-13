@@ -114,16 +114,19 @@ args = parser.parse_args()
 # drop database and have a clean start
 if args.create:
     db = db_creation()
+    db.commit()
 
 # load kits that were found in H-R web API and in zipdirs
 if args.loadkits:
     db = db_creation()
     populate_from_dataset(db)
+    db.commit()
 
 # load kits that were found in H-R web API and in zipdirs
 if args.kits:
     db = db_creation()
     populate_analysis_kits(db)
+    db.commit()
 
 # run unit tests - this is for development, test and prototyping
 # not part of the actual program
