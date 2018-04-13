@@ -17,6 +17,7 @@ import pickle
 from db import DB
 from lib import Trace, md5, data_path
 import shelve
+from profile import profile
 
 REDUX_CONF = os.path.join(os.environ['REDUX_PATH'], 'config.yaml')
 config = yaml.load(open(REDUX_CONF))
@@ -159,19 +160,28 @@ class VKcalls(object):
 
         # partition the set of kits on the variant with the most calls
         sums = A.sum(axis=1)
-        idx = sums.idxmax()
-        colidx = list(A.T.axes[0])
-        colfilt = list(A.T[idx])
-        # keep indices where call exists (value > 1) --> A and C together
-        grp1kits = [x[1] for x in zip(colfilt, colidx) if x[0] > 0]
-        grp2kits = [x[1] for x in zip(colfilt, colidx) if x[0] == 0]
-        AC = A.filter(grp1kits, axis=1)
+        if not sums.empty:
+            idx = sums.idxmax()
 
-        # partition on variants that have kits under these calls (sum>0)
-        sums = AC.sum(axis=1)
-        idxsums = list(zip(sums.T.axes[0], sums.values))
-        grp1rows = [x[0] for x in idxsums if x[1] > 0]
-        grp2rows = [x[0] for x in idxsums if x[1] == 0]
+            colidx = list(A.T.axes[0])
+            colfilt = list(A.T[idx])
+            # keep indices where call exists (value > 1) --> A and C together
+            grp1kits = [x[1] for x in zip(colfilt, colidx) if x[0] > 0]
+            grp2kits = [x[1] for x in zip(colfilt, colidx) if x[0] == 0]
+            AC = A.filter(grp1kits, axis=1)
+
+            # partition on variants that have kits under these calls (sum>0)
+            sums = AC.sum(axis=1)
+            idxsums = list(zip(sums.T.axes[0], sums.values))
+            grp1rows = [x[0] for x in idxsums if x[1] > 0]
+            grp2rows = [x[0] for x in idxsums if x[1] == 0]
+        # there are no 1's in this array -> all in group B
+        else:
+            grp1rows = A.axes[0]
+            grp2rows = []
+            grp1kits = []
+            grp2kits = A.axes[1]
+            trace(5, 'empty calls: {},{},{},{}'.format(grp1rows, grp2rows, grp1kits, grp2kits))
 
         return fullrows, grp1rows, grp2rows, grp1kits, grp2kits
 
@@ -305,6 +315,7 @@ class Sort(object):
     # Info:
     #   it takes some time to initialize Sort from call data, so save it to
     #   disk and it can be quickly recalled without initializing Sort again
+    @profile
     def save_mx(self):
         trace(2, 'begin caching data at {}...'.format(time.clock()))
         signature = md5(sorted(self.KITS))
@@ -324,6 +335,7 @@ class Sort(object):
     # Purpose: recall the initialized Sort data from the cache
     # Info:
     #   corresponds to save_mx
+    @profile
     def restore_mx_data(self):
         trace(2, 'begin restoring data at {}...'.format(time.clock()))
         signature = md5(sorted(self.KITS))
@@ -347,9 +359,18 @@ class Sort(object):
     #     the index into this vector corresponds to kitid
     #     a genotype of -1 means unknown due to poor coverage
     #     a genotype of -2 means gt was ambiguous (0/1, 0/2, 1/2, etc)
+    @profile
     def create_mx_data(self):
 
-        print("beg MatrixData create: %s" % format(time.clock()))
+        self.KITS = get_analysis_ids(self.dbo)
+        try:
+            self.restore_mx_data()
+            trace(0, 'restored mx data')
+            return
+        except:
+            trace(0, 'computing mx data')
+
+        print("begin create_mx_data at %s" % format(time.clock()))
 
         # get all call info (arr) and coverage info (cov)
         ppl = get_analysis_ids(self.dbo)
@@ -481,6 +502,7 @@ class Variant(Sort):
     #   This is work in progress. Currently, we sort the kits and pull out
     #   blocks and write out a .csv file. It's the main entry point for doing
     #   work and analysis with the calls we just stored.
+    @profile
     def matrix(self,argL=None):
         # restore the data that was set up when we initialized sort
         self.KITS = get_analysis_ids(self.dbo)
