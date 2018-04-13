@@ -847,13 +847,13 @@ def db_creation():
     db = DB(drop=config['drop_tables'])
     if config['drop_tables']:
         db.create_schema()
-    populate_fileinfo(db, fromweb=config['use_web_api'])
-    populate_STRs(db)
-    populate_SNPs(db)
-    populate_contigs(db)
-    populate_age(db)
-    populate_refpos(db)
-    populate_analysis_kits(db)
+        populate_fileinfo(db, fromweb=config['use_web_api'])
+        populate_STRs(db)
+        populate_SNPs(db)
+        populate_contigs(db)
+        populate_age(db)
+        populate_refpos(db)
+        populate_analysis_kits(db)
     return db
 
 
