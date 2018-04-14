@@ -18,6 +18,10 @@ import os, yaml, shutil, re, csv, zipfile, subprocess
 from db import DB
 import time
 import sys
+import hashlib
+import requests, json
+import urllib, time
+
 
 # read the config file
 sys.path.insert(0, os.environ['REDUX_PATH'])
@@ -70,6 +74,13 @@ class Trace(DisplayMsg):
         self.trace (level, msg)
 
 trace = Trace(config['verbosity'])
+
+# Procedure: md5
+# Purpose: return a md5 hash of a given object as a string signature
+def md5(obj):
+    md5hash = hashlib.md5()
+    md5hash.update(str(obj).encode('utf-8'))
+    return md5hash.hexdigest()
 
 # Procedure: data_path
 # Purpose: return a path to a file or directory in the configured data dir
@@ -152,16 +163,17 @@ def populate_age(dbo):
                 ranges.append((row[0], row[1], row[2]))
             except:
                 trace(0,'failed on row of age.bed:{}'.format(row))
-        dbo.dc.execute('delete from agebed')
-        dbo.dc.execute('drop table if exists tmpt')
-        dbo.dc.execute('create temporary table tmpt(a,b,c)')
-        dbo.dc.executemany('insert into tmpt values(?,?,?)', ranges)
-        dbo.dc.execute('''insert or ignore into bedranges(minaddr,maxaddr)
+        dc = dbo.cursor()
+        dc.execute('delete from agebed')
+        dc.execute('drop table if exists tmpt')
+        dc.execute('create temporary table tmpt(a,b,c)')
+        dc.executemany('insert into tmpt values(?,?,?)', ranges)
+        dc.execute('''insert or ignore into bedranges(minaddr,maxaddr)
                            select b,c from tmpt''')
-        dbo.dc.execute('''insert into agebed(bID)
+        dc.execute('''insert into agebed(bID)
                            select id from bedranges
                            inner join tmpt t on t.b=minaddr and t.c=maxaddr''')
-        dbo.dc.execute('drop table tmpt')
+        dc.execute('drop table tmpt')
     return
 
 # Procedure: populate_refpos
@@ -183,16 +195,17 @@ def populate_refpos(dbo):
                 snps.append(row[0])
             except:
                 trace(0, 'failed on row of refpos.txt:{}'.format(row))
-        dbo.dc.execute('delete from refpos')
+        dc = dbo.cursor()
+        dc.execute('delete from refpos')
         for snpname in snps:
-           dbo.dc.execute('''insert or ignore into refpos
+           dc.execute('''insert or ignore into refpos
                        select vid from snpnames where snpname=?''',
                        (snpname,))
 
         # make sure there's a swapped variant
-        dbo.dc.execute('''insert or ignore into variants(pos,anc,der,buildid)
-                          select pos,der,anc,buildid from variants v
-                          inner join refpos r on r.vid=v.id''')
+        dc.execute('''insert or ignore into variants(pos,anc,der,buildid)
+                      select pos,der,anc,buildid from variants v
+                      inner join refpos r on r.vid=v.id''')
     return
 
 # Procedure: populate_analysis_kits
@@ -213,9 +226,10 @@ def populate_analysis_kits(dbo):
                 kitids.append(row[0])
             except:
                 trace(0, 'failed on row of kits.txt:{}'.format(row))
-        dbo.dc.execute('delete from analysis_kits')
+        dc = dbo.cursor()
+        dc.execute('delete from analysis_kits')
         for kit in kitids:
-           dbo.dc.execute('''insert into analysis_kits
+           dc.execute('''insert into analysis_kits
                        select d.DNAID from dataset d
                        where d.kitID like ?''',
                        (kit,))
@@ -251,18 +265,18 @@ def populate_STRs(dbo, ordering=None):
         'DYS712', 'DYS593', 'DYS650', 'DYS532', 'DYS715', 'DYS504',
         'DYS513', 'DYS561', 'DYS552', 'DYS726', 'DYS635', 'DYS587',
         'DYS643', 'DYS497', 'DYS510', 'DYS434', 'DYS461', 'DYS435')
+    dc = dbo.cursor()
     if ordering and (len(ordering)==len(strdefs)):
         for tup in zip(ordering,strdefs):
-            dbo.dc.execute('insert or ignore into strs(ordering,strname) values(?,?)', tup)
+            dc.execute('insert or ignore into strs(ordering,strname) values(?,?)', tup)
     else:
         for tup in enumerate(strdefs):
-            dbo.dc.execute('insert or ignore into strs(ordering,strname) values(?,?)', tup)
+            dc.execute('insert or ignore into strs(ordering,strname) values(?,?)', tup)
 
 # Procedure: get_kits
 # Purpose: pull information about the kits from the web api of haplogroup-r
 # Input:
-#   API (optional) if None, read from json.out cached file
-#   qry - optional query string
+#   fromweb: if True, try to refresh from the web; else, prefer cached
 # Returns:
 #   js, a json object with all of the metadata records
 # Info:
@@ -271,23 +285,30 @@ def populate_STRs(dbo, ordering=None):
 #   many repeated calls to the API when testing and developing, the json record
 #   is cached on disk. When the API parameter is empty, satisfy the request
 #   from the cached copy.
-def get_kits (API='http://haplogroup-r.org/api/v1/uploads.php', qry='format=json'):
-    import requests, json
+def get_kits (fromweb=True):
+    # if pulling from the web, where to get the result
+    API = 'http://haplogroup-r.org/api/v1/uploads.php'
+    qry = 'format=json'
+    # if re-using cached data from a previous web pull, where to find the file
+    fname = data_path(os.path.join('cache','dataset.json'))
+    if not fromweb:
+        try:
+            trace(1, 'reading kit info from {}'.format(fname))
+            js = json.loads(open(fname).read())
+            return js
+        except:
+            trace(0, 'no cached {} - trying web'.format(fname))
+
     try:
-        # choose where to pull the kit data
-        if not API:
-            trace(1, 'reading kit info from json.out')
-            js = json.loads(open('json.out').read())
-        else:
-            trace(1, 'reading kit info from the web')
-            url = '?'.join([API, qry])
-            res = requests.get(url)
-            js = res.json()
-            open('json.out','w').write(json.dumps(js))
+        trace(1, 'reading kit info from the web')
+        url = '?'.join([API, qry])
+        res = requests.get(url)
+        js = res.json()
+        open(fname,'w').write(json.dumps(js))
+        return js
     except:
         trace(0, 'Failed to pull kit metadata from {}'.format(API))
         raise # fixme - what to do on error?
-    return js
 
 # Procedure: update_metadata
 # Purpose: update the kit information in the database
@@ -299,6 +320,7 @@ def get_kits (API='http://haplogroup-r.org/api/v1/uploads.php', qry='format=json
 #   this procedure doesn't load any data; it just updates the metadata for the
 #   available kits contained in the json record
 def update_metadata(db, js):
+    dc = db.cursor()
     blds = {'b38': 'hg38', 'b19': 'hg19', 'b37': 'hg19'}
     rows = [(
         # fields that go into dataset table directly
@@ -317,12 +339,12 @@ def update_metadata(db, js):
     # populate the dependency tables
     # (testtype,isNGS) goes into testtypes
     tups = [y for y in set([(r[-2],r[-1]) for r in rows])]
-    db.dc.executemany('insert or ignore into testtype(testNm,isNGS) values(?,?)', tups)
+    dc.executemany('insert or ignore into testtype(testNm,isNGS) values(?,?)', tups)
 
     # (surname+kitId+build) goes into person
     # fixme: we need a DNA-to-person mapping. This is a big kludge
     tups = [y for y in set([(r[-3],r[0],r[-4]) for r in rows])]
-    db.dc.executemany('insert or ignore into person(surname,firstname,middlename) values(?,?,?)',
+    dc.executemany('insert or ignore into person(surname,firstname,middlename) values(?,?,?)',
                           tups)
 
     for tbl,val,idx in (('country','country',-7),
@@ -332,19 +354,19 @@ def update_metadata(db, js):
                         ('build', 'buildNm',-4)):
         tups = [(y,) for y in set([v[idx] for v in rows])]
         trace(3, 'first tuple to insert into {}: {}'.format(tbl, tups[0]))
-        db.dc.executemany('insert or ignore into {}({}) values(?)'.format(tbl,val),
+        dc.executemany('insert or ignore into {}({}) values(?)'.format(tbl,val),
                               tups)
 
     # create temporary table, where columns correspond to values above
-    db.dc.execute('''create temporary table tmpt(
+    dc.execute('''create temporary table tmpt(
            a TEXT, b TEXT, c TEXT, d TEXT,
            e TEXT, f TEXT, g TEXT, h TEXT,
            i TEXT,
            j TEXT, k TEXT, l TEXT, m TEXT,
            n TEXT, o TEXT, p TEXT)''')
-    db.dc.executemany('''INSERT INTO tmpt(a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p)
+    dc.executemany('''INSERT INTO tmpt(a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p)
         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''', rows)
-    db.dc.execute('''
+    dc.execute('''
         INSERT or ignore INTO dataset(kitId, importDt, fileNm, lng,
             lat, otherInfo, origFileNm, birthYr,
             approxHg,
@@ -367,8 +389,8 @@ def update_metadata(db, js):
             (tmpt.a = pn.firstname or (tmpt.a is NULL and pn.firstname is NULL)) AND
             (tmpt.m = pn.middlename or (tmpt.m is NULL and pn.middlename is NULL))
         INNER JOIN testtype tt ON tmpt.o = tt.testNm and tmpt.p = tt.isNGS''')
-    trace(1, '{} rows inserted into dataset'.format(db.dc.execute('select count(*) from dataset').fetchone()[0]))
-    db.dc.execute('drop table tmpt')
+    trace(1, '{} rows inserted into dataset'.format(dc.execute('select count(*) from dataset').fetchone()[0]))
+    dc.execute('drop table tmpt')
     return
 
 # Procedure: get_build_byname
@@ -383,7 +405,8 @@ def get_build_byname(db, buildname='hg38'):
         buildname = 'hg19'
     elif buildname.lower().strip() in ('hg38', 'grch38', 'b38'):
         buildname = 'hg38'
-    dc = db.dc.execute('select id from build where buildNm=?', (buildname,))
+    dc = db.cursor()
+    dc.execute('select id from build where buildNm=?', (buildname,))
     bid = None
     for bid, in dc:
         continue
@@ -398,10 +421,11 @@ def get_build_byname(db, buildname='hg38'):
 def populate_contigs(db):
     trace(1,'populate contigs table')
     bid = get_build_byname(db, 'hg19')
-    db.dc.execute('insert into Contig(buildID,description,length) values(?,?,?)',
+    dc = db.cursor()
+    dc.execute('insert into Contig(buildID,description,length) values(?,?,?)',
                       (bid, 'chrY', 59373566))
     bid = get_build_byname(db, 'hg38')
-    db.dc.execute('insert into Contig(buildID,description,length) values(?,?,?)',
+    dc.execute('insert into Contig(buildID,description,length) values(?,?,?)',
                       (bid, 'chrY', 57227415))
     return
 
@@ -409,17 +433,14 @@ def populate_contigs(db):
 # Purpose: populate dataset information from Haplogroup-R data warehouse API
 # Input:
 #   db, a database object
-#   fromweb, if True then pull fresh data via the web
+#   fromweb, if True then request a pull of fresh data via the web
 # Info:
 #   This is all that needs to be called to update metadata about available kits
 #   from haplogroup-r. In the normal case, it reaches out using the web API and
 #   stores the latest data. It can also store the most-recent cached data
 #   without calling the web API
 def populate_fileinfo(dbo, fromweb=True):
-    if fromweb:
-        js = get_kits()
-    else:
-        js = get_kits(API=None)
+    js = get_kits(fromweb)
     update_metadata(dbo, js)
 
 # Procedure: updatesnps
@@ -432,27 +453,28 @@ def populate_fileinfo(dbo, fromweb=True):
 def updatesnps(db, snp_reference, buildname='hg38'):
     trace(1, 'update snpnames for {}'.format(buildname))
     bid = get_build_byname(db, buildname)
-    db.dc.execute('drop table if exists tmpt')
-    db.dc.execute('create temporary table tmpt(a integer, b integer, c text, d text, e text, unique(a,b,c,d,e))')
-    db.dc.executemany('INSERT OR IGNORE INTO tmpt(a,b,c,d,e) VALUES (?,?,?,?,?)',
+    dc = db.cursor()
+    dc.execute('drop table if exists tmpt')
+    dc.execute('create temporary table tmpt(a integer, b integer, c text, d text, e text, unique(a,b,c,d,e))')
+    dc.executemany('INSERT OR IGNORE INTO tmpt(a,b,c,d,e) VALUES (?,?,?,?,?)',
              ((bid, rec['start'],
                    rec['allele_anc'].strip(), rec['allele_der'].strip(), rec['Name'])
                      for rec in snp_reference))
-    db.dc.execute('''insert or ignore into alleles(allele) 
+    dc.execute('''insert or ignore into alleles(allele) 
                         select distinct c from tmpt''')
-    db.dc.execute('''insert or ignore into alleles(allele) 
+    dc.execute('''insert or ignore into alleles(allele) 
                         select distinct d from tmpt''')
-    db.dc.execute('''insert or ignore into variants(buildID, pos, anc, der)
+    dc.execute('''insert or ignore into variants(buildID, pos, anc, der)
                         select a, b, an.id, dr.id from tmpt
                         inner join alleles an on an.allele = c
                         inner join alleles dr on dr.allele = d''')
-    db.dc.execute('''insert or ignore into snpnames(snpname,vID)
+    dc.execute('''insert or ignore into snpnames(snpname,vID)
                         select t.e, v.id from tmpt t, variants v, alleles a, alleles d
                         where t.c=a.allele and v.anc=a.id and
                               t.d=d.allele and v.der=d.id and
                               v.pos = t.b and v.buildID=t.a''')
 
-    db.dc.execute('drop table tmpt')
+    dc.execute('drop table tmpt')
     return
 
 # Procedure: get_SNPdefs_fromweb
@@ -468,17 +490,17 @@ def updatesnps(db, snp_reference, buildname='hg38'):
 #   having to download the large files repeatedly. Refresh files if they are
 #   older than maxage; do nothing if maxage < 0
 def get_SNPdefs_fromweb(db, maxage, url='http://ybrowse.org/gbrowse2/gff'):
-    import urllib, time
     UpdatedFlag = False
     if maxage < 0:
         return
     # convert to seconds
     maxage = 24*3600*maxage
-    for (build,) in db.dc.execute('select buildNm from build'):
+    dc = db.cursor()
+    for (build,) in dc.execute('select buildNm from build'):
         deltat = maxage + 1
         fbase = 'snps_{}.csv'.format(build)
+        fname = data_path(os.path.join('cache', fbase))
         fget = os.path.join(url, fbase)
-        fname = os.path.join(config['REDUX_DATA'], fbase)
         try:
             if os.path.exists(fname):
                 deltat = time.clock() - os.path.getmtime(fname)
@@ -505,10 +527,11 @@ def populate_SNPs(dbo, maxage=config['max_snpdef_age']):
     if not (config['drop_tables'] or get_SNPdefs_fromweb(dbo, maxage=maxage)):
         return
     # update known snps for hg19 and hg38
-    with open(os.path.join(config['REDUX_DATA'], config['b37_snp_file'])) as snpfile:
+    cachedir = os.path.join(config['REDUX_DATA'], 'cache')
+    with open(os.path.join(cachedir, config['b37_snp_file'])) as snpfile:
         snp_reference = csv.DictReader(snpfile)
         updatesnps(dbo, snp_reference, 'hg19')
-    with open(os.path.join(config['REDUX_DATA'], config['b38_snp_file'])) as snpfile:
+    with open(os.path.join(cachedir, config['b38_snp_file'])) as snpfile:
         snp_reference = csv.DictReader(snpfile)
         updatesnps(dbo, snp_reference, 'hg38')
     return
@@ -735,11 +758,11 @@ def populate_from_dataset(dbo):
     # Query to get all known kits, with analysis_kits prioritized.
     # Prioritizing analysis_kits means they're loaded first, and we don't need
     # to load thousands of kits to get the ones we're interested in.
-    dc = dc.execute('''select fileNm,buildID,DNAID,1 from dataset
-                       inner join analysis_kits on pID=DNAID
-                             union all
-                       select fileNm,buildID,DNAID,2 from dataset
-                       order by 4''')
+    dc.execute('''select fileNm,buildID,DNAID,1 from dataset
+                  inner join analysis_kits on pID=DNAID
+                        union all
+                  select fileNm,buildID,DNAID,2 from dataset
+                  order by 4''')
     allsets = list([(t[0],t[1],t[2]) for t in dc])
     pc = dbo.cursor()
     pl = pc.execute('select distinct pid from vcfcalls')
@@ -757,10 +780,13 @@ def populate_from_dataset(dbo):
     trace(3, 'done at {}'.format(time.clock()))
 
     for (fn,buildid,pid) in allsets:
+
+        # begin work so we can roll back this kit if it fails
+        trace(3, 'committing work')
+        dbo.commit()
+
         # Loop over the kits we know about.
         # If there are already calls for this person, skip the load.
-        # FIXME - should also skip if BED entries exist, as otherwise it could
-        # result in duplicated BED entries for this kit.
         if (not config['drop_tables']) and pid in pexists:
             trace(2, 'calls exist - skip {}'.format(fn[:50]))
             continue
@@ -791,35 +817,17 @@ def populate_from_dataset(dbo):
                     populate_from_VCF_file(dbo, buildid, pid, vcff)
             nkits += 1
         except:
-            trace(0, 'FAIL on file {} (not loaded)'.format(zipf))
-
-            dbo.commit()
-            trace(0, 'commit work and continue')
-
-            # FIXME what to do on error. By raising an exception here, we fail
-            # ungracefully if a bad file is encountered. For now, it's OK to
-            # remove that offending file and try again. If drop_tables is
-            # False, previously-loaded data is kept
-
-            # dbo.close()
-            # trace(0, 'commit and close db')
-            # raise
-
-        # don't go forever without committing
-        if nkits % 30 == 10:
-            trace(1, 'committing work')
-            dbo.commit()
+            # something failed while loading this file - roll back changes
+            trace(0, 'FAIL on file {} (not fully loaded)'.format(zipf))
+            trace(0, 'roll-back this file load and continue')
+            dbo.db.rollback()
 
         if nkits >= config['kitlimit']:
             break
-        # FIXME - if BED passes and VCF fails, cruft is left behind in the
-        # database. This loop could go into a transaction, such that any
-        # failure would roll-back the entire kit as a unit of work, but that
-        # slows the loading. I can't think of any harm storing the extra BED
-        # info, so I'm leaving this unprotected by transactions for now.
 
     # re-create indexes we dropped above
     trace(3, 're-create indexes at {}'.format(time.clock()))
+    dbo.commit()
     dc.execute('create index bedidx on bed(pID,bID)')
     dc.execute('create index vcfidx on vcfcalls(vID)')
     dc.execute('create index vcfpidx on vcfcalls(pID)')
@@ -834,13 +842,13 @@ def db_creation():
     db = DB(drop=config['drop_tables'])
     if config['drop_tables']:
         db.create_schema()
-    populate_fileinfo(db, fromweb=config['use_web_api'])
-    populate_STRs(db)
-    populate_SNPs(db)
-    populate_contigs(db)
-    populate_age(db)
-    populate_refpos(db)
-    populate_analysis_kits(db)
+        populate_fileinfo(db, fromweb=config['use_web_api'])
+        populate_STRs(db)
+        populate_SNPs(db)
+        populate_contigs(db)
+        populate_age(db)
+        populate_refpos(db)
+        populate_analysis_kits(db)
     return db
 
 

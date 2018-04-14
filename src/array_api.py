@@ -1,15 +1,21 @@
 #!/usr/bin/env python3
 # coding: utf-8
-
-# Contributors: Jef Treece, Harald Alvestrand, Zak Jones, Iain McDonald
-# Purpose: Reduction and comparison script for Y-chromosome NGS test data
-# For free distribution under the terms of the GNU General Public License,
-# version 3 (29 June 2007)
-# https://www.gnu.org/licenses/gpl.html
-
+#
+# Copyright (c) 2018 the Authors
+#
+# Purpose: interface to database for NGS kit analysis
+#
+# Usage:
+#   run script as a command with various args
+#
+# Environment:
+#   REDUX_PATH must be set to source directory
+#   config.yaml is read for configuration settings
+#
 from collections import defaultdict
 import sys, yaml, time, os
 from lib import Trace, unpack_call
+from profile import profile
 
 # read the config file
 sys.path.insert(0, os.environ['REDUX_PATH'])
@@ -166,13 +172,13 @@ def get_variant_defs(db, vids):
     return rval
 
 
-# Procedure: get_variant_defs
-# Purpose: get the ref and alt ids for a list of variants
+# Procedure: get_variant_snpnames
+# Purpose: get the names for a list of variants
 # Input:
 #   a db instance
-#   a dict of dnaid:kitid
+#   a list of variants
 # Returns:
-#   (vid, pos, anc, der) for vid in variants
+#   dict of vID:snpname for each vID
 def get_variant_snpnames(db, vids):
     dc = db.cursor()
     rval = {}
@@ -190,9 +196,9 @@ def get_variant_snpnames(db, vids):
 # Purpose: get the lab-assigned kitid corresponding to dnaid
 # Input:
 #   a db instance
-#   a dict of dnaid:kitid
+#   a list of dnaids
 # Returns:
-#   (dnaid, kitid) for dnaid in pids
+#   dict of dnaid:kitid for each dnaid
 def get_kit_ids(db, pids):
     dc = db.cursor()
     rval = {}
@@ -219,11 +225,12 @@ def get_kit_ids(db, pids):
 #   
 #   Note that this can be called without the ppl argument, in which case ppl is
 #   formed by querying the analysis_kits table
+@profile
 def get_variant_array(db, ppl=None):
     # FIXME: handle multiple calls at a given pos for a given person?
     # FIXME: downstream analysis may need additional info in return tuple
     # FIXME: merge identical indels here?
-    c1 = db.dc
+    c1 = db.cursor()
     c1.execute('drop table if exists tmpt')
     c1.execute('create temporary table tmpt(id integer)')
     if ppl:
@@ -245,7 +252,7 @@ def get_variant_array(db, ppl=None):
     #
     # variant: pos.anc.der  (the actual variant, e.g. the def'n of U152)
     # evil twin: pos.der.anc
-    c2 = db.db.cursor()
+    c2 = db.cursor()
     c2.execute('''select distinct r.vid, rv.id from refpos r
                   inner join variants v on v.id=r.vid
                   inner join variants rv on rv.anc=v.der and
@@ -361,7 +368,8 @@ def get_variant_csv(db, ppl):
 # Returns: a vector of pIDs that have calls
 # Input: db, a database object
 def get_dna_ids(db):
-    return [x[0] for x in db.dc.execute('select distinct(pID) from vcfcalls')]
+    dc = db.cursor()
+    return [x[0] for x in dc.execute('select distinct(pID) from vcfcalls')]
 
 # Procedure: get_analysis_ids
 # Purpose: get the list of populated DNAIDs for analysis
@@ -375,7 +383,8 @@ def get_dna_ids(db):
 def get_analysis_ids(db):
     all_ids = set(get_dna_ids(db))
     trace(5, 'all ids: {}'.format(all_ids))
-    ids = set([x[0] for x in db.dc.execute('select pID from analysis_kits')])
+    dc = db.cursor()
+    ids = set([x[0] for x in dc.execute('select pID from analysis_kits')])
     trace(5, 'analysis ids: {}'.format(ids))
     return list(ids.intersection(all_ids))
 
@@ -438,6 +447,7 @@ def get_call_coverage(dbo, pid, vids, spans=None):
 # Info:
 #   determines indels and snps in the list of variants and calls
 #   get_call_coverage for each person in the list
+@profile
 def get_kit_coverages(db, pids, vids):
 
     # these are the variants to inspect
