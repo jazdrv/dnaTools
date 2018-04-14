@@ -39,9 +39,9 @@ config = yaml.load(open(REDUX_CONF))
 # set up logging for diagnostics and status messages
 trace = Trace(config['verbosity'])
 
-start_time = time.clock()
-t0 = time.time()
-trace (1, "Beginning run [%s]" % time.strftime("%H:%M:%S"))
+compute_t0 = time.clock()
+wall_t0 = time.time()
+trace (1, 'Beginning run at [{}]'.format(time.ctime(wall_t0)))
 
 # basic strategy for command-line arguments
 #  -command-line args mainly select one or more basic execution elements (below)
@@ -118,13 +118,13 @@ if args.create:
 
 # load kits that were found in H-R web API and in zipdirs
 if args.loadkits:
-    db = db_creation()
+    db = DB(drop=False, fastload=True)
     populate_from_dataset(db)
     db.commit()
 
 # load kits that were found in H-R web API and in zipdirs
 if args.kits:
-    db = db_creation()
+    db = DB(drop=False)
     populate_analysis_kits(db)
     db.commit()
 
@@ -133,20 +133,20 @@ if args.kits:
 if args.testdrive:
     db = db_creation()
     populate_from_dataset(db)
-    trace(0,'get analysis DNA ids')
+    trace(1,'get analysis DNA ids')
     ids = get_analysis_ids(db) # only get the kits of interest
     if len(ids) < 26:
-        trace(0, 'calculate csv at {}'.format(time.clock()))
+        trace(1, 'calculate csv at {:.2f} s'.format(time.time() - wall_t0))
         out = get_variant_csv(db,ids)
-        trace(0, 'write csv at {}'.format(time.clock()))
+        trace(1, 'write csv at {:.2f} s'.format(time.time() - wall_t0))
         open('csv.out','w').write(out)
     else:
         trace(0, 'skipping large csv file')
     # no other work flow
-    trace(0, 'commit work at {}'.format(time.clock()))
+    trace(5, 'commit work at {:.2f} s'.format(time.time() - wall_t0))
     db.commit()
-    trace(1, 'commit done at {:.2f} seconds'.format(time.time() - t0))
-    db.close()
+    trace(1, 'finished at {:.2f} s'.format(time.time() - wall_t0))
+    trace(1, 'CPU time: {:.2f} s'.format(time.clock()))
     sys.exit(0)
 
 
@@ -257,6 +257,5 @@ if args.clade_priority:
 # (end) sort prototype stuff
 
 
-trace(0, "** script complete.\n")
-trace(1, 'done at {:.2f} seconds'.format(time.time() - t0))
+trace(1, 'done at {:.2f} seconds'.format(time.time() - wall_t0))
 

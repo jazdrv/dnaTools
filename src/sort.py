@@ -8,16 +8,19 @@
 # Usage:
 #   import Variant or Sort class or run directly as a script for unit tests
 #
-import sys,os,yaml,csv,json,time,numpy as np
+import sys, os, time
+import csv
+import numpy as np
 from beautifultable import BeautifulTable
 from collections import OrderedDict
 import pandas as pd
 from array_api import *
-import pickle
 from db import DB
 from lib import Trace, md5, data_path
 import shelve
 from profile import profile
+import yaml
+from tree import *
 
 REDUX_CONF = os.path.join(os.environ['REDUX_PATH'], 'config.yaml')
 config = yaml.load(open(REDUX_CONF))
@@ -528,11 +531,25 @@ class Variant(Sort):
         # see what blocks we can pull out of the calls [experimental]
         coords, zcoords = m.get_blocks(A)
         snps,kits = A.axes
+        # start a new tree
+        treetop = tree_newclade(self.dbo, kits, [], 'Top')
+        clades = [(treetop,[],[])]
         for ii,coord in enumerate(coords):
-            kitlist = list(kits[coord[0]:coord[1]+1])
-            snplist = list(snps[coord[2]:coord[3]+1])
+            kitlist = set(kits[coord[0]:coord[1]+1])
+            snplist = set(snps[coord[2]:coord[3]+1])
+            newnode = tree_newclade(self.dbo, kitlist, snplist)
+            clades.append((newnode,kitlist,snplist))
+            # look back through previous clades until superset of kits found
+            # then add this clade as a child of it
+            for pnode,pkits,psnps in reversed(clades[:-1]):
+                if kitlist.issubset(pkits):
+                    tree_newchild(self.dbo, pnode, newnode)
+                    break;
+            else:
+                trace(0, 'FAIL: did not find parent')
             trace(2, 'block {}:\n  kits: {}\n  snps: {}'.
                       format(ii,kitlist,snplist))
+        self.dbo.commit()
 
         # display the matrix - mostly obviated by the csv file
         trace(3,'m:\n{}'.format(m))
