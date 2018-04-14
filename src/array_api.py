@@ -173,12 +173,12 @@ def get_variant_defs(db, vids):
 
 
 # Procedure: get_variant_snpnames
-# Purpose: get the ref and alt ids for a list of variants
+# Purpose: get the names for a list of variants
 # Input:
 #   a db instance
-#   a dict of dnaid:kitid
+#   a list of variants
 # Returns:
-#   (vid, pos, anc, der) for vid in variants
+#   dict of vID:snpname for each vID
 def get_variant_snpnames(db, vids):
     dc = db.cursor()
     rval = {}
@@ -196,9 +196,9 @@ def get_variant_snpnames(db, vids):
 # Purpose: get the lab-assigned kitid corresponding to dnaid
 # Input:
 #   a db instance
-#   a dict of dnaid:kitid
+#   a list of dnaids
 # Returns:
-#   (dnaid, kitid) for dnaid in pids
+#   dict of dnaid:kitid for each dnaid
 def get_kit_ids(db, pids):
     dc = db.cursor()
     rval = {}

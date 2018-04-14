@@ -542,7 +542,7 @@ class Variant(Sort):
             # look back through previous clades until superset of kits found
             # then add this clade as a child of it
             for pnode,pkits,psnps in reversed(clades[:-1]):
-                if kitlist.issubset(pkits):
+                if kitlist.issubset(pkits) or pnode == treetop:
                     tree_newchild(self.dbo, pnode, newnode)
                     break;
             else:
@@ -550,6 +550,8 @@ class Variant(Sort):
             trace(2, 'block {}:\n  kits: {}\n  snps: {}'.
                       format(ii,kitlist,snplist))
         self.dbo.commit()
+        with open ('tree.gv', 'w') as gf:
+            gf.write(tree_to_dot(self.dbo, treetop))
 
         # display the matrix - mostly obviated by the csv file
         trace(3,'m:\n{}'.format(m))

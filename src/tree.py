@@ -7,6 +7,7 @@
 #
 import yaml, os
 from lib import Trace
+from array_api import *
 
 REDUX_CONF = os.path.join(os.environ['REDUX_PATH'], 'config.yaml')
 config = yaml.load(open(REDUX_CONF))
@@ -88,3 +89,47 @@ def tree_clade_parent(dbo, child):
 # Procedure: tree_matching_clade
 def tree_matching_clade(dbo, kitlist, nodelist):
     return
+
+# Procedure: tree_node_kits
+# Purpose: return list of kits associated with node
+def tree_node_kits(dbo, node):
+    dc = dbo.cursor()
+    dc.execute('select pid from cladekits where cladeid=?', (node,))
+    pidlist = []
+    for (pid,) in dc:
+        pidlist.append(pid)
+    return get_kit_ids(dbo, pidlist).values()
+
+# Procedure: tree_node_variants
+# Purpose: return list of kits associated with node
+def tree_node_variants(dbo, node):
+    dc = dbo.cursor()
+    dc.execute('select vid from cladevariants where cladeid=?', (node,))
+    vidlist = []
+    for (vid,) in dc:
+        vidlist.append(vid)
+    return get_variant_snpnames(dbo, vidlist).values()
+
+
+# Procedure: tree_to_dot
+# Purpose: turn a tree into DOT language
+def tree_to_dot(dbo, top):
+    def nodestr(nodeid, kits, variants):
+        return '{} [label="{}"];\n'.format(str(nodeid), '\\n'.join([str(v) for v in variants if v]))
+    def linkstr(parentid, childid):
+        return '{} -> {};\n'.format(str(parentid), str(childid))
+    nodelist = tree_clade_descendants(dbo, top)
+    out = ''
+    for node in nodelist:
+        out += nodestr(node, tree_node_kits(dbo,node),
+                           tree_node_variants(dbo, node))
+    dc = dbo.cursor()
+    dc.execute('select ancestor, descendant from treepaths where treedepth=1')
+    pairs = [(r[0],r[1]) for r in dc if r[0] in nodelist or r[1] in nodelist]
+    for pair in pairs:
+        out += linkstr(pair[0], pair[1])
+    return '''digraph tree {
+edge [style=bold,color=blue];
+node [fontname="Helvetica" fillcolor=white shape=none margin="0,0"];
+
+''' + out + '\n}'
