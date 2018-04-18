@@ -233,6 +233,7 @@ def populate_analysis_kits(dbo):
                        select d.DNAID from dataset d
                        where d.kitID like ?''',
                        (kit,))
+
     return
 
 
@@ -650,9 +651,6 @@ def populate_from_VCF_file(dbo, bid, pid, fileobj):
         return
     # parse output of getVCFvariants(fname)
     parsed = getVCFvariants(fileobj)
-    #if pid == 1040:
-    #    print(parsed)
-    #    sys.exit()
     tups = []
     for line in parsed.splitlines():
         # pos, anc, der, passfail, q1, q2, nreads, passrate, gt
