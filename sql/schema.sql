@@ -131,8 +131,8 @@ create table bed(
     pID INTEGER REFERENCES dataset(ID),
     bID INTEGER REFERENCES bedranges(ID)
     );
-
-create index bedidx on bed(pID,bID);
+create index bedidx1 on bed(pID);
+create index bedidx2 on bed(bID);
 
 /* calls reported by the individual's VCF file */
 drop table if exists vcfcalls;
@@ -141,9 +141,8 @@ create table vcfcalls(
     vID INTEGER REFERENCES variants(ID),
     callinfo INTEGER   --some info about this call packed into an int
     );
-
-create index vcfidx on vcfcalls(vID);
-create index vcfpidx on vcfcalls(pID);
+create index vcfidx1 on vcfcalls(vID);
+create index vcfpid2 on vcfcalls(pID);
 
 /* per-kit call statistics */
 drop table if exists vcfstats;
@@ -164,15 +163,6 @@ create table bedstats(
     coverage2 INTEGER,
     nranges INTEGER
 );
-
-/* per-kit calls that are classified REJECTs */
-drop table if exists vcfrej;
-create table vcfrej(
-    pID INTEGER REFERENCES dataset(ID),
-    vID INTEGER REFERENCES variants(ID)
-    );
-
-create index vcfridx on vcfrej(vid);
 
 /* info about this entire data set or run */
 drop table if exists meta;
@@ -208,8 +198,11 @@ create table variants(
     der INTEGER references alleles(ID),
     UNIQUE(buildID, pos, anc, der)
     );
-
-create index varidx on variants(buildID, pos);
+--indexes that are likely to help query plans in priority order
+--create index varidx1 on variants(pos);
+--create index varidx2 on variants(der);
+--create index varidx3 on variants(anc);
+--create index varidx4 on variants(buildID);
 
 /* reference positives */
 /* a listing in this table means reverse the meaning of anc and der */
@@ -224,7 +217,7 @@ drop table if exists alleles;
 create table alleles(
     ID INTEGER PRIMARY KEY,
     allele TEXT,                  -- the allele value, e.g. "A" or "TTGT"
-    unique(allele)
+    UNIQUE(allele)
     );
 
 /* names and aliases associated with variants */
@@ -264,6 +257,9 @@ CREATE TABLE treepaths(
     treedepth integer,
     UNIQUE(ancestor,descendant,treedepth)
     );
+create index treeancidx on treepaths(ancestor);
+create index treedesidx on treepaths(descendant);
+create index treedepidx on treepaths(treedepth);
 
 /*
  * Tree clade, aka block, part of tree definition
@@ -287,6 +283,7 @@ CREATE TABLE cladevariants(
     vID INTEGER REFERENCES variants(ID),
     UNIQUE(cladeID,vID)
     );
+create index cladevidx on cladevariants(cladeid);
 
 /*
  * Clade kits, part of tree definition
@@ -298,3 +295,5 @@ CREATE TABLE cladekits(
     pID INTEGER REFERENCES person(ID),
     UNIQUE(cladeID,pID)
     );
+create index cladekidx on cladekits(cladeid);
+
