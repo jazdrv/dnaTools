@@ -537,6 +537,7 @@ class Variant(Sort):
             kitlist = set(kits[coord[0]:coord[1]+1])
             snplist = set(snps[coord[2]:coord[3]+1])
             newnode = tree_newclade(self.dbo, kitlist, snplist)
+            self.dbo.commit()
             clades.append((newnode,kitlist,snplist))
             # look back through previous clades until superset of kits found
             # then add this clade as a child of it
