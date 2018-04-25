@@ -59,6 +59,20 @@ create table analysis_kits(
     pID INTEGER references dataset(DNAID) -- person of interest in analysis
     );
 
+/* kits to be excluded */
+/* this provides a way to ignore some kits */
+drop table if exists exclude_kits;
+create table exclude_kits(
+    pID INTEGER references dataset(DNAID) -- person to exclude from analysis
+    );
+
+/* variants to be excluded */
+/* this provides a way to ignore some variants */
+drop table if exists exclude_variants;
+create table exclude_variants(
+    vID INTEGER references variants(ID) -- variant to exclude from analysis
+    );
+
 /* surname associated with person and/or kit */
 drop table if exists surname;
 create table surname(
@@ -227,6 +241,8 @@ create table snpnames(
     snpname TEXT,
     unique(snpname,vID)
     );
+create index snpidx1 on snpnames(snpname);
+create index snpidx2 on snpnames(vID);
 
 /* build (reference genome assembly) associated with data sets */
 drop table if exists build;
