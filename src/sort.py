@@ -376,7 +376,7 @@ class Sort(object):
 
         # get all call info (arr) and coverage info (cov)
         ppl = get_analysis_ids(self.dbo)
-        arr, ppl, vids = get_variant_array(self.dbo, ppl)
+        arr, ppl, vids = get_variant_array(self.dbo, ppl, SNPonly=True)
         trace(5, 'arr: {}...'.format(arr[ppl[0]]))
         cov = get_kit_coverages(self.dbo, ppl, vids)
 
@@ -551,7 +551,7 @@ class Variant(Sort):
                       format(ii,kitlist,snplist))
         self.dbo.commit()
         with open ('tree.gv', 'w') as gf:
-            gf.write(tree_to_dot(self.dbo, treetop))
+            gf.write(tree_to_dot(self.dbo, treetop, compact=True))
 
         # display the matrix - mostly obviated by the csv file
         trace(3,'m:\n{}'.format(m))
