@@ -96,7 +96,8 @@ RANGE_COV = 4
 #   FTDNA ranges are zero-based.
 #   For example, the range (1,2) refers to position 2 only, and (5,10) refers
 #   to position 6-10 inclusive. In this case, a SNP at position 6 would be cbl.
-@profile
+# may be useful to profile this
+# @profile
 def in_range(v_vect, ranges, spans):
     trace(4,'in_range')
     c_vect = []
@@ -208,6 +209,7 @@ def get_kit_ids(db, pids):
 # Input:
 #   db, a database object
 #   ppl, a 1-d array of dataset IDs we're interested in
+#   SNPonly, T/F - return only SNPs
 # Returns:
 #   the variant array, a 2d dictionary, True if person has the variant
 #   list of people represented
@@ -220,19 +222,38 @@ def get_kit_ids(db, pids):
 #   Note that this can be called without the ppl argument, in which case ppl is
 #   formed by querying the analysis_kits table
 @profile
-def get_variant_array(db, ppl=None):
+def get_variant_array(db, ppl=None, SNPonly=False):
     # FIXME: handle multiple calls at a given pos for a given person?
     # FIXME: downstream analysis may need additional info in return tuple
     # FIXME: merge identical indels here?
+    # FIXME: performance - probably does a scan of vcfcalls
     c1 = db.cursor()
     c1.execute('drop table if exists tmpt')
     c1.execute('create temporary table tmpt(id integer)')
     if ppl:
         c1.executemany('insert into tmpt values(?)', [(p,) for p in ppl])
+        c1.execute('''delete from tmpt
+                      where id in (select * from exclude_kits)''')
     else:
-        c1.execute('insert into tmpt select * from analysis_kits')
-    c1 = c1.execute('''select c.vid,c.pid,c.callinfo from vcfcalls c
-                     inner join tmpt t on c.pid=t.id''')
+        c1.execute('''insert into tmpt
+                      select a.pid from analysis_kits a
+                      where not exists (select 1 from exclude_kits e
+                      where e.pid=a.pid)''')
+    trace(5, 'len(tmpt): {}'.format(
+                 c1.execute('select count(*) from tmpt').fetchone()[0]))
+    if SNPonly:
+        c1.execute('''select v.id,c.pid,c.callinfo from variants v
+                      inner join tmpt t on c.pid=t.id
+                      inner join vcfcalls c on v.id=c.vid
+                      inner join alleles a on a.id=v.anc and length(a.allele)=1
+                      inner join alleles b on b.id=v.der and length(b.allele)=1
+                      where not exists (select 1 from exclude_variants e
+                                         where e.vid=v.id)''')
+    else:
+        c1.execute('''select c.vid,c.pid,c.callinfo from vcfcalls c
+                      inner join tmpt t on c.pid=t.id
+                      where not exists (select 1 from exclude_variants e
+                          where e.vid=c.vid)''')
 
     # refpos processing
     #
@@ -378,8 +399,12 @@ def get_analysis_ids(db):
     all_ids = set(get_dna_ids(db))
     trace(5, 'all ids: {}'.format(all_ids))
     dc = db.cursor()
-    ids = set([x[0] for x in dc.execute('select pID from analysis_kits')])
+    ids = set([x[0] for x in
+        dc.execute('''select a.pID from analysis_kits a
+                      where not exists
+                        (select 1 from exclude_kits e where e.pid=a.pid)''')])
     trace(5, 'analysis ids: {}'.format(ids))
+    # intersect with all_ids so we know it's a valid loaded kit
     return list(ids.intersection(all_ids))
 
 # Procedure: get_call_coverage
@@ -394,7 +419,8 @@ def get_analysis_ids(db):
 #   indicates if that person has a BED range such that the call is in a
 #   range. If spans is passed, it corresponds to the maximum length affected by
 #   the variant in vids: 1 for SNPs, max length of (ref,alt) for indels
-@profile
+# Time-consuming procedure - may be useful to profile
+# @profile
 def get_call_coverage(dbo, pid, vids, spans=None):
     # FIXME currently only returns True/False, doesn't handle range ends
     # FIXME maybe more efficient to pass positions instead of ids
