@@ -126,6 +126,7 @@ if args.loadkits:
 if args.kits:
     db = DB(drop=False)
     populate_analysis_kits(db)
+    populate_excludes(db)
     db.commit()
 
 # run unit tests - this is for development, test and prototyping
