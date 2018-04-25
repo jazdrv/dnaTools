@@ -233,8 +233,88 @@ def populate_analysis_kits(dbo):
                        select d.DNAID from dataset d
                        where d.kitID like ?''',
                        (kit,))
+
     return
 
+# Procedure: get_variant_id
+# Purpose: get the id of a variant given a name
+# Input:
+#   a db instance
+#   a variant name, either by SNP name or pos.ref.alt
+# Returns:
+#   the variant's ID - may return None if no matching variant is found
+def get_variant_id(db, build, vname):
+    build = get_build_byname(db, build)
+    c1 = db.cursor()
+    vid = None
+    try:
+        pos,ref,alt = vname.split('.')
+        c1.execute('''select v.id from variants v
+                 inner join alleles a on a.id=v.anc
+                 inner join alleles b on b.id=v.der
+                 inner join build bld on bld.id=v.buildid and bld.id=?
+                 where v.pos=? and a.allele=? and b.allele=?''',
+                 (build,pos,ref,alt))
+        vid = c1.fetchone()[0]
+    except:
+        try:
+            c1 = c1.execute('''select s.vid from snpnames s
+                           inner join variants v on s.vid=v.id
+                           inner join build b on b.id=v.buildid and b.id=?
+                           where s.snpname=?''',
+                           (build, vname.upper()))
+            vid = c1.fetchone()[0]
+        except:
+            trace(0, 'did not find variant {} in build {}'.format(vname, build))
+    return vid
+
+
+# Procedure: populate_excludes
+# Purpose: fill up the list of variants and kits to ignore
+# Input: a database object
+# Returns: nothing
+# Info:
+#   populate exclude kits and exclude variants from csv file
+#   first field = 'variant' or 'kit'
+#   second field = the kit id or the build name
+#   third field = the variant name if first field is 'variant'
+#   e.g.
+#     kit N4826
+#     variant hg38 Z307
+#     variant hg38 12345678.A.C
+def populate_excludes(dbo):
+    trace(1, 'populate exclusion list to ignore kits and variants')
+    fname = 'excludes.csv'
+    with open(fname) as excludefile:
+        cf = csv.reader(excludefile, delimiter=' ')
+        kitids = []
+        varnames = []
+        for row in cf:
+            if row[0].startswith('#'):
+                continue
+            try:
+                if row[0].lower() == 'kit':
+                    kitids.append(row[1])
+                elif row[0].lower() == 'variant':
+                    varnames.append((row[1],row[2]))
+            except:
+                trace(0, 'failed on row of excludes.csv:{}'.format(row))
+        dc = dbo.cursor()
+        dc.execute('delete from exclude_variants')
+        dc.execute('delete from exclude_kits')
+        for kit in kitids:
+            trace(1, 'ignoring kit {} due to {}'.format(kit, fname))
+            dc.execute('''insert into exclude_kits
+                       select d.DNAID from dataset d
+                       where d.kitID like ?''',
+                       (kit,))
+        for build,vname in varnames:
+            vid = get_variant_id(dbo, build, vname)
+            trace(1, 'ignoring variant {} (id={}) due to {}'.format(
+                vname, vid, fname))
+            dc.execute('insert into exclude_variants values(?)', (vid,))
+
+    return
 
 # Procedure: populate_STRS
 # Purpose: populate a table of STR definitions
@@ -650,9 +730,6 @@ def populate_from_VCF_file(dbo, bid, pid, fileobj):
         return
     # parse output of getVCFvariants(fname)
     parsed = getVCFvariants(fileobj)
-    #if pid == 1040:
-    #    print(parsed)
-    #    sys.exit()
     tups = []
     for line in parsed.splitlines():
         # pos, anc, der, passfail, q1, q2, nreads, passrate, gt
@@ -751,16 +828,18 @@ def populate_from_zip_file(dbo, fname):
 # Future:
 #   also download files?
 def populate_from_dataset(dbo):
-    trace(1, 'populate from dataset with kit limit {}'.format(config['kitlimit']))
+    trace(1, 'populate from dataset with kit limit {}'.format(
+        config['kitlimit']))
     dc = dbo.cursor()
     bed_re = re.compile(r'(\b(?:\w*[^_/])?regions(?:\[\d\])?\.bed)')
     vcf_re = re.compile(r'(\b(?:\w*[^_/])?variants(?:\[\d\])?\.vcf)')
     # Query to get all known kits, with analysis_kits prioritized.
     # Prioritizing analysis_kits means they're loaded first, and we don't need
     # to load thousands of kits to get the ones we're interested in.
+    # NB: adding a kit to exclude_kits does not prevent it from loading
     dc.execute('''select fileNm,buildID,DNAID,1 from dataset
                   inner join analysis_kits on pID=DNAID
-                        union all
+                        union
                   select fileNm,buildID,DNAID,2 from dataset
                   order by 4''')
     allsets = list([(t[0],t[1],t[2]) for t in dc])
@@ -788,7 +867,7 @@ def populate_from_dataset(dbo):
         # Loop over the kits we know about.
         # If there are already calls for this person, skip the load.
         if (not config['drop_tables']) and pid in pexists:
-            trace(2, 'calls exist - skip {}'.format(fn[:50]))
+            trace(3, 'calls exist - skip {}'.format(fn[:50]))
             continue
         zipf = os.path.join(data_path('HaplogroupR'), fn)
         if not os.path.exists(zipf):
@@ -820,7 +899,7 @@ def populate_from_dataset(dbo):
             # something failed while loading this file - roll back changes
             trace(0, 'FAIL on file {} (not fully loaded)'.format(zipf))
             trace(0, 'roll-back this file load and continue')
-            dbo.db.rollback()
+            dbo.rollback()
 
         if nkits >= config['kitlimit']:
             break
@@ -849,6 +928,7 @@ def db_creation():
         populate_age(db)
         populate_refpos(db)
         populate_analysis_kits(db)
+        populate_excludes(db)
     return db
 
 

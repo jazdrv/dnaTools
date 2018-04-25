@@ -1,0 +1,78 @@
+# format:
+# kit <kitid> ignored fields
+# variant build <variant> ignored fields
+#
+kit 105137 P312 needs manual edit
+kit 106932 L23? needs manual edit
+#kit 92257 I-YP2191
+#kit 48960 I-YP2191
+#kit 171435 I-YP2191
+#kit 187780 I-YP2191
+#kit 194473 R-YP2191
+#kit 225882 G-YP2191
+#kit 280709 J-YP2191
+#kit 264233 I-YP2191
+#kit 298718 R-YP2191
+#kit 299991 I-YP2191
+#kit 307354 E-YP2191
+#kit 293885 E-YP2191
+#kit 334049 I-YP2191
+#kit 331278 R-YP2191
+#kit 325242 R-YP2191
+#kit 361543 R-YP2191
+#kit 348790 R-YP2191
+#kit 348785 R-YP2191
+#kit 350686 R-YP2191
+#kit 350685 R-YP2191
+#kit 348788 R-YP2191
+#kit 392020 I-YP2191
+#kit 392622 R-YP2191
+#kit 377920 R-YP2191
+#kit 377918 R-YP2191
+#kit 383275 R-YP2191
+#kit 401052 I-YP2191
+#kit 420787 I-YP2191
+#kit 416357 R-YP2191
+#kit 415060 R-YP2191
+#kit 393991 R-YP2191
+#kit 393985 R-YP2191
+#kit 458058 unknown
+#kit 449791 R-YP2191
+#kit 429278 I-YP2191
+#kit 516849 R-YP2191
+#kit 52804fb6-f60c-440c-a41b-bc645a74891a R-YP2191 probably
+#kit 550030 R-YP2191
+#kit 557529 L23
+#kit 573273 L23
+#kit 593688 R-YP2191
+#kit 632582 R-YP2191
+#kit 640072 E-YP2191
+#kit 695626 R-YP2191
+#kit 712046 E-YP2191
+#kit 718053 unknown
+#kit B11828 E-YP2191
+#kit B1648010 L23
+#kit B239237 R-YP2191
+#kit B249440 NO-YP2191
+#kit B221337 R-YP2191
+#kit B3415 R-YP2191
+#kit B41027 I-YP2191
+#kit B225658 I-YP2191
+#kit F65964 unknown M269?
+#kit E18610 L23
+#kit B6861 R-YP2191
+#kit MK11564 I-YP2191
+#kit N242316 L23
+#kit N180718 R-YP2191
+#kit N190005 Q-YP2191
+#kit N246938 G-YP2191
+#kit 8502 I-YP2191
+variant b38 20325212.T.C
+variant b38 15469.T.C
+variant b38 PF5888
+variant b38 PF5889
+variant b38 Z647 recurrent
+variant b38 19788.C.T above U106
+variant b38 S227 recurrent at high level
+variant b38 6885470.A.G recurrent at high level
+variant b38 21827447.G.T recurrent at high level

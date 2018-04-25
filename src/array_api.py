@@ -39,6 +39,7 @@ trace = Trace(config['verbosity'])
 # Info:
 #   This is not done in the "brute force" way because it can be compute
 #   intensive to search the list for every range.
+@profile
 def get_kit_coverage(dbo, pid):
     br = dbo.dc.execute('''select 1,minaddr from bedranges r
                            inner join bed b on b.bid=r.id and b.pid=?
@@ -95,6 +96,8 @@ RANGE_COV = 4
 #   FTDNA ranges are zero-based.
 #   For example, the range (1,2) refers to position 2 only, and (5,10) refers
 #   to position 6-10 inclusive. In this case, a SNP at position 6 would be cbl.
+# may be useful to profile this
+# @profile
 def in_range(v_vect, ranges, spans):
     trace(4,'in_range')
     c_vect = []
@@ -106,47 +109,27 @@ def in_range(v_vect, ranges, spans):
         if not spans: # snps
             if v == ranges[ii-1][1] and v == (ranges[ii-1][0] + 1):
                 c_vect.append(RANGE_CBLH)
-                trace(25, '{}:cblh ({},{})'.format(v,ranges[ii-1][0],
-                                                       ranges[ii-1][1]))
             elif v == ranges[ii-1][1]:
                 c_vect.append(RANGE_CBH)
-                trace(25, '{}:cbh ({},{})'.format(v,ranges[ii-1][0],
-                                                      ranges[ii-1][1]))
             elif v == (ranges[ii-1][0]+1):
                 c_vect.append(RANGE_CBL)
-                trace(25, '{}:cbl ({},{})'.format(v,ranges[ii-1][0],
-                                                      ranges[ii-1][1]))
             elif ii > 0 and v > ranges[ii-1][0] and v < ranges[ii-1][1]:
                 c_vect.append(RANGE_COV)
-                trace(25, '{}:snp cov ({},{})'.format(v,ranges[ii-1][0],
-                                                          ranges[ii-1][1]))
             else:
                 c_vect.append(RANGE_NC)
-                trace(25, '{}:snp nc ({},{})'.format(v,ranges[ii-1][0],
-                                                         ranges[ii-1][1]))
         else: # spans
             if v == (ranges[ii-1][0]+1) and v+spans[iv]-1 == ranges[ii-1][1]:
                 c_vect.append(RANGE_CBLH)
-                trace(25, '{}-{}:cblhspan ({},{})'.format(v,v+spans[iv]-1,
-                                            ranges[ii-1][0], ranges[ii-1][1]))
             elif v == (ranges[ii-1][0]+1) and v+spans[iv]-1 < ranges[ii-1][1]:
                 c_vect.append(RANGE_CBL)
-                trace(25, '{}-{}:cblspan ({},{})'.format(v,v+spans[iv]-1,
-                                            ranges[ii-1][0], ranges[ii-1][1]))
             elif v+spans[iv]-1 == ranges[ii-1][1]:
                 c_vect.append(RANGE_CBH)
-                trace(25, '{}-{}:cbhspan ({},{})'.format(v,v+spans[iv]-1,
-                                            ranges[ii-1][0], ranges[ii-1][1]))
             elif v+spans[iv]-1 < ranges[ii-1][1]:
                 # span fits within the range
                 c_vect.append(RANGE_COV)
-                trace(25, '{}-{}:covspan ({},{})'.format(v,v+spans[iv]-1,
-                                            ranges[ii-1][0], ranges[ii-1][1]))
             else:
                 # span exceeded the upper end of the range
                 c_vect.append(RANGE_NC)
-                trace(25, '{}-{}:ncspan ({},{})'.format(v,v+spans[iv]-1,
-                                            ranges[ii-1][0], ranges[ii-1][1]))
     if len(c_vect) != len(v_vect):
         raise ValueError
     return c_vect
@@ -161,15 +144,34 @@ def in_range(v_vect, ranges, spans):
 #   (vid, pos, anc, der) for vid in variants
 def get_variant_defs(db, vids):
     dc = db.cursor()
-    rval = {}
-    for v in vids:
-        dc.execute('''select v.id,v.pos,aa.allele,ab.allele from variants v
-                    inner join alleles aa on v.anc=aa.id
-                    inner join alleles ab on v.der=ab.id
-                    where v.id=?''', (v,))
-        tup = dc.fetchone()
-        rval[tup[0]] = (tup[1], tup[2], tup[3])
-    return rval
+
+    # for query efficiency, put the variants of interest into a tmp table
+    dc.execute('drop table if exists tmpt')
+    dc.execute('create temporary table tmpt(id integer)')
+    dc.executemany('insert into tmpt values(?)', [(v,) for v in vids])
+
+    # gather snp names
+    snpnames = defaultdict(list)
+    dc.execute('''select v.id,s.snpname from variants v
+                  inner join snpnames s on s.vid=v.id
+                  inner join tmpt t on t.id=v.id''')
+    for vid,snpname in dc:
+        snpnames[vid].append(snpname)
+
+    # gather pos,ref,alt
+    snpdefs = {}
+    dc.execute('''select v.id,v.pos,aa.allele,ab.allele from variants v
+                  inner join alleles aa on v.anc=aa.id
+                  inner join alleles ab on v.der=ab.id
+                  inner join tmpt t on t.id=v.id''')
+    for vid,pos,ref,alt in dc:
+        if snpnames[vid]:
+            alias='/'.join(snpnames[vid])
+        else:
+            alias='{}.{}.{}'.format(pos,ref,alt)
+        snpdefs[vid] = (pos,ref,alt,alias)
+
+    return snpdefs
 
 
 # Procedure: get_variant_snpnames
@@ -180,15 +182,8 @@ def get_variant_defs(db, vids):
 # Returns:
 #   dict of vID:snpname for each vID
 def get_variant_snpnames(db, vids):
-    dc = db.cursor()
-    rval = {}
-    for v in vids:
-        dc.execute('''select v.id,s.snpname from variants v
-                    inner join snpnames s on s.vid=v.id
-                    where v.id=?''', (v,))
-        sn = '/'.join([s[1] for s in dc])
-        # note sn might be empty, one, or multiple names, e.g. 'M2986/Z4303'
-        rval[v] = sn
+    snpdefs = get_variant_defs(db, vids)
+    rval = dict([(v, snpdefs[v][3]) for v in snpdefs])
     return rval
 
 
@@ -214,6 +209,7 @@ def get_kit_ids(db, pids):
 # Input:
 #   db, a database object
 #   ppl, a 1-d array of dataset IDs we're interested in
+#   SNPonly, T/F - return only SNPs
 # Returns:
 #   the variant array, a 2d dictionary, True if person has the variant
 #   list of people represented
@@ -226,19 +222,38 @@ def get_kit_ids(db, pids):
 #   Note that this can be called without the ppl argument, in which case ppl is
 #   formed by querying the analysis_kits table
 @profile
-def get_variant_array(db, ppl=None):
+def get_variant_array(db, ppl=None, SNPonly=False):
     # FIXME: handle multiple calls at a given pos for a given person?
     # FIXME: downstream analysis may need additional info in return tuple
     # FIXME: merge identical indels here?
+    # FIXME: performance - probably does a scan of vcfcalls
     c1 = db.cursor()
     c1.execute('drop table if exists tmpt')
     c1.execute('create temporary table tmpt(id integer)')
     if ppl:
         c1.executemany('insert into tmpt values(?)', [(p,) for p in ppl])
+        c1.execute('''delete from tmpt
+                      where id in (select * from exclude_kits)''')
     else:
-        c1.execute('insert into tmpt select * from analysis_kits')
-    c1 = c1.execute('''select c.vid,c.pid,c.callinfo from vcfcalls c
-                     inner join tmpt t on c.pid=t.id''')
+        c1.execute('''insert into tmpt
+                      select a.pid from analysis_kits a
+                      where not exists (select 1 from exclude_kits e
+                      where e.pid=a.pid)''')
+    trace(5, 'len(tmpt): {}'.format(
+                 c1.execute('select count(*) from tmpt').fetchone()[0]))
+    if SNPonly:
+        c1.execute('''select v.id,c.pid,c.callinfo from variants v
+                      inner join tmpt t on c.pid=t.id
+                      inner join vcfcalls c on v.id=c.vid
+                      inner join alleles a on a.id=v.anc and length(a.allele)=1
+                      inner join alleles b on b.id=v.der and length(b.allele)=1
+                      where not exists (select 1 from exclude_variants e
+                                         where e.vid=v.id)''')
+    else:
+        c1.execute('''select c.vid,c.pid,c.callinfo from vcfcalls c
+                      inner join tmpt t on c.pid=t.id
+                      where not exists (select 1 from exclude_variants e
+                          where e.vid=c.vid)''')
 
     # refpos processing
     #
@@ -384,8 +399,12 @@ def get_analysis_ids(db):
     all_ids = set(get_dna_ids(db))
     trace(5, 'all ids: {}'.format(all_ids))
     dc = db.cursor()
-    ids = set([x[0] for x in dc.execute('select pID from analysis_kits')])
+    ids = set([x[0] for x in
+        dc.execute('''select a.pID from analysis_kits a
+                      where not exists
+                        (select 1 from exclude_kits e where e.pid=a.pid)''')])
     trace(5, 'analysis ids: {}'.format(ids))
+    # intersect with all_ids so we know it's a valid loaded kit
     return list(ids.intersection(all_ids))
 
 # Procedure: get_call_coverage
@@ -400,6 +419,8 @@ def get_analysis_ids(db):
 #   indicates if that person has a BED range such that the call is in a
 #   range. If spans is passed, it corresponds to the maximum length affected by
 #   the variant in vids: 1 for SNPs, max length of (ref,alt) for indels
+# Time-consuming procedure - may be useful to profile
+# @profile
 def get_call_coverage(dbo, pid, vids, spans=None):
     # FIXME currently only returns True/False, doesn't handle range ends
     # FIXME maybe more efficient to pass positions instead of ids
@@ -513,7 +534,7 @@ if __name__=='__main__':
     trace(0, 'test message should display to stdout')
     ids = get_analysis_ids(db)
     trace(0, 'analysis_ids: {} (empty if kits are not loaded)'.format(ids))
-    for id in ids:
+    for id in ids[:5]:
         call(['../bin/info.py', '-k', '{}'.format(id)])
     # smoke test in_range()
     v_vect = [1, 1, 5, 30, 35, 40, 42, 47, 52]
@@ -527,7 +548,9 @@ if __name__=='__main__':
     trace(0, 'get_dna_ids at {:.2f} seconds...'.format(time.time() - t0))
     ids = get_dna_ids(db)
     trace(0, 'get_variant_array at {:.2f} seconds...'.format(time.time() - t0))
-    arr = get_variant_array(db, ids)
+    arr = get_variant_array(db, ids[:5])
     trace(0, '...done at {:.2f} seconds'.format(time.time() - t0))
     # smoke test get_variant_defs
     trace(0, '{}'.format(get_variant_defs(db, [1,2,20,21])))
+    # smoke test get_variant_snpnames
+    trace(0, '{}'.format(get_variant_snpnames(db, [1,2,20,21])))

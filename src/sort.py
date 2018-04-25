@@ -103,7 +103,6 @@ class VKcalls(object):
                                                     self.korder])
         if not self.vdefs:
             self.vdefs = get_variant_defs(self.dbo, self.vids)
-        snpnames = get_variant_snpnames(self.dbo, self.vids)
         NP = self.calls.as_matrix()
         fieldnames = ['vID','pos','anc','der','name'] +\
                 [str(self.kdefs[self.kits[ii]]) for ii in self.korder]
@@ -115,8 +114,8 @@ class VKcalls(object):
             cf.writerow(d)
             for iV in self.vorder:
                 V = self.vids[iV]
-                pos,ref,alt = self.vdefs[V]
-                rowvals = [V, pos, ref, alt, snpnames[V]]
+                pos,ref,alt,snpname = self.vdefs[V]
+                rowvals = [V, pos, ref, alt, snpname]
                 cvals =  NP[iV].tolist()
                 rowvals += [cvals[ii] for ii in self.korder]
                 rowdict = dict(zip(fieldnames,rowvals))
@@ -285,8 +284,8 @@ class VKcalls(object):
                 trace(5,'rn, rmx, zmn, zmx-1, 1mn, 1mx-1 : {},{},{},{},{},{}'.
                           format(rownum,rowmax,zeromin,zeromax,onemin,onemax))
             rownum = rowmax+1
-        trace(2, 'blocks: {}'.format(blocks))
-        trace(2, 'zeroes: {}'.format(zeroes))
+        trace(3, 'blocks: {}'.format(blocks))
+        trace(3, 'zeroes: {}'.format(zeroes))
         badblocks = check_blocks(A, zeroes, 0)
         trace(2, 'not all zero: {}'.format(badblocks))
         badblocks = check_blocks(A, blocks, 1)
@@ -377,7 +376,7 @@ class Sort(object):
 
         # get all call info (arr) and coverage info (cov)
         ppl = get_analysis_ids(self.dbo)
-        arr, ppl, vids = get_variant_array(self.dbo, ppl)
+        arr, ppl, vids = get_variant_array(self.dbo, ppl, SNPonly=True)
         trace(5, 'arr: {}...'.format(arr[ppl[0]]))
         cov = get_kit_coverages(self.dbo, ppl, vids)
 
@@ -538,20 +537,21 @@ class Variant(Sort):
             kitlist = set(kits[coord[0]:coord[1]+1])
             snplist = set(snps[coord[2]:coord[3]+1])
             newnode = tree_newclade(self.dbo, kitlist, snplist)
+            self.dbo.commit()
             clades.append((newnode,kitlist,snplist))
             # look back through previous clades until superset of kits found
             # then add this clade as a child of it
             for pnode,pkits,psnps in reversed(clades[:-1]):
                 if kitlist.issubset(pkits) or pnode == treetop:
-                    tree_newchild(self.dbo, pnode, newnode)
+                    tree_add_child_clade(self.dbo, pnode, newnode)
                     break;
             else:
                 trace(0, 'FAIL: did not find parent')
-            trace(2, 'block {}:\n  kits: {}\n  snps: {}'.
+            trace(3, 'block {}:\n  kits: {}\n  snps: {}'.
                       format(ii,kitlist,snplist))
         self.dbo.commit()
         with open ('tree.gv', 'w') as gf:
-            gf.write(tree_to_dot(self.dbo, treetop))
+            gf.write(tree_to_dot(self.dbo, treetop, compact=True))
 
         # display the matrix - mostly obviated by the csv file
         trace(3,'m:\n{}'.format(m))
