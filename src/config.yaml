@@ -57,6 +57,10 @@ drop_tables: False
 # copy from the web
 max_snpdef_age: 3
 
+# where to download the chrY reference FASTA file - full URL to file
+ref_fasta_hg38: ftp://ftp.ncbi.nlm.nih.gov/refseq/H_sapiens/H_sapiens/Assembled_chromosomes/seq/hs_ref_GRCh38.p12_chrY.mfa.gz
+
+
 #---------------------old or not yet used------------------
 
 zero_age: 1950.33

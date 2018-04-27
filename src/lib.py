@@ -21,6 +21,10 @@ import sys
 import hashlib
 import requests, json
 import urllib, time
+try:
+    import pyfaidx
+except:
+    print('WARNING: refpos detection depends on pyfaidx module - not found')
 
 
 # read the config file
@@ -181,11 +185,16 @@ def populate_age(dbo):
 # Input: a database object
 # Returns: nothing
 # Info:
-#   populate reference positives from the SNPs listed in refpos.txt, a text
-#   file
+#   Populate reference positives from the SNPs listed in the computed refpos
+#   list.  This comes from compute_refpos by comparing against the reference
+#   genome (which is acquired via the web from nih.gov). Calls calculate_refpos
+#   if needed.
 def populate_refpos(dbo):
     trace(1, 'populate refpos table')
-    with open('refpos.txt') as refposfile:
+    fname =data_path(os.path.join('cache', 'refpos-detect.out'))
+    if not os.path.exists(fname):
+        calculate_refpos()
+    with open(fname) as refposfile:
         cf = csv.reader(refposfile)
         snps = []
         for row in cf:
@@ -523,6 +532,49 @@ def populate_fileinfo(dbo, fromweb=True):
     js = get_kits(fromweb)
     update_metadata(dbo, js)
 
+
+# WORK IN PROGRESS
+# Procedure: calculate_refpos
+# Purpose: calculate snps that are reference-positive out of named snps
+# Info:
+#   determine refpos snps automatically
+#   https://www.ncbi.nlm.nih.gov/assembly/GCA_000001405.27
+def calculate_refpos():
+    trace(1, 'calculating refpos')
+
+    fname = get_FASTA_fromweb(config['ref_fasta_hg38'])
+
+    # assumes format for firs line is >seqname bla bla bla
+    seqname = open(fname).read(100).split()[0][1:]
+    ref = pyfaidx.Fasta(fname)
+
+    # helper: return False if SNP definition's anc != reference genome's value
+    def check(snpname):
+        a1 = snpdict[snpname][1]
+        a2 = str(ref.faidx.fetch(seqname, int(snpdict[snpname][0]),
+                               int(snpdict[snpname][0]))).upper()
+        if a1 != a2:
+            return False
+        return True
+
+    snpdict = {}
+    snpdef = data_path(os.path.join('cache', config['b38_snp_file']))
+    with open(snpdef) as snpfile:
+        c = csv.DictReader(snpfile)
+        for line in c:
+            snpdict[line['Name']] = (line['start'],line['allele_anc'],
+                line['allele_der'])
+
+    # write out the detected refpos along with its definition
+    refpos = data_path(os.path.join('cache', 'refpos-detect.out'))
+    with open(refpos, 'w') as fn:
+        for snp in snpdict:
+            if (snpdict[snp][1] not in ('ins','del')) and \
+              (not check(str(snp))) and (int(snpdict[snp][0]) > 1):
+                 fn.write('{} {}\n'.format(snp, snpdict[snp]))
+    return
+
+
 # Procedure: updatesnps
 # Purpose: update snp definitions
 # Input:
@@ -594,6 +646,32 @@ def get_SNPdefs_fromweb(db, maxage, url='http://ybrowse.org/gbrowse2/gff'):
         if not os.path.exists(fname) or deltat > maxage:
             trace(0, 'failed to update {} from the web'.format(fname))
     return UpdatedFlag
+
+# Procedure: get_FASTA_fromweb
+# Purpose: pull reference genome FASTA from the web at nih.gov
+# Input:
+#   url (optional), where to get the data file
+# Info:
+#   Reference fasta is used to determine ancestral allele in some cases.
+#   Fetch it from the web if we don't already have it.
+# FIXME: need to handle various builds - only gets hg38 right now
+# FIXME: use tabix and bgzip to store it compressed?
+def get_FASTA_fromweb(url=None):
+    if not url:
+        url = config['ref_fasta_hg38']
+
+    fbase = os.path.basename(url)
+    fname = data_path(os.path.join('cache', fbase))
+    if not os.path.exists(fname):
+        trace(1, 'retrieving {}')
+        urllib.request.urlretrieve(url, fname)
+
+    if fname.endswith('.gz'):
+        subprocess.run(['gzip', '-d', '-f', '-k', fname])
+        fname = fname[:-3]
+
+    return fname
+
 
 # Procedure: populate_snps
 # Purpose: populate SNP definitions in the database
@@ -946,3 +1024,5 @@ if __name__=='__main__':
     t(100, 'this message should not be seen')
     t = savet
     t(0, 'another message that should be seen')
+    db = DB(drop=False)
+    populate_refpos(db)
