@@ -249,7 +249,7 @@ class VKcalls(object):
                 c1,c2 = coord[0:2]
                 tot = A.as_matrix()[r1:r2+1, c1:c2+1].sum()
                 if val * (r2+1-r1) * (c2+1-c1) != tot:
-                    badblocks.append(coord)
+                    badblocks.append(coord + (tot,))
             return badblocks
 
         # zeroes to the left form a block that extends down
@@ -428,7 +428,7 @@ class Sort(object):
                             gt = 0
                         else:
                             trace(0, 'unexpected value for coverage')
-                    # no entry in coverage is default (covered)
+                    # no entry in coverage is default (no call, covered)
                     except:
                         covered = True
                         gt = 0
@@ -455,11 +455,10 @@ class Sort(object):
                 else:
                     unknownDATA[vv] = vect
 
-        # FIXME - used downstream, this definition isn't correct yet
         self.VARIANTS = vids
+        trace(2,'VARIANTS: {}...'.format(self.VARIANTS[:20]))
         self.KITS = ppl
         trace(2,'KITS: {}'.format(self.KITS))
-        trace(2,'VARIANTS: {}...'.format(self.VARIANTS[:20]))
 
         # summarize the results for diagnostics
         trace(1,'Total matrix kits: {}'.format(len(self.KITS)))
@@ -531,20 +530,37 @@ class Variant(Sort):
         coords, zcoords = m.get_blocks(A)
         snps,kits = A.axes
         # start a new tree
-        treetop = tree_newclade(self.dbo, kits, [], 'Top')
+        try:
+            treetop = sorted(tree_get_treetops(self.dbo))[0]
+        except:
+            treetop = tree_newclade(self.dbo, kits, [], 'Top')
+            trace(1, 'created new tree at node {}'.format(treetop))
         clades = [(treetop,[],[])]
         for ii,coord in enumerate(coords):
             kitlist = set(kits[coord[0]:coord[1]+1])
             snplist = set(snps[coord[2]:coord[3]+1])
+            clades.append((None,kitlist,snplist))
+            # not a leaf node in this tree - on to the next
+            if len(kitlist) > 1:
+                continue
             newnode = tree_newclade(self.dbo, kitlist, snplist)
-            self.dbo.commit()
-            clades.append((newnode,kitlist,snplist))
             # look back through previous clades until superset of kits found
             # then add this clade as a child of it
+            chains = [(newnode,kitlist,snplist)]
             for pnode,pkits,psnps in reversed(clades[:-1]):
-                if kitlist.issubset(pkits) or pnode == treetop:
-                    tree_add_child_clade(self.dbo, pnode, newnode)
-                    break;
+                if pnode == treetop:
+                    tree_merge_into(self.dbo, chains[0][0], treetop, [])
+                    tree_delete_tree(self.dbo, chains[0][0])
+                    chains = []
+                    break
+                elif kitlist.issubset(pkits):
+                    newnode = tree_newclade(self.dbo, pkits, psnps)
+                    tree_add_child_clade(self.dbo, newnode, chains[0][0])
+                    chains.insert(0, (newnode, pkits, psnps))
+                    kitlist = pkits
+                    snplist = psnps
+                    trace(8,'chains:{}'.format(chains))
+
             else:
                 trace(0, 'FAIL: did not find parent')
             trace(3, 'block {}:\n  kits: {}\n  snps: {}'.

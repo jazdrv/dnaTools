@@ -11,6 +11,7 @@ import yaml, os
 from lib import Trace
 from array_api import *
 from profile import profile
+from functools import reduce
 
 REDUX_CONF = os.path.join(os.environ['REDUX_PATH'], 'config.yaml')
 config = yaml.load(open(REDUX_CONF))
@@ -74,6 +75,7 @@ def tree_clone_tree(dbo, fromtree, destination):
     nkits = tree_clade_get_kits(dbo, fromtree)
     newchild = tree_newclade(dbo, nkits, nvars)
     tree_add_child_clade(dbo, destination, newchild)
+    dbo.commit()
     for child in tree_clade_get_children(dbo, fromtree):
         tree_clone_tree(dbo, child, newchild)
     dbo.commit()
@@ -167,12 +169,21 @@ def tree_add_child_clade(dbo, parent, newchild):
     if newchild in tree_clade_get_children(dbo, parent):
         return
     dc = dbo.cursor()
-    # all parents point to child node
-    dc.execute('''INSERT INTO treepaths
-                     (ancestor, descendant, treedepth)
-                  SELECT ancestor, ?, treedepth+1 from treepaths
-                  where descendant=?''', (newchild, parent))
+    # all parents point to new child node and its descendants
+    trace(8, 'tree link maintenance, parent={}'.format(parent))
+    dc.execute('select * from treepaths')
+    for tup in dc:
+        trace(8, 'treepath {}'.format(tup))
+    dc.execute('''INSERT or ignore INTO treepaths
+                        (ancestor, descendant, treedepth)
+                  select a.ancestor, b.descendant, a.treedepth+b.treedepth+1
+                  from treepaths a, treepaths b
+                  where a.descendant=? and b.ancestor=?''', (parent,newchild))
     dbo.commit()
+    trace(8, 'after...'.format(parent))
+    dc.execute('select * from treepaths')
+    for tup in dc:
+        trace(8, 'treepath {}'.format(tup))
     # child clade contains variants of parent - remove them from child
     pvars = set(tree_clade_get_variants(dbo, parent))
     cvars = set(tree_clade_get_variants(dbo, newchild))
@@ -241,31 +252,18 @@ def tree_clade_get_parent(dbo, child):
 def tree_insert_clade(dbo, newclade, parent, child):
     dc = dbo.cursor()
 
-    # remove old paths to child, add child under parent
-    dc.execute('delete from treepaths where descendant=? and treedepth>0',
-                   (newclade,))
+    # remove old paths to child
+    dc.execute('''delete from treepaths
+                    where ancestor in
+         (select ancestor from treepaths where treedepth>0 and descendant=?)
+                    and descendant in
+         (select descendant from treepaths where treedepth>0 and ancestor=?)
+                   ''', (child, parent))
     dbo.commit()
-    tree_add_child_clade(dbo, parent, newclade)
-    dbo.commit()
-    # remove old paths to child, add child under parent
-    dc.execute('delete from treepaths where descendant=? and treedepth>0',
-                   (child,))
-    dbo.commit()
-    # add previous child below newclade
+    # add child below new clade
     tree_add_child_clade(dbo, newclade, child)
-    dbo.commit()
-    # all children of previous child are now depth+1
-    dc.execute('''update treepaths set treedepth=treedepth+1
-                  where ancestor=? and descendant in
-                  (select descendant from treepaths
-                     where ancestor=? and treedepth>0)
-                    and treedepth>0''', (parent,child))
-
-    # all children of previous child are also a descendant of newclade
-    dc.execute('''insert into treepaths(ancestor,descendant,treedepth)
-                  select ?,descendant,treedepth+1 from treepaths
-                  where ancestor=? and treedepth>0''', (newclade, child))
-    dbo.commit()
+    # add new clade below parent
+    tree_add_child_clade(dbo, parent, newclade)
     return
 
 
@@ -349,6 +347,32 @@ def tree_clade_delete_node(dbo, node):
     dbo.commit()
     return
 
+# Procedure: tree_get_leaf_nodes
+# Purpose: find all leaf nodes in a tree
+def tree_get_leaf_nodes(dbo, node):
+    if tree_is_leaf_node(dbo, node):
+        return [node]
+    else:
+        leafs = []
+        for child in tree_clade_get_children(dbo, node):
+            leafs += tree_get_leaf_nodes(dbo, child)
+    return leafs
+
+# Procedure: tree_get_paths
+# Purpose: find all paths from leaf nodes to top of tree
+def tree_get_paths(dbo, node):
+    leafnodes = tree_get_leaf_nodes(dbo, node)
+    paths = []
+    for leafnode in leafnodes:
+        variants = []
+        kits = []
+        nodelist = [leafnode] + tree_clade_get_ancestors(dbo, leafnode)
+        for treenode in nodelist:
+            variants.append(set(tree_clade_get_variants(dbo, treenode)))
+            kits.append(set(tree_clade_get_kits(dbo, treenode)))
+        paths.append((nodelist, kits, variants))
+    return paths
+
 # Procedure: tree_func_bottom_up
 # Purpose: apply a function to each node in the tree, bottom up (leaf first)
 def tree_func_bottom_up(dbo, node, func):
@@ -388,12 +412,29 @@ def tree_combine_children(dbo, node):
             if vars1.intersection(vars2):
                 trace(8, 'combining {} into {}'.format(other, child))
                 remainder = []
-                tree_merge_into(dbo, other, child, remainder)
+                tree_clade_merge_into(dbo, other, child, remainder)
                 # FIXME - does loop we're in work if we delete the node?
                 # I think it's OK - kits and variants would be empty?
                 tree_delete_tree(dbo, other)
                 dbo.commit()
     return
+
+# Procedure: path_compare
+# Purpose: see if there is sufficient variant overlap to merge tree nodes
+def path_compare(fromsets, intosets):
+    if not fromsets[0] or not intosets[0]:
+        return False
+    if not fromsets[0].intersection(intosets[0]):
+        return False
+    fvars = set()
+    tvars = set()
+    [fvars.update(s) for s in fromsets]
+    [tvars.update(s) for s in intosets]
+    overlap = fvars.intersection(tvars)
+    if len(overlap) < 2:
+        return False
+    # FIXME - maybe want some path checking, more rigorous check?
+    return True
 
 # Procedure: tree_merge_into
 # Purpose: merge one tree into another tree
@@ -402,29 +443,55 @@ def tree_combine_children(dbo, node):
 #   data. The "from" tree should be a node that we will attempt to merge into
 #   the receiving tree. When a node can't be merged, it's added to the
 #   remainder tree.
-@profile
+#@profile
 def tree_merge_into(dbo, fromtree, intotree, remainder):
-    # if the "from" tree doesn't have any children, merge it and return
-    if tree_is_leaf_node(dbo, fromtree):
-        tree_clade_merge_into(dbo, fromtree, intotree, remainder)
-        remainder.append(fromtree)
-        dbo.commit()
-        return
 
-    # process all of the children of the "from" tree
-    for child in tree_clade_get_children (dbo, fromtree):
-        trace(3, 'tree_merge_into - merge child: {}'.format(child))
-        if tree_is_leaf_node(dbo, child):
-            tree_clade_merge_into(dbo, child, intotree, remainder)
+    ipaths = None
+    fpaths = tree_get_paths(dbo, fromtree)
+
+    unhandled = set()
+    # path: (nodes, kits, variants)
+    for ii,path in enumerate(fpaths):
+
+        if not ipaths:
+            ipaths = tree_get_paths(dbo, intotree)
+
+        trace(8, 'into-tree: paths: {}'.format(ipaths))
+
+        # list of all vars on this path
+        pathvars = reduce(lambda x,y: x.union(y), path[2])
+        best_overlap = 0
+        # count of variants in common with the path on the "from" tree
+        path_overlap = [len(pathvars.intersection(s)) for s in
+                            [reduce(lambda x,y: x.union(y), inp[2])
+                                 for inp in ipaths]]
+        trace(8, 'path-overlap: {}'.format(path_overlap))
+
+        if path_overlap:
+            best_overlap = max(path_overlap)
+        trace(8, 'best path count {}: {}'.format(best_overlap,
+                                ipaths[path_overlap.index(best_overlap)]))
+
+        if best_overlap == 0:
+            # add under top of tree
+            unhandled = unhandled - set(path[0])
+            tree_clone_tree(dbo, path[0][-1], intotree)
+            inodes = None
+
         else:
-            tree_merge_into(dbo, child, intotree, remainder)
-        remainder.append(child)
 
-    # after processing all of this node's children, process this node
-    if not tree_is_leaf_node(dbo, fromtree):
-        tree_clade_merge_into(dbo, fromtree, intotree, remainder)
-        remainder.append(fromtree)
+            ipath = ipaths[path_overlap.index(best_overlap)]
+            # to merge, there must be some overlap at this node, as well
+            unhandled = unhandled - set(ipath[0])
+
+            tree_clade_merge_into(dbo, path[0][-1], ipath[0][-2], remainder)
+            inodes = None
+
+    if unhandled:
+        trace(0, 'UNHANDLED NODES: {}'.format(unhandled))
+
     dbo.commit()
+
     return
 
 # Procedure: tree_clade_merge_into
@@ -446,21 +513,23 @@ def tree_clade_merge_into(dbo, fromnode, intotree, remainder):
     if fromnode in remainder:
         return
 
-    trace(2, 'merge {} into {}'.format(fromnode, intotree))
+    trace(3, 'merge {} into {}'.format(fromnode, intotree))
 
-    fromvars = set(tree_clade_get_variants(dbo, fromnode))
+    frompath = [fromnode] + tree_clade_get_ancestors(dbo, fromnode)
+    fromvars = [set(tree_clade_get_variants(dbo, n)) for n in frompath]
 
-    # skip over treetop node or other invalid nodes
-    if not fromvars:
+    # skip over invalid nodes
+    if not fromvars[0]:
         trace(2, 'empty node skipped: {},{}'.format(fromnode,intotree))
         remainder.append(fromnode)
-        return
+        return None
 
     fromkits = tree_clade_get_kits(dbo, fromnode)
 
     # traverse the target tree from the bottom up (leaf nodes first)
     for node in tree_clades_depth_first(dbo, intotree):
-        intovars =set(tree_clade_get_variants(dbo, node, 0))
+        intopath = [node] + tree_clade_get_ancestors(dbo, node)
+        intovars = [set(tree_clade_get_variants(dbo, n)) for n in intopath]
 
         # Cases: 1) set of variants in "from" node identically matches the set
         # of variants of some node in "to" tree; 2) "from" set is a subset of
@@ -470,7 +539,7 @@ def tree_clade_merge_into(dbo, fromnode, intotree, remainder):
         # shared variants with any node, the node may still be merged later on,
         # when a higher node is merged.  Fromnode might also represent a span
         # of nodes in the "to" tree. E.g. if "to" tree has a>b>c and "from"
-        # node has a,b,c, we should still merge the from node. This is handled
+        # node as a,b,c, we should still merge the from node. This is handled
         # as case 4) "from" node has a superset of the variants in a node of
         # "to" tree. Then we can look up the tree at the ancestors and ensure
         # the variants are above and merge if yes. Finally, 5) the "from" node
@@ -478,83 +547,98 @@ def tree_clade_merge_into(dbo, fromnode, intotree, remainder):
         # to merge and create a new node.
 
         # CASE 1: variants are identical to some node - copy kits and be done
-        if intovars == fromvars:
+        if intovars[0] == fromvars[0]:
             trace(8, 'CASE 1')
             tree_clade_add_kits(dbo, node, fromkits)
             # add all of the node's children and subtree to the "into" tree
             tree_add_children(dbo, fromnode, node, remainder)
-            remainder.append(fromnode)
-            #tree_combine_children(dbo, node)
+            tree_combine_children(dbo, node)
             dbo.commit()
             return
 
-        # CASE 4: variants are a superset of some node - split clade
-        elif intovars and fromvars.issuperset(intovars):
+        # CASE 4: variants are a superset of some node - add new clade under
+        # the node. Original node keeps shared variants and children. New node
+        # gets the unshared variants and the children of fromnode.
+        elif intovars[0] and fromvars[0].issuperset(intovars[0]):
             trace(8, 'CASE 4')
             trunkvars = tree_uptree_variants(dbo, node)
             # there are always some shared variants in this CASE
-            shared = fromvars.intersection(trunkvars.union(intovars))
+            shared = fromvars[0].intersection(trunkvars.union(intovars[0]))
             # if there are unshared vars, they'll create a new clade
-            unshared = fromvars - shared
+            unshared = fromvars[0] - shared
             trace(10, 'fromvars: {}; trunkvars: {}; intovars: {}'.format(
-                fromvars, trunkvars, intovars))
-            trace(10, 'shared: {}; unshared: {}'.format(shared, unshared))
+                fromvars[0], trunkvars, intovars[0]))
+            # it's possible all "new" variants are up-tree
             if unshared:
-                newclade = tree_newclade(dbo, fromkits, unshared)
+                kits = tree_clade_get_kits(dbo, node)
+                tree_clade_update_kits(dbo, node, fromkits)
+                newclade = tree_newclade(dbo, kits, unshared)
                 tree_add_child_clade(dbo, node, newclade)
-                bottom = newclade
+                tree_add_children(dbo, fromnode, newclade, remainder)
+                tree_clade_update_variants(dbo, node, shared)
             else:
                 tree_clade_add_kits(dbo, node, fromkits)
-                bottom = node
-            # add all of the node's children and subtree to the "into" tree
-            remainder.append(fromnode)
-            tree_add_children(dbo, fromnode, bottom, remainder)
-            #tree_combine_children(dbo, bottom)
+                tree_add_children(dbo, fromnode, node, remainder)
+                tree_combine_children(dbo, node)
             dbo.commit()
             return
 
-        # CASE 2: variants are a subset of some node
-        # No child of this node contains any since we traverse depth first.
-        # this means shared variants need to be pushed down to new node
-        elif fromvars and fromvars.issubset(intovars):
+        # CASE 2: variants are a subset of some node. No child of this node
+        # contains any overlap since we traverse depth first. A new node is
+        # inserted between the node and its children and the shared variants
+        # need to stay with original node. Unshared variants and children go
+        # with the new node.
+        elif fromvars[0] and fromvars[0].issubset(intovars[0]):
             trace(8, 'CASE 2')
-            shared = fromvars
-            unshared = intovars - fromvars
-            # shared variants move down to the new clade
-            tree_clade_update_variants(dbo, node, unshared)
+            trunkvars = tree_uptree_variants(dbo, node)
+            shared = fromvars[0].intersection(trunkvars.union(intovars[0]))
+            unshared = intovars[0] - shared
+            # shared variants stay with to the original clade
+            tree_clade_update_variants(dbo, node, shared)
             # all existing kits move down to the new clade
-            kits = tree_clade_get_kits(dbo, node) + fromkits
+            kits = tree_clade_get_kits(dbo, node)
             tree_clade_update_kits(dbo, node, [])
             children = tree_clade_get_children(dbo, node)
-            newclade = tree_newclade(dbo, kits, shared)
+            newclade = tree_newclade(dbo, kits, unshared)
             for child in children:
-                trace(2, 'insert {} between {} and {}'.format(
+                trace(3, 'insert {} between {} and {}'.format(
                     newclade, node, child))
-                # "insert" newclade between parent and child
+                # "insert" newclade between parent and child of original node
                 tree_insert_clade(dbo, newclade, node, child)
-            remainder.append(fromnode)
+            # children of new node go under original node
+            tree_add_children(dbo, fromnode, node, remainder)
+            tree_combine_children(dbo, node)
             dbo.commit()
             return
 
         # CASE 5: some shared variants - need to pull out a new clade
-        elif fromvars.intersection(intovars):
+        elif fromvars[0].intersection(intovars[0]):
             trace(8, 'CASE 5')
             trunkvars = tree_uptree_variants(dbo, node)
-            shared = fromvars.intersection(trunkvars)
-            unshared = fromvars - shared
-            newclade = tree_newclade(dbo, fromkits, unshared)
-            tree_add_child_clade(dbo, node, newclade)
-            remainder.append(fromnode)
+            shared = fromvars[0].intersection(trunkvars)
+            unshared1 = fromvars[0] - shared
+            tree_clade_update_variants(dbo, node, shared)
+            newclade1 = tree_newclade(dbo, fromkits, unshared1)
+            tree_add_child_clade(dbo, node, newclade1)
+            tree_add_children(dbo, fromnode, newclade1, remainder)
+            # new node for unshared variants of original node
+            kits = tree_clade_get_kits(dbo, node)
+            tree_clade_update_kits(dbo, node, [])
+            unshared2 = intovars[0] - shared
+            newclade2 = tree_newclade(dbo, kits, unshared2)
+            children = tree_clade_get_children(dbo, node)
+            for child in children:
+                trace(2, 'insert {} between {} and {}'.format(
+                    newclade2, node, child))
+                # "insert" newclade between parent and child of original node
+                tree_insert_clade(dbo, newclade2, node, child)
+
             dbo.commit()
 
     # CASE 3
     # reaching here means no shared variants found in the tree
     trace(8, 'CASE 3')
-    # punt for now - most of these are handled by an ancestor being merged
-    return
-    treetop = get_treetops(dbo, intotree)
-    tree_add_child_clade(dbo, treetop, newclade)
-    dbo.commit()
+    return None
 
 # Procedure: tree_to_dot
 # Purpose: turn a tree into DOT language
@@ -564,8 +648,12 @@ def tree_clade_merge_into(dbo, fromnode, intotree, remainder):
 #   if there are many variants at a node, compact=True omits printing them
 def tree_to_dot(dbo, top, dereference=True, compact=False):
     def nodestr(nodeid, kits, variants):
-        return '{} [label="{}"];\n'.format(
-            str(nodeid), '\\n'.join(['{'+str(nodeid)+'}'] +
+        fontcolor=''
+        if variants and type(variants[0]) == type('') and 'variants' in variants[0] \
+                    and int(variants[0].split()[0]) > 30:
+            fontcolor = 'fontcolor=blue'
+        return '{} [{} label="{}"];\n'.format(
+            str(nodeid), fontcolor, '\\n'.join(['{'+str(nodeid)+'}'] +
                     [str(v) for v in variants]+['kit '+str(k) for k in kits]))
     def linkstr(parentid, childid):
         return '{} -> {};\n'.format(str(parentid), str(childid))
@@ -591,8 +679,10 @@ def tree_to_dot(dbo, top, dereference=True, compact=False):
             kitlabels = list(kits)
             varlabels = variants
 
-        if compact and nvars > 5:
+        if compact and nvars > 12:
             varlabels = ['{} variants'.format(nvars)]
+        if compact and len(kits) > 12:
+            kitlabels = ['{} kits'.format(len(kits))]
 
         out += nodestr(node, kitlabels, varlabels)
 
@@ -613,8 +703,12 @@ if __name__=='__main__':
     from db import DB
     dbo = DB(drop=False)
 
-    # purge all tree data, for all trees
     if False:
+        trace(0, 'leaf nodes: {}'.format(tree_get_leaf_nodes(dbo, 1)))
+        sys.exit(0)
+
+    # purge all tree data, for all trees
+    if True:
         dc = dbo.cursor()
         dc.execute('delete from treepaths')
         dc.execute('delete from treeclade')
@@ -632,13 +726,20 @@ if __name__=='__main__':
         sys.exit(0)
 
     # merge all treetop trees into lowest-numbered one
-    if True:
+    if False:
         tree_cleanup(dbo)
         trees = sorted(tree_get_treetops(dbo), reverse=True)
+        trees = [5396, 5243, 5099]
+        trees = [5533, 5396, 5243]
+        trees = [5817, 5671, 5533, 5396]
+        trees = [6099, 5960, 5817, 5671, 5533]
+        trees = [6245, 6099, 5960, 5817, 5671]
+        trees = [6529, 6385, 6245, 6099, 5960, 5817]
+        trees = [6811, 6666, 6529, 6385, 6245, 6099, 5960]
         # index of tree for target of merge in sorted array of trees
         totree = -1
         # maximum number of trees to merge into it
-        numtrees = 5
+        numtrees = 6
         for tree in trees[totree-numtrees:totree]:
             remainder = []
             tree_merge_into(dbo,tree,trees[totree],remainder)
@@ -691,10 +792,10 @@ if __name__=='__main__':
                 dbo.commit()
 
         trace(0, 'writing tree to tree.dot...')
+        # render compact with actual kit names and variant names
+        open('tree.gv','w').write(tree_to_dot(dbo, trees[totree], True, True))
         # render with raw node and kit IDs
         open('tree-raw.gv','w').write(tree_to_dot(dbo, trees[totree], False))
-        # render with actual kit names and variant names
-        open('tree.gv','w').write(tree_to_dot(dbo, trees[totree]))
         sys.exit(0)
 
     # various unit tests
@@ -709,9 +810,13 @@ if __name__=='__main__':
         tree_add_child_clade(dbo, c2, c3)
         c5 = tree_newclade(dbo, [5], [5])
         tree_add_child_clade(dbo, c3, c5)
+        trace(0, 'leaf node: {}'.format(tree_get_leaf_nodes(dbo, treetop1)))
+        trace(0, 'paths: {}'.format(tree_get_paths(dbo, treetop1)))
         open('tree1a.dot','w').write(tree_to_dot(dbo, treetop1, False))
         c4 = tree_newclade(dbo, [4], [4])
         tree_insert_clade(dbo, c4, c3, c5)
+        trace(0, 'leaf node: {}'.format(tree_get_leaf_nodes(dbo, treetop1)))
+        trace(0, 'paths: {}'.format(tree_get_paths(dbo, treetop1)))
         open('tree1b.dot','w').write(tree_to_dot(dbo, treetop1, False))
 
         # create a tree that we will merge into
@@ -721,6 +826,8 @@ if __name__=='__main__':
         tree_add_child_clade(dbo, treetop2, c1)
         c2 = tree_newclade(dbo, [10,20], [9])
         tree_add_child_clade(dbo, c1, c2)
+        trace(0, 'leaf node: {}'.format(tree_get_leaf_nodes(dbo, treetop2)))
+        trace(0, 'paths: {}'.format(tree_get_paths(dbo, treetop2)))
         open('tree2a.dot','w').write(tree_to_dot(dbo, treetop2, False))
 
         # create a tree that will be merged in
@@ -734,12 +841,18 @@ if __name__=='__main__':
         tree_add_child_clade(dbo, c2, c4)
         c3 = tree_newclade(dbo, [10,20,40,41], [5,6,7])
         tree_insert_clade(dbo, c3, treetop3, c1)
+        trace(0, 'leaf node: {}'.format(tree_get_leaf_nodes(dbo, treetop3)))
+        trace(0, 'paths: {}'.format(tree_get_paths(dbo, treetop3)))
         open('tree3a.dot','w').write(tree_to_dot(dbo, treetop3, False))
+
+        sys.exit(0)
 
         # merge tree 3 into tree 2
         remainder = []
         tree_merge_into(dbo,treetop3,treetop2,remainder)
 
+        trace(0, 'leaf node: {}'.format(tree_get_leaf_nodes(dbo, treetop2)))
+        trace(0, 'paths: {}'.format(tree_get_paths(dbo, treetop2)))
         open('tree2b.dot','w').write(tree_to_dot(dbo, treetop2, False))
 
         # call print on each node of tree 1
