@@ -125,6 +125,7 @@ if args.loadkits:
 # load kits that were found in H-R web API and in zipdirs
 if args.kits:
     db = DB(drop=False)
+    populate_fileinfo(db, fromweb=config['use_web_api'])
     populate_analysis_kits(db)
     populate_excludes(db)
     db.commit()

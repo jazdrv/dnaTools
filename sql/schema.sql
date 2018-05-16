@@ -13,7 +13,7 @@ create table person(
     ID INTEGER PRIMARY KEY,
     firstName TEXT DEFAULT NULL,
     middleName TEXT DEFAULT NULL,
-    surname TEXT DEFAULT NULL,
+    surname TEXT DEFAULT 'Unknown',
     maidenName TEXT DEFAULT NULL,
     yHaplogroupId INTEGER DEFAULT NULL,
     mtHaplogroupId INTEGER DEFAULT NULL,

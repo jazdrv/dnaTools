@@ -141,7 +141,7 @@ def in_range(v_vect, ranges, spans):
 #   a db instance
 #   a dict of dnaid:kitid
 # Returns:
-#   (vid, pos, anc, der) for vid in variants
+#   dict of vid:(pos, anc, der, alias) for vid in variants
 def get_variant_defs(db, vids):
     dc = db.cursor()
 
@@ -222,7 +222,7 @@ def get_kit_ids(db, pids):
 #   Note that this can be called without the ppl argument, in which case ppl is
 #   formed by querying the analysis_kits table
 @profile
-def get_variant_array(db, ppl=None, SNPonly=False):
+def get_variant_array(db, ppl=None, SNPonly=False, ageonly=False):
     # FIXME: handle multiple calls at a given pos for a given person?
     # FIXME: downstream analysis may need additional info in return tuple
     # FIXME: merge identical indels here?
@@ -230,6 +230,8 @@ def get_variant_array(db, ppl=None, SNPonly=False):
     c1 = db.cursor()
     c1.execute('drop table if exists tmpt')
     c1.execute('create temporary table tmpt(id integer)')
+
+    # form a table with the people of interest so we can join with it
     if ppl:
         c1.executemany('insert into tmpt values(?)', [(p,) for p in ppl])
         c1.execute('''delete from tmpt
@@ -241,18 +243,10 @@ def get_variant_array(db, ppl=None, SNPonly=False):
                       where e.pid=a.pid)''')
     trace(5, 'len(tmpt): {}'.format(
                  c1.execute('select count(*) from tmpt').fetchone()[0]))
-    if SNPonly:
-        c1.execute('''select v.id,c.pid,c.callinfo from variants v
-                      inner join tmpt t on c.pid=t.id
-                      inner join vcfcalls c on v.id=c.vid
-                      inner join alleles a on a.id=v.anc and length(a.allele)=1
-                      inner join alleles b on b.id=v.der and length(b.allele)=1
-                      where not exists (select 1 from exclude_variants e
-                                         where e.vid=v.id)''')
-    else:
-        c1.execute('''select c.vid,c.pid,c.callinfo from vcfcalls c
-                      inner join tmpt t on c.pid=t.id
-                      where not exists (select 1 from exclude_variants e
+
+    c1.execute('''select c.vid,c.pid,c.callinfo from vcfcalls c
+                  inner join tmpt t on c.pid=t.id
+                  where not exists (select 1 from exclude_variants e
                           where e.vid=c.vid)''')
 
     # refpos processing
@@ -274,7 +268,6 @@ def get_variant_array(db, ppl=None, SNPonly=False):
                      rv.der=v.anc and rv.pos=v.pos and rv.buildid=v.buildid
                ''')
     refpos = dict([(rp[1],rp[0]) for rp in c2])
-    c2.close()
 
     # build a 2d array
     arr = {}
@@ -299,7 +292,28 @@ def get_variant_array(db, ppl=None, SNPonly=False):
 
     c1.execute('drop table tmpt')
 
-    return arr, ppl, list(var)
+    if ageonly or SNPonly:
+        vdefs = get_variant_defs(db, var)
+        # varpos tuple (pos, span, vid)
+        varpos = sorted([(vdefs[v][0], max([len(x) for x in vdefs[v][1:3]]),v)
+                                 for v in vdefs])
+
+    # if we only want to look at variants in "age" ranges, filter down the list
+    if ageonly:
+        c1.execute('''select minaddr, maxaddr from bedranges r
+                      inner join agebed a on a.id=r.id''')
+        ageranges = sorted([r for r in c1])
+        cv = in_range([v[0] for v in varpos], ageranges, [v[1] for v in varpos])
+        # filter list of variants based on variant's coverage
+        # FIXME?: currently considers CBL, CBH, CBLH as in range - OK?
+        agelist = set([v[1][2] for v in zip(cv,varpos) if v[0]])
+        var = var.intersection(agelist)
+    if SNPonly:
+        snplist = set([v[2] for v in varpos if v[1] == 1])
+        var = var.intersection(snplist)
+
+    varlist = list(var)
+    return arr, ppl, varlist
 
 # Procedure: get_variant_csv
 # Purpose: create a csv file of 2d person x variant array
@@ -548,7 +562,14 @@ if __name__=='__main__':
     trace(0, 'get_dna_ids at {:.2f} seconds...'.format(time.time() - t0))
     ids = get_dna_ids(db)
     trace(0, 'get_variant_array at {:.2f} seconds...'.format(time.time() - t0))
-    arr = get_variant_array(db, ids[:5])
+    arr, ppl, variants = get_variant_array(db, ids[:5])
+    trace(0, '  len(ppl):{}, len(variants):{}'.format(len(ppl), len(variants)))
+    trace(0, 'get_variant_array at {:.2f} seconds...'.format(time.time() - t0))
+    arr, ppl, variants = get_variant_array(db, ids[:5], True)
+    trace(0, '  len(ppl):{}, len(variants):{}'.format(len(ppl), len(variants)))
+    trace(0, 'get_variant_array at {:.2f} seconds...'.format(time.time() - t0))
+    arr, ppl, variants = get_variant_array(db, ids[:5], True, True)
+    trace(0, '  len(ppl):{}, len(variants):{}'.format(len(ppl), len(variants)))
     trace(0, '...done at {:.2f} seconds'.format(time.time() - t0))
     # smoke test get_variant_defs
     trace(0, '{}'.format(get_variant_defs(db, [1,2,20,21])))

@@ -1,0 +1,187 @@
+This text file serves as some interim documentation while the code
+evolves. Feel free to edit this file, add corrections and questions,
+etc. New updates will go into the top of this file in the future.
+
+16 MAY 2018 EXECUTIVE SUMMARY
+
+Haplotree creation is working at a basic level. This means a set of
+datafiles can be run through the algorithm, producing a graphable tree
+showing clades that were automatically detected. The data is also
+available as a spreadsheet of ones and zeroes (one representing a
+positive call for a SNP for a person). This is easily demonstrated using
+the existing code and pretty much any set of kits from the repository,
+even kits that do not belong to P312 or U106.
+
+The storage system is fairly complete and separate from the analysis,
+with APIs for extracting call data from the database.
+
+Kit loading works for all FTDNA b38 data from the Haplogroup-R
+repository. This means metadata for the kits is automatically populated
+from the Haplogroup-R web API, and any .zip files that have been
+downloaded into a local folder can be parsed and loaded into the
+database. This makes the kit data available for analysis. Kit data can
+be loaded into the database incrementally. The parsing and loading of
+kit data works on the order of 10 per minute on my machine, and this is
+a one-time hit.
+
+There are no strange dependencies, and likely anyone could pick up the
+code from the git repo and run it, assuming they have access to some
+data and python3. It may be simpler on Linux/UNIX as that's the dev
+environment, but there's no fundamental reason it wouldn't work
+somewhere else.
+
+You said good news first, right? That was the good news. So there are
+some significant limitations. Exceeding about 150 kits at a time in the
+haplotree generation seriously runs into scaling issues. The
+inconsistent calls are set aside and not used. Missing calls can cause
+mistakes in the tree. There is not yet a good rules-processing system in
+place to correct such errors and omissions.
+
+--- notes on running the code ---
+
+Set up the source code directory. Clone from the git repository:
+git clone https://github.com/jazdrv/dnaTools.git
+
+Put your data files into the data directory, under the HaplogroupR
+directory. Use the same directory structure as on the
+repository. Namely, the zip files should be under HaplogroupR/FTDNA/b38
+and you should not rename the zip files.
+
+How to load kit data:
+
+Go to the src subdirectory
+
+Edit config.yaml. The useful settings are described and near the top of
+the file. For the initial setup, use at least these settings:
+kitlimit: 10
+use_web_api: True
+drop_tables: True
+
+You probably won't need to change other settings unless you want to.
+
+Set up your environment variable for the script to know where the
+directory is on your file system:
+. ./redux.env
+
+Load some kits
+./redux.py -t
+
+If this worked without errors, edit config.yaml again.
+kitlimit: 100 (for example)
+use_web_api: False
+drop_tables: False
+
+Load some more kits:
+./redux.py -l (repeat as many times as you want - until all kits are loaded)
+
+Note "redux.py -t" also works to incrementally load kits but does a bit
+more work.
+
+How to build a haplotree
+
+If you want to use a particular set of kits, put the kit IDs in the file
+"kits.txt." One kitID per line
+
+If some of those kits aren't loaded yet, run the script again as above
+to load kits. Loading prioritizes kits in kits.txt.
+
+Make sure the kitlist is up to date. If you skip this step, the changes
+you made to kits.txt may not take effect.
+./redux.py -k
+
+Build a sorted array from the call data for those kits.
+./redux.py -o
+
+Note: this is a little time-consuming, so the sorted array is cached in
+../data/cache. Subsequent runs will load from the cache instead of
+recomputing, as long as the kit list hasn't changed.
+
+Caveat: cached data could be incorrect if something changed, such as the
+exclude file (see below). If in doubt, remove the cached data and re-run
+the sorted array generation. "rm ../data/cache/saved-data*"
+
+Build the haplotree.
+./redux.py -m > log.out 2>&1
+
+View the haplotree.
+xdot tree.gv
+gnumeric out.csv
+(you can also copy and paste tree.gv to webgraphviz.com)
+
+There's some important output in the log.out file worth checking. In
+detecting clades, the program reports inconsistencies as "not all
+zeroes. This means in the 2d array (person x SNP) which has been sorted
+into clade order, a block that was expected to be all zero (negative for
+those people/calls) had some ones. These blocks are reported as tuples
+that correspond to mincol,maxcol, minrow,maxrow, count in the array,
+which you can look at in out.csv. These represent such things as
+inconsistent calls, missing calls, recurrencies. For doing a proof of
+concept, you don't need to resolve all of these, especially if they look
+like one-off recurrencies. Most likely a more-or-less correct tree will
+still be generated.
+
+When you notice some problematic kits and/or problematic variants, you
+can add those to excludes.csv, and they will be omitted from the
+analysis. Changing excludes.csv most likely invalidates the cached
+matrix, and you should remove the saved* files from ../data/cache
+
+You can merge trees from two or more different runs. This works to some
+extent, but it is not tolerant of significant errors and omissions in
+the tree. It's still experimental. To try, just create a different
+kits.txt for a new set of kits, re-run the array and haplotree as above,
+and take a look at tree.gv. There is currently no combined .csv
+generated. This could be done in the future as a different method of
+rendering the tree. Errors accumulate in the tree. If you keep running
+it over and over with different kits, you will end up with a spaghetti
+mess of a tree.
+
+Re-running the analysis.  There is no polished way to delete the tree
+from a prior run. To start with a clean slate, run ./tree.py first. This
+will delete all trees stored in the database (have a look at the code at
+the bottom of tree.py. This is the current kludge for starting with a
+clean slate.) Most of tree.py is still in early experimental stages.
+
+--- future: solving the limitations ---
+
+The 150-kit limit is a severe limitation. It's not that it's a hard
+limit. It's that the algorithm materializes an array that's number of
+people times number of variants considered, and in practical terms, this
+approach seems to not work well for much more than 100 kits at a time.
+
+Options
+1. re-write the algorithm to use less memory
+2. fix issues with the incremental approach in merging trees and
+   generate an output spreadsheet by rendering the tree
+3. invent some incremental way of building the array
+
+For #2, it would not be very difficult to automatically generate
+constraints. Then new data and incomplete data needs to fit the
+constraints. It seems like this would be a big improvement on the manual
+method we were using before. Instead of having hand-crafted rules "if
+you have this call and that call, you should also have this other call."
+The automatic rules could be a lot more sophisticated than one or two
+SNPs.  Some "golden" paths could also be part of these rules, gleaned
+from other well established trees. There would always be a portion of
+this that would be hand-crafted, but hopefully a lot less than
+before. Developing such a rules-processing system is TBD.
+
+#2 is still not very easy though. There needs to be some "feedback"
+mechanism or ability to go back and re-run sets of kits with newly
+discovered variants to refine the tree. This would be where the poor
+calls and inconsistent calls could be leveraged. Perhaps just build a
+growing pool of variants of interest so they all are considered when
+looking at a given subset of kits (instead of just the variants that set
+of kits implicates).
+
+I'm not very excited about #1. Even if the algorithm were very memory
+efficient, even 10x more efficient, it still doesn't scale. Getting it
+much more efficient is good of course, but it's also difficult and in
+the end IMO doesn't gain us enough to get what we need. #1 can't really
+be parallelized, either.
+
+I think I like the idea of rendering a spreadsheet from a tree. For one
+thing, it's pretty straightforward to pull just a branch or set of
+people/clades by just asking for a render of everything beneath a
+certain tree node, and this could be helpful for dealing with the sheer
+size of spreadsheets and the data analyst.
+
