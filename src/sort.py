@@ -539,26 +539,32 @@ class Variant(Sort):
         for ii,coord in enumerate(coords):
             kitlist = set(kits[coord[0]:coord[1]+1])
             snplist = set(snps[coord[2]:coord[3]+1])
-            clades.append((None,kitlist,snplist))
-            # not a leaf node in this tree - on to the next
-            if len(kitlist) > 1:
+            clades.append((ii,kitlist,snplist))
+        visited_nodes = set()
+        for pnode, pkits, psnps in reversed(clades):
+            # skip adding node and its parents to the tree if not a leaf node
+            if pnode in visited_nodes:
                 continue
-            newnode = tree_newclade(self.dbo, kitlist, snplist)
+            visited_nodes.add(pnode)
+            newnode = tree_newclade(self.dbo, pkits, psnps)
             # look back through previous clades until superset of kits found
             # then add this clade as a child of it
-            chains = [(newnode,kitlist,snplist)]
-            for pnode,pkits,psnps in reversed(clades[:-1]):
-                if pnode == treetop:
-                    tree_merge_into(self.dbo, chains[0][0], treetop, [])
+            chains = [(newnode,pkits,psnps)]
+            for unode,ukits,usnps in reversed(clades):
+                if unode >= pnode:
+                    continue
+                if unode == treetop:
+                    # came to the top of the tree - we have the complete chain
+                    tree_merge_into(self.dbo, chains[0][0], treetop, set([]))
                     tree_delete_tree(self.dbo, chains[0][0])
                     chains = []
                     break
-                elif kitlist.issubset(pkits):
-                    newnode = tree_newclade(self.dbo, pkits, psnps)
+                elif chains[0][1].issubset(ukits):
+                    # found parent of the prior node
+                    newnode = tree_newclade(self.dbo, ukits, usnps)
+                    visited_nodes.add(unode)
                     tree_add_child_clade(self.dbo, newnode, chains[0][0])
-                    chains.insert(0, (newnode, pkits, psnps))
-                    kitlist = pkits
-                    snplist = psnps
+                    chains.insert(0, (newnode, ukits, usnps))
                     trace(8,'chains:{}'.format(chains))
 
             else:
@@ -568,6 +574,8 @@ class Variant(Sort):
         self.dbo.commit()
         with open ('tree.gv', 'w') as gf:
             gf.write(tree_to_dot(self.dbo, treetop, compact=True))
+        with open ('tree-dbg.gv', 'w') as gf:
+            gf.write(tree_to_dot(self.dbo, treetop, dereference=False))
 
         # display the matrix - mostly obviated by the csv file
         trace(3,'m:\n{}'.format(m))
