@@ -34,8 +34,10 @@ You said good news first, right? That was the good news. So there are
 some significant limitations. Exceeding about 150 kits at a time in the
 haplotree generation seriously runs into scaling issues. The
 inconsistent calls are set aside and not used. Missing calls can cause
-mistakes in the tree. There is not yet a good rules processing system in
+mistakes in the tree. There is not yet a good rules-processing system in
 place to correct such errors and omissions.
+
+--- notes on running the code ---
 
 Set up the source code directory. Clone from the git repository:
 git clone https://github.com/jazdrv/dnaTools.git
@@ -72,6 +74,8 @@ drop_tables: False
 Load some more kits:
 ./redux.py -l (repeat as many times as you want - until all kits are loaded)
 
+Note "redux.py -t" also works to incrementally load kits but does a bit
+more work.
 
 How to build a haplotree
 
@@ -80,6 +84,10 @@ If you want to use a particular set of kits, put the kit IDs in the file
 
 If some of those kits aren't loaded yet, run the script again as above
 to load kits. Loading prioritizes kits in kits.txt.
+
+Make sure the kitlist is up to date. If you skip this step, the changes
+you made to kits.txt may not take effect.
+./redux.py -k
 
 Build a sorted array from the call data for those kits.
 ./redux.py -o
@@ -117,7 +125,6 @@ can add those to excludes.csv, and they will be omitted from the
 analysis. Changing excludes.csv most likely invalidates the cached
 matrix, and you should remove the saved* files from ../data/cache
 
-
 You can merge trees from two or more different runs. This works to some
 extent, but it is not tolerant of significant errors and omissions in
 the tree. It's still experimental. To try, just create a different
@@ -133,3 +140,48 @@ from a prior run. To start with a clean slate, run ./tree.py first. This
 will delete all trees stored in the database (have a look at the code at
 the bottom of tree.py. This is the current kludge for starting with a
 clean slate.) Most of tree.py is still in early experimental stages.
+
+--- future: solving the limitations ---
+
+The 150-kit limit is a severe limitation. It's not that it's a hard
+limit. It's that the algorithm materializes an array that's number of
+people times number of variants considered, and in practical terms, this
+approach seems to not work well for much more than 100 kits at a time.
+
+Options
+1. re-write the algorithm to use less memory
+2. fix issues with the incremental approach in merging trees and
+   generate an output spreadsheet by rendering the tree
+3. invent some incremental way of building the array
+
+For #2, it would not be very difficult to automatically generate
+constraints. Then new data and incomplete data needs to fit the
+constraints. It seems like this would be a big improvement on the manual
+method we were using before. Instead of having hand-crafted rules "if
+you have this call and that call, you should also have this other call."
+The automatic rules could be a lot more sophisticated than one or two
+SNPs.  Some "golden" paths could also be part of these rules, gleaned
+from other well established trees. There would always be a portion of
+this that would be hand-crafted, but hopefully a lot less than
+before. Developing such a rules-processing system is TBD.
+
+#2 is still not very easy though. There needs to be some "feedback"
+mechanism or ability to go back and re-run sets of kits with newly
+discovered variants to refine the tree. This would be where the poor
+calls and inconsistent calls could be leveraged. Perhaps just build a
+growing pool of variants of interest so they all are considered when
+looking at a given subset of kits (instead of just the variants that set
+of kits implicates).
+
+I'm not very excited about #1. Even if the algorithm were very memory
+efficient, even 10x more efficient, it still doesn't scale. Getting it
+much more efficient is good of course, but it's also difficult and in
+the end IMO doesn't gain us enough to get what we need. #1 can't really
+be parallelized, either.
+
+I think I like the idea of rendering a spreadsheet from a tree. For one
+thing, it's pretty straightforward to pull just a branch or set of
+people/clades by just asking for a render of everything beneath a
+certain tree node, and this could be helpful for dealing with the sheer
+size of spreadsheets and the data analyst.
+
