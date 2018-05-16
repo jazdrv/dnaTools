@@ -323,6 +323,7 @@ def populate_excludes(dbo):
                 vname, vid, fname))
             dc.execute('insert into exclude_variants values(?)', (vid,))
 
+    # FIXME - excluding a refpos needs to have the evil twin excluded too
     return
 
 # Procedure: populate_STRS
@@ -380,10 +381,24 @@ def get_kits (fromweb=True):
     qry = 'format=json'
     # if re-using cached data from a previous web pull, where to find the file
     fname = data_path(os.path.join('cache','dataset.json'))
+
+    # Customized reading of JSON records
+    # Some fields we prefer a generic string rather than NULL in the database.
+    # A NULL in the database keeps these tables from full normalization, and
+    # the extra rows causes query performance degradation.
+    def null_hook(d):
+        if not d['country']:
+            d['country'] = 'Unknown'
+        if not d['surname']:
+            d['surname'] = 'Unknown'
+        if not d['normalOrig']:
+            d['origin'] = 'Unknown'
+        return d
+
     if not fromweb:
         try:
             trace(1, 'reading kit info from {}'.format(fname))
-            js = json.loads(open(fname).read())
+            js = json.load(open(fname), object_hook=null_hook)
             return js
         except:
             trace(0, 'no cached {} - trying web'.format(fname))
@@ -394,6 +409,7 @@ def get_kits (fromweb=True):
         res = requests.get(url)
         js = res.json()
         open(fname,'w').write(json.dumps(js))
+        js = json.load(open(fname), object_hook=null_hook)
         return js
     except:
         trace(0, 'Failed to pull kit metadata from {}'.format(API))
@@ -423,7 +439,8 @@ def update_metadata(db, js):
         ]
     trace(3, 'first row out of {}:{}'.format(len(rows),rows[0]))
     trace(1, '{} unique kit ids'.format(len(set([v['kitId'] for v in js]))))
-    trace(1, '{} null surname'.format(len([v['surname'] for v in js if not v['surname']])))
+    trace(1, '{} null surname'.format(
+        len([v['surname'] for v in js if v['surname'] == 'Unknown'])))
 
     # populate the dependency tables
     # (testtype,isNGS) goes into testtypes
@@ -455,6 +472,10 @@ def update_metadata(db, js):
            n TEXT, o TEXT, p TEXT)''')
     dc.executemany('''INSERT INTO tmpt(a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p)
         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''', rows)
+    # tidying up any orphaned entries
+    dc.execute('''delete from person where id in
+        (select id from person where id not in (select dnaid from dataset))''')
+    trace(2, 'done preparing tables')
     dc.execute('''
         INSERT or ignore INTO dataset(kitId, importDt, fileNm, lng,
             lat, otherInfo, origFileNm, birthYr,
@@ -465,14 +486,11 @@ def update_metadata(db, js):
             i,
             cn.id, oc.id, ln.id, bn.id, tt.id, pn.id, sn.id
         FROM tmpt
-        INNER JOIN country cn ON
-            tmpt.j = cn.country or (cn.country is NULL and tmpt.j is NULL)
-        INNER JOIN origin oc ON
-            tmpt.k = oc.origin or (oc.origin is NULL and tmpt.k is NULL)
+        INNER JOIN country cn ON tmpt.j = cn.country
+        INNER JOIN origin oc ON tmpt.k = oc.origin
         INNER JOIN lab ln ON tmpt.l = ln.labNm
         INNER JOIN build bn ON tmpt.m = bn.buildNm
-        INNER JOIN surname sn ON
-            tmpt.n = sn.surname or (sn.surname is NULL and tmpt.n is NULL)
+        INNER JOIN surname sn ON tmpt.n = sn.surname
         INNER JOIN person pn ON
             (tmpt.n = pn.surname or (tmpt.n is NULL and pn.surname is NULL)) AND
             (tmpt.a = pn.firstname or (tmpt.a is NULL and pn.firstname is NULL)) AND
@@ -530,6 +548,7 @@ def populate_contigs(db):
 #   without calling the web API
 def populate_fileinfo(dbo, fromweb=True):
     js = get_kits(fromweb)
+    trace(3, 'updating the kit metadata in the db')
     update_metadata(dbo, js)
 
 
