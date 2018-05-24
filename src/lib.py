@@ -107,10 +107,19 @@ def extract_zipdir():
     # fixme - regular expressions for the scripts need adjustment
     # callout to unpack-zip-files.py, utility from v1, in bin directory
     trace(10,'   Running the unpack-zip script...')
-    io = subprocess.run(['unpack-zip-files.py', '-z', data_path(config['zip_dir']),
-                             '-u', data_path(config['unzip_dir']),
-                             '-m', data_path('filemap.csv')],
-                            stdout=subprocess.PIPE)
+    try:
+        io = subprocess.run(['unpack-zip-files.py',
+                                 '-z', data_path(config['zip_dir']),
+                                 '-u', data_path(config['unzip_dir']),
+                                 '-m', data_path('filemap.csv')],
+                                stdout=subprocess.PIPE)
+    # subprocess.run is a relatively new interface in subprocess
+    except AttributeError:
+        io = subprocess.call(['unpack-zip-files.py',
+                                 '-z', data_path(config['zip_dir']),
+                                 '-u', data_path(config['unzip_dir']),
+                                 '-m', data_path('filemap.csv')],
+                                stdout=subprocess.PIPE)
     output = io.stdout.decode('utf-8') # ignore this output?
     fnames = os.listdir(data_path(config['unzip_dir']))
     trace (10, '   Number of files: {0}'.format(len(fnames)))
@@ -696,7 +705,11 @@ def get_FASTA_fromweb(url=None):
         urllib.request.urlretrieve(url, fname)
 
     if fname.endswith('.gz'):
-        subprocess.run(['gzip', '-d', '-f', '-k', fname])
+        try:
+            subprocess.run(['gzip', '-d', '-f', '-k', fname])
+        # subprocess.run is a relatively new interface in subprocess
+        except AttributeError:
+            subprocess.call(['gzip', '-d', '-f', '-k', fname])
         fname = fname[:-3]
 
     return fname
