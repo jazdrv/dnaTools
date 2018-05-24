@@ -11,8 +11,8 @@ PRAGMA default_cache_size=20000;
 drop table if exists person;
 create table person(
     ID INTEGER PRIMARY KEY,
-    firstName TEXT DEFAULT NULL,
-    middleName TEXT DEFAULT NULL,
+    firstName TEXT DEFAULT 'Unknown',
+    middleName TEXT DEFAULT 'Unknown',
     surname TEXT DEFAULT 'Unknown',
     maidenName TEXT DEFAULT NULL,
     yHaplogroupId INTEGER DEFAULT NULL,

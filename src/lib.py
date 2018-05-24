@@ -249,13 +249,15 @@ def populate_analysis_kits(dbo):
 # Purpose: get the id of a variant given a name
 # Input:
 #   a db instance
+#   a build name, e.g. 'hg38'
 #   a variant name, either by SNP name or pos.ref.alt
+#   optional flag = inserts variant if it doesn't already exist
 # Returns:
 #   the variant's ID - may return None if no matching variant is found
-def get_variant_id(db, build, vname):
+def get_variant_id(db, build, vname, insert_notfound=False):
     build = get_build_byname(db, build)
     c1 = db.cursor()
-    vid = None
+    vid = pos = ref = alt = None
     try:
         pos,ref,alt = vname.split('.')
         c1.execute('''select v.id from variants v
@@ -275,6 +277,15 @@ def get_variant_id(db, build, vname):
             vid = c1.fetchone()[0]
         except:
             trace(0, 'did not find variant {} in build {}'.format(vname, build))
+    # if variant is passed in as pos.ref.alt, it may not yet exist in the table
+    if not vid:
+        if insert_notfound and pos and ref and alt:
+            trace(3, 'new variant: {}.{}.{}.{}'.format(build,pos,ref,alt))
+            c1.execute('''insert into variants(buildid,pos,anc,der)
+                          select ?,?,a.id,b.id from alleles a, alleles b
+                          where a.allele=? and b.allele=?''',
+                          (build,pos,ref,alt))
+            vid = c1.lastrowid
     return vid
 
 
@@ -318,7 +329,7 @@ def populate_excludes(dbo):
                        where d.kitID like ?''',
                        (kit,))
         for build,vname in varnames:
-            vid = get_variant_id(dbo, build, vname)
+            vid = get_variant_id(dbo, build, vname, insert_notfound=True)
             trace(1, 'ignoring variant {} (id={}) due to {}'.format(
                 vname, vid, fname))
             dc.execute('insert into exclude_variants values(?)', (vid,))
@@ -452,6 +463,7 @@ def update_metadata(db, js):
     tups = [y for y in set([(r[-3],r[0],r[-4]) for r in rows])]
     dc.executemany('insert or ignore into person(surname,firstname,middlename) values(?,?,?)',
                           tups)
+    trace(3, 'people: {}...'.format(tups[:10]))
 
     for tbl,val,idx in (('country','country',-7),
                         ('surname', 'surname',-3),
@@ -472,9 +484,6 @@ def update_metadata(db, js):
            n TEXT, o TEXT, p TEXT)''')
     dc.executemany('''INSERT INTO tmpt(a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p)
         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''', rows)
-    # tidying up any orphaned entries
-    dc.execute('''delete from person where id in
-        (select id from person where id not in (select dnaid from dataset))''')
     trace(2, 'done preparing tables')
     dc.execute('''
         INSERT or ignore INTO dataset(kitId, importDt, fileNm, lng,
@@ -701,7 +710,7 @@ def get_FASTA_fromweb(url=None):
 #   refresh from web if we have is older than maxage (in days)
 def populate_SNPs(dbo, maxage=config['max_snpdef_age']):
     # don't update if nothing changed
-    if not (config['drop_tables'] or get_SNPdefs_fromweb(dbo, maxage=maxage)):
+    if not config['drop_tables'] or get_SNPdefs_fromweb(dbo, maxage=maxage):
         return
     # update known snps for hg19 and hg38
     cachedir = os.path.join(config['REDUX_DATA'], 'cache')
