@@ -70,7 +70,8 @@ create table exclude_kits(
 /* this provides a way to ignore some variants */
 drop table if exists exclude_variants;
 create table exclude_variants(
-    vID INTEGER references variants(ID) -- variant to exclude from analysis
+    vID INTEGER references variants(ID), -- variant to exclude from analysis
+    unique(vID)
     );
 
 /* surname associated with person and/or kit */

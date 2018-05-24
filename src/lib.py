@@ -332,7 +332,8 @@ def populate_excludes(dbo):
             vid = get_variant_id(dbo, build, vname, insert_notfound=True)
             trace(1, 'ignoring variant {} (id={}) due to {}'.format(
                 vname, vid, fname))
-            dc.execute('insert into exclude_variants values(?)', (vid,))
+            dc.execute('insert or ignore into exclude_variants values(?)',
+                           (vid,))
 
     # FIXME - excluding a refpos needs to have the evil twin excluded too
     return
@@ -652,7 +653,7 @@ def updatesnps(db, snp_reference, buildname='hg38'):
 def get_SNPdefs_fromweb(db, maxage, url='http://ybrowse.org/gbrowse2/gff'):
     UpdatedFlag = False
     if maxage < 0:
-        return
+        return UpdatedFlag
     # convert to seconds
     maxage = 24*3600*maxage
     dc = db.cursor()
@@ -710,7 +711,7 @@ def get_FASTA_fromweb(url=None):
 #   refresh from web if we have is older than maxage (in days)
 def populate_SNPs(dbo, maxage=config['max_snpdef_age']):
     # don't update if nothing changed
-    if not config['drop_tables'] or get_SNPdefs_fromweb(dbo, maxage=maxage):
+    if not config['drop_tables'] or not get_SNPdefs_fromweb(dbo, maxage=maxage):
         return
     # update known snps for hg19 and hg38
     cachedir = os.path.join(config['REDUX_DATA'], 'cache')
